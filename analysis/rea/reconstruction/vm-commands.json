@@ -1,0 +1,5463 @@
+{
+ "dispatchers": {
+  "0x43340a": {
+   "cases": 99,
+   "named": 38,
+   "commands": [
+    {
+     "opcode": "0x32",
+     "int": 50,
+     "name": "GOTO",
+     "name_address": "0x4610d8",
+     "callees": [
+      "0x40a719"
+     ],
+     "statements": 5,
+     "fields": [
+      {
+       "offset": "0xa",
+       "width": "undefined2"
+      }
+     ]
+    },
+    {
+     "opcode": "0x33",
+     "int": 51,
+     "name": "REPLY",
+     "name_address": "0x4610e0",
+     "callees": [
+      "0x40a719"
+     ],
+     "statements": 5,
+     "fields": [
+      {
+       "offset": "0xa",
+       "width": "undefined2"
+      }
+     ]
+    },
+    {
+     "opcode": "0x34",
+     "int": 52,
+     "name": "HOOK",
+     "name_address": "0x4610e8",
+     "callees": [
+      "0x40a6e2",
+      "0x43669a",
+      "0x436721"
+     ],
+     "statements": 8,
+     "fields": [
+      {
+       "offset": "0xa",
+       "width": "ushort"
+      },
+      {
+       "offset": "0xe",
+       "width": "ushort"
+      }
+     ]
+    },
+    {
+     "opcode": "0x35",
+     "int": 53,
+     "name": "THOOK",
+     "name_address": "0x4610f0",
+     "callees": [
+      "0x40a6e2",
+      "0x43669a",
+      "0x436721"
+     ],
+     "statements": 8,
+     "fields": [
+      {
+       "offset": "0xa",
+       "width": "ushort"
+      },
+      {
+       "offset": "0xe",
+       "width": "ushort"
+      }
+     ]
+    },
+    {
+     "opcode": "0x36",
+     "int": 54,
+     "name": "ON",
+     "name_address": "0x4610f8",
+     "callees": [
+      "0x40a760",
+      "0x4365b5",
+      "0x4367eb"
+     ],
+     "statements": 5,
+     "fields": []
+    },
+    {
+     "opcode": "0x37",
+     "int": 55,
+     "name": "OFF",
+     "name_address": "0x4610fc",
+     "callees": [
+      "0x40a760",
+      "0x4365b5",
+      "0x4367eb"
+     ],
+     "statements": 5,
+     "fields": []
+    },
+    {
+     "opcode": "0x38",
+     "int": 56,
+     "name": "SET",
+     "name_address": "0x46110c",
+     "callees": [
+      "0x40a760",
+      "0x4367eb"
+     ],
+     "statements": 5,
+     "fields": [
+      {
+       "offset": "0xa",
+       "width": "ushort"
+      },
+      {
+       "offset": "0xc",
+       "width": "byte"
+      }
+     ]
+    },
+    {
+     "opcode": "0x39",
+     "int": 57,
+     "name": null,
+     "name_address": null,
+     "callees": [],
+     "statements": 2,
+     "fields": []
+    },
+    {
+     "opcode": "0x3b",
+     "int": 59,
+     "name": "RUDE",
+     "name_address": "0x461110",
+     "callees": [
+      "0x40a719"
+     ],
+     "statements": 3,
+     "fields": [
+      {
+       "offset": "0xa",
+       "width": "byte"
+      }
+     ]
+    },
+    {
+     "opcode": "0x3c",
+     "int": 60,
+     "name": "DONE",
+     "name_address": "0x461138",
+     "callees": [
+      "0x40a6e2"
+     ],
+     "statements": 3,
+     "fields": [
+      {
+       "offset": "0xa",
+       "width": "ushort"
+      },
+      {
+       "offset": "0xe",
+       "width": "byte"
+      }
+     ]
+    },
+    {
+     "opcode": "0x3d",
+     "int": 61,
+     "name": null,
+     "name_address": null,
+     "callees": [],
+     "statements": 3,
+     "fields": [
+      {
+       "offset": "0xa",
+       "width": "undefined2"
+      }
+     ]
+    },
+    {
+     "opcode": "0x3e",
+     "int": 62,
+     "name": "MOOD",
+     "name_address": "0x461120",
+     "callees": [
+      "0x40a7e5",
+      "0x436652"
+     ],
+     "statements": 3,
+     "fields": []
+    },
+    {
+     "opcode": "0x3f",
+     "int": 63,
+     "name": "UNSPEAK",
+     "name_address": "0x461128",
+     "callees": [
+      "0x40a760",
+      "0x4367eb"
+     ],
+     "statements": 4,
+     "fields": []
+    },
+    {
+     "opcode": "0x40",
+     "int": 64,
+     "name": "BACK",
+     "name_address": "0x461118",
+     "callees": [
+      "0x40a719"
+     ],
+     "statements": 3,
+     "fields": [
+      {
+       "offset": "0xa",
+       "width": "byte"
+      }
+     ]
+    },
+    {
+     "opcode": "0x41",
+     "int": 65,
+     "name": null,
+     "name_address": null,
+     "callees": [],
+     "statements": 3,
+     "fields": [
+      {
+       "offset": "0xa",
+       "width": "ushort"
+      },
+      {
+       "offset": "0xe",
+       "width": "byte"
+      },
+      {
+       "offset": "0x12",
+       "width": "short"
+      }
+     ]
+    },
+    {
+     "opcode": "0x42",
+     "int": 66,
+     "name": "IFON",
+     "name_address": "0x461158",
+     "callees": [
+      "0x40a615",
+      "0x4365b5",
+      "0x436652",
+      "0x4367eb"
+     ],
+     "statements": 8,
+     "fields": []
+    },
+    {
+     "opcode": "0x43",
+     "int": 67,
+     "name": "IFOFF",
+     "name_address": "0x461150",
+     "callees": [
+      "0x40a615",
+      "0x4365b5",
+      "0x436652",
+      "0x4367eb"
+     ],
+     "statements": 8,
+     "fields": []
+    },
+    {
+     "opcode": "0x44",
+     "int": 68,
+     "name": "IFSET",
+     "name_address": "0x461170",
+     "callees": [
+      "0x40a615",
+      "0x436652",
+      "0x4367eb"
+     ],
+     "statements": 8,
+     "fields": [
+      {
+       "offset": "0x12",
+       "width": "ushort"
+      },
+      {
+       "offset": "0x14",
+       "width": "byte"
+      }
+     ]
+    },
+    {
+     "opcode": "0x45",
+     "int": 69,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x4367eb",
+      "0x44c2f0"
+     ],
+     "statements": 6,
+     "fields": [
+      {
+       "offset": "0xa",
+       "width": "ushort"
+      },
+      {
+       "offset": "0xe",
+       "width": "byte"
+      }
+     ]
+    },
+    {
+     "opcode": "0x46",
+     "int": 70,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x4367eb",
+      "0x44c2f0"
+     ],
+     "statements": 11,
+     "fields": [
+      {
+       "offset": "0xa",
+       "width": "ushort"
+      },
+      {
+       "offset": "0xe",
+       "width": "byte"
+      },
+      {
+       "offset": "0x16",
+       "width": "short"
+      }
+     ]
+    },
+    {
+     "opcode": "0x47",
+     "int": 71,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x424780",
+      "0x436652"
+     ],
+     "statements": 6,
+     "fields": [
+      {
+       "offset": "0x1",
+       "width": "byte"
+      }
+     ]
+    },
+    {
+     "opcode": "0x48",
+     "int": 72,
+     "name": "IFREPLY",
+     "name_address": "0x461148",
+     "callees": [
+      "0x40a615",
+      "0x436652"
+     ],
+     "statements": 8,
+     "fields": [
+      {
+       "offset": "0x12",
+       "width": "undefined2"
+      }
+     ]
+    },
+    {
+     "opcode": "0x49",
+     "int": 73,
+     "name": "IFGOTO",
+     "name_address": "0x461140",
+     "callees": [
+      "0x40a615",
+      "0x436652"
+     ],
+     "statements": 8,
+     "fields": [
+      {
+       "offset": "0x12",
+       "width": "undefined2"
+      }
+     ]
+    },
+    {
+     "opcode": "0x4a",
+     "int": 74,
+     "name": "TOFF",
+     "name_address": "0x461104",
+     "callees": [
+      "0x40a760",
+      "0x4364ef",
+      "0x4367eb"
+     ],
+     "statements": 5,
+     "fields": [
+      {
+       "offset": "0xa",
+       "width": "undefined2"
+      },
+      {
+       "offset": "0xc",
+       "width": "undefined2"
+      }
+     ]
+    },
+    {
+     "opcode": "0x4b",
+     "int": 75,
+     "name": "TON",
+     "name_address": "0x461100",
+     "callees": [
+      "0x40a760",
+      "0x4364ef",
+      "0x4367eb"
+     ],
+     "statements": 5,
+     "fields": [
+      {
+       "offset": "0xa",
+       "width": "undefined2"
+      },
+      {
+       "offset": "0xc",
+       "width": "undefined2"
+      }
+     ]
+    },
+    {
+     "opcode": "0x4c",
+     "int": 76,
+     "name": "IFTOFF",
+     "name_address": "0x461160",
+     "callees": [
+      "0x40a615",
+      "0x4364ef",
+      "0x436652",
+      "0x4367eb"
+     ],
+     "statements": 8,
+     "fields": [
+      {
+       "offset": "0x12",
+       "width": "undefined2"
+      },
+      {
+       "offset": "0x14",
+       "width": "undefined2"
+      }
+     ]
+    },
+    {
+     "opcode": "0x4d",
+     "int": 77,
+     "name": "IFTON",
+     "name_address": "0x461168",
+     "callees": [
+      "0x40a615",
+      "0x4364ef",
+      "0x436652",
+      "0x4367eb"
+     ],
+     "statements": 8,
+     "fields": [
+      {
+       "offset": "0x12",
+       "width": "undefined2"
+      },
+      {
+       "offset": "0x14",
+       "width": "undefined2"
+      }
+     ]
+    },
+    {
+     "opcode": "0x4e",
+     "int": 78,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x436652"
+     ],
+     "statements": 15,
+     "fields": [
+      {
+       "offset": "0xa",
+       "width": "ushort"
+      }
+     ]
+    },
+    {
+     "opcode": "0x4f",
+     "int": 79,
+     "name": "SPEAK",
+     "name_address": "0x461130",
+     "callees": [
+      "0x40a760",
+      "0x4367eb"
+     ],
+     "statements": 4,
+     "fields": []
+    },
+    {
+     "opcode": "0x52",
+     "int": 82,
+     "name": "INVGOTO",
+     "name_address": "0x461178",
+     "callees": [
+      "0x40a719",
+      "0x433309"
+     ],
+     "statements": 6,
+     "fields": [
+      {
+       "offset": "0x12",
+       "width": "undefined2"
+      }
+     ]
+    },
+    {
+     "opcode": "0x53",
+     "int": 83,
+     "name": "INVREPLY",
+     "name_address": "0x461180",
+     "callees": [
+      "0x40a719",
+      "0x433309"
+     ],
+     "statements": 6,
+     "fields": [
+      {
+       "offset": "0x12",
+       "width": "undefined2"
+      }
+     ]
+    },
+    {
+     "opcode": "0x54",
+     "int": 84,
+     "name": "INVSET",
+     "name_address": "0x46118c",
+     "callees": [
+      "0x40a760",
+      "0x433309",
+      "0x4367eb"
+     ],
+     "statements": 6,
+     "fields": [
+      {
+       "offset": "0x12",
+       "width": "ushort"
+      },
+      {
+       "offset": "0x14",
+       "width": "byte"
+      }
+     ]
+    },
+    {
+     "opcode": "0x55",
+     "int": 85,
+     "name": "INVOFF",
+     "name_address": "0x461194",
+     "callees": [
+      "0x40a760",
+      "0x433309",
+      "0x4365b5",
+      "0x4367eb"
+     ],
+     "statements": 6,
+     "fields": []
+    },
+    {
+     "opcode": "0x56",
+     "int": 86,
+     "name": "INVON",
+     "name_address": "0x46119c",
+     "callees": [
+      "0x40a760",
+      "0x433309",
+      "0x4365b5",
+      "0x4367eb"
+     ],
+     "statements": 6,
+     "fields": []
+    },
+    {
+     "opcode": "0x57",
+     "int": 87,
+     "name": "INVTOFF",
+     "name_address": "0x4611a4",
+     "callees": [
+      "0x40a760",
+      "0x433309",
+      "0x4364ef",
+      "0x4367eb"
+     ],
+     "statements": 6,
+     "fields": [
+      {
+       "offset": "0x12",
+       "width": "undefined2"
+      },
+      {
+       "offset": "0x14",
+       "width": "undefined2"
+      }
+     ]
+    },
+    {
+     "opcode": "0x58",
+     "int": 88,
+     "name": "INVTON",
+     "name_address": "0x4611ac",
+     "callees": [
+      "0x40a760",
+      "0x433309",
+      "0x4364ef",
+      "0x4367eb"
+     ],
+     "statements": 6,
+     "fields": [
+      {
+       "offset": "0x12",
+       "width": "undefined2"
+      },
+      {
+       "offset": "0x14",
+       "width": "undefined2"
+      }
+     ]
+    },
+    {
+     "opcode": "0x59",
+     "int": 89,
+     "name": "CURSGOTO",
+     "name_address": "0x4611b4",
+     "callees": [
+      "0x40a719",
+      "0x433384"
+     ],
+     "statements": 6,
+     "fields": [
+      {
+       "offset": "0xe",
+       "width": "undefined2"
+      }
+     ]
+    },
+    {
+     "opcode": "0x5a",
+     "int": 90,
+     "name": "CURSREPL",
+     "name_address": "0x4611c0",
+     "callees": [
+      "0x40a719",
+      "0x433384"
+     ],
+     "statements": 6,
+     "fields": [
+      {
+       "offset": "0xe",
+       "width": "undefined2"
+      }
+     ]
+    },
+    {
+     "opcode": "0x5b",
+     "int": 91,
+     "name": "CURSSET",
+     "name_address": "0x4611cc",
+     "callees": [
+      "0x40a760",
+      "0x433384",
+      "0x4367eb"
+     ],
+     "statements": 6,
+     "fields": [
+      {
+       "offset": "0xe",
+       "width": "ushort"
+      },
+      {
+       "offset": "0x10",
+       "width": "byte"
+      }
+     ]
+    },
+    {
+     "opcode": "0x5c",
+     "int": 92,
+     "name": "CURSOFF",
+     "name_address": "0x4611d4",
+     "callees": [
+      "0x40a760",
+      "0x433384",
+      "0x4365b5",
+      "0x4367eb"
+     ],
+     "statements": 6,
+     "fields": []
+    },
+    {
+     "opcode": "0x5d",
+     "int": 93,
+     "name": "CURSON",
+     "name_address": "0x4611dc",
+     "callees": [
+      "0x40a760",
+      "0x433384",
+      "0x4365b5",
+      "0x4367eb"
+     ],
+     "statements": 6,
+     "fields": []
+    },
+    {
+     "opcode": "0x5e",
+     "int": 94,
+     "name": "CURSTOFF",
+     "name_address": "0x4611e4",
+     "callees": [
+      "0x40a760",
+      "0x433384",
+      "0x4364ef",
+      "0x4367eb"
+     ],
+     "statements": 6,
+     "fields": [
+      {
+       "offset": "0xe",
+       "width": "undefined2"
+      },
+      {
+       "offset": "0x10",
+       "width": "undefined2"
+      }
+     ]
+    },
+    {
+     "opcode": "0x5f",
+     "int": 95,
+     "name": "CURSTON",
+     "name_address": "0x4611f0",
+     "callees": [
+      "0x40a760",
+      "0x433384",
+      "0x4364ef",
+      "0x4367eb"
+     ],
+     "statements": 6,
+     "fields": [
+      {
+       "offset": "0xe",
+       "width": "undefined2"
+      },
+      {
+       "offset": "0x10",
+       "width": "undefined2"
+      }
+     ]
+    },
+    {
+     "opcode": "0x64",
+     "int": 100,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x431b0f",
+      "0x4324b0",
+      "0x436652"
+     ],
+     "statements": 5,
+     "fields": []
+    },
+    {
+     "opcode": "0x65",
+     "int": 101,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x41d440",
+      "0x4319b3",
+      "0x436652",
+      "0x44c2f0"
+     ],
+     "statements": 28,
+     "fields": [
+      {
+       "offset": "0x7",
+       "width": "byte"
+      },
+      {
+       "offset": "0x22",
+       "width": "ushort"
+      }
+     ]
+    },
+    {
+     "opcode": "0x66",
+     "int": 102,
+     "name": null,
+     "name_address": null,
+     "callees": [],
+     "statements": 1,
+     "fields": []
+    },
+    {
+     "opcode": "0x67",
+     "int": 103,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x409901",
+      "0x436652"
+     ],
+     "statements": 8,
+     "fields": [
+      {
+       "offset": "0x1",
+       "width": "byte"
+      }
+     ]
+    },
+    {
+     "opcode": "0x69",
+     "int": 105,
+     "name": "BACKGRND",
+     "name_address": "0x4611f8",
+     "callees": [
+      "0x40a2c3",
+      "0x40d862",
+      "0x4177c7",
+      "0x41dcc9",
+      "0x431ec2",
+      "0x432133",
+      "0x436652"
+     ],
+     "statements": 18,
+     "fields": [
+      {
+       "offset": "0x2",
+       "width": "byte"
+      }
+     ]
+    },
+    {
+     "opcode": "0x6b",
+     "int": 107,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x40abb4",
+      "0x436652"
+     ],
+     "statements": 7,
+     "fields": []
+    },
+    {
+     "opcode": "0x6c",
+     "int": 108,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x40abb4",
+      "0x436652"
+     ],
+     "statements": 6,
+     "fields": []
+    },
+    {
+     "opcode": "0x6d",
+     "int": 109,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x40ac38",
+      "0x40ac43",
+      "0x416295",
+      "0x436652",
+      "0x438cd0"
+     ],
+     "statements": 10,
+     "fields": []
+    },
+    {
+     "opcode": "0x6e",
+     "int": 110,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x40ac38",
+      "0x40ac43",
+      "0x416295",
+      "0x436652",
+      "0x438cd0"
+     ],
+     "statements": 10,
+     "fields": []
+    },
+    {
+     "opcode": "0x74",
+     "int": 116,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x409a12",
+      "0x436652"
+     ],
+     "statements": 8,
+     "fields": [
+      {
+       "offset": "0x1",
+       "width": "byte"
+      }
+     ]
+    },
+    {
+     "opcode": "0x75",
+     "int": 117,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x409ab8",
+      "0x40ac38",
+      "0x40ac43",
+      "0x436652"
+     ],
+     "statements": 11,
+     "fields": [
+      {
+       "offset": "0x1",
+       "width": "byte"
+      }
+     ]
+    },
+    {
+     "opcode": "0x7c",
+     "int": 124,
+     "name": null,
+     "name_address": null,
+     "callees": [],
+     "statements": 0,
+     "fields": []
+    },
+    {
+     "opcode": "0x92",
+     "int": 146,
+     "name": null,
+     "name_address": null,
+     "callees": [],
+     "statements": 0,
+     "fields": []
+    },
+    {
+     "opcode": "0x93",
+     "int": 147,
+     "name": null,
+     "name_address": null,
+     "callees": [],
+     "statements": 0,
+     "fields": []
+    },
+    {
+     "opcode": "0x94",
+     "int": 148,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x4096f9"
+     ],
+     "statements": 4,
+     "fields": []
+    },
+    {
+     "opcode": "0x7d",
+     "int": 125,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x409981",
+      "0x431e89",
+      "0x436652"
+     ],
+     "statements": 10,
+     "fields": [
+      {
+       "offset": "0x2",
+       "width": "byte"
+      }
+     ]
+    },
+    {
+     "opcode": "0x7e",
+     "int": 126,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x40abb4",
+      "0x436652"
+     ],
+     "statements": 12,
+     "fields": [
+      {
+       "offset": "0x2",
+       "width": "byte"
+      }
+     ]
+    },
+    {
+     "opcode": "0x7f",
+     "int": 127,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x40abb4",
+      "0x436652"
+     ],
+     "statements": 7,
+     "fields": []
+    },
+    {
+     "opcode": "0x82",
+     "int": 130,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x40abb4",
+      "0x436652"
+     ],
+     "statements": 7,
+     "fields": []
+    },
+    {
+     "opcode": "0x84",
+     "int": 132,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x431b0f",
+      "0x4326eb",
+      "0x436652"
+     ],
+     "statements": 5,
+     "fields": []
+    },
+    {
+     "opcode": "0x85",
+     "int": 133,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x431b0f",
+      "0x432904",
+      "0x436652"
+     ],
+     "statements": 5,
+     "fields": []
+    },
+    {
+     "opcode": "0x86",
+     "int": 134,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x431b0f",
+      "0x43299d",
+      "0x436652"
+     ],
+     "statements": 5,
+     "fields": []
+    },
+    {
+     "opcode": "0x87",
+     "int": 135,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x431b0f",
+      "0x4329e4",
+      "0x436652"
+     ],
+     "statements": 5,
+     "fields": []
+    },
+    {
+     "opcode": "0x88",
+     "int": 136,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x431b0f",
+      "0x432a63",
+      "0x436652"
+     ],
+     "statements": 5,
+     "fields": []
+    },
+    {
+     "opcode": "0x8c",
+     "int": 140,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x431b0f",
+      "0x432c9c",
+      "0x436652"
+     ],
+     "statements": 5,
+     "fields": []
+    },
+    {
+     "opcode": "0x8d",
+     "int": 141,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x431a69"
+     ],
+     "statements": 2,
+     "fields": []
+    },
+    {
+     "opcode": "0x8e",
+     "int": 142,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x431b0f",
+      "0x432d14",
+      "0x436652"
+     ],
+     "statements": 5,
+     "fields": []
+    },
+    {
+     "opcode": "0x90",
+     "int": 144,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x432303",
+      "0x432401",
+      "0x436652"
+     ],
+     "statements": 6,
+     "fields": []
+    },
+    {
+     "opcode": "0x91",
+     "int": 145,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x431b0f",
+      "0x4325d3",
+      "0x436652"
+     ],
+     "statements": 9,
+     "fields": [
+      {
+       "offset": "0x2",
+       "width": "byte"
+      }
+     ]
+    },
+    {
+     "opcode": "0x95",
+     "int": 149,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x431b0f",
+      "0x436652"
+     ],
+     "statements": 9,
+     "fields": [
+      {
+       "offset": "0x2",
+       "width": "byte"
+      }
+     ]
+    },
+    {
+     "opcode": "0x9c",
+     "int": 156,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x4102f7",
+      "0x436652"
+     ],
+     "statements": 6,
+     "fields": []
+    },
+    {
+     "opcode": "0xa3",
+     "int": 163,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x409b5e",
+      "0x40ac38",
+      "0x40ac43",
+      "0x4319b3",
+      "0x436652"
+     ],
+     "statements": 9,
+     "fields": []
+    },
+    {
+     "opcode": "0xa4",
+     "int": 164,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x409bde",
+      "0x40ac38",
+      "0x40ac43",
+      "0x4319b3",
+      "0x436652"
+     ],
+     "statements": 8,
+     "fields": []
+    },
+    {
+     "opcode": "0xa5",
+     "int": 165,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x4319b3"
+     ],
+     "statements": 3,
+     "fields": []
+    },
+    {
+     "opcode": "0xa6",
+     "int": 166,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x4319b3"
+     ],
+     "statements": 3,
+     "fields": []
+    },
+    {
+     "opcode": "0xa7",
+     "int": 167,
+     "name": null,
+     "name_address": null,
+     "callees": [],
+     "statements": 2,
+     "fields": []
+    },
+    {
+     "opcode": "0xa8",
+     "int": 168,
+     "name": null,
+     "name_address": null,
+     "callees": [],
+     "statements": 2,
+     "fields": []
+    },
+    {
+     "opcode": "0xa9",
+     "int": 169,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x431b0f",
+      "0x432d3b",
+      "0x436652"
+     ],
+     "statements": 5,
+     "fields": []
+    },
+    {
+     "opcode": "0xaa",
+     "int": 170,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x431b0f",
+      "0x432d46",
+      "0x436652"
+     ],
+     "statements": 5,
+     "fields": []
+    },
+    {
+     "opcode": "0xab",
+     "int": 171,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x4077b2",
+      "0x407933",
+      "0x408bb2",
+      "0x408c81",
+      "0x436652"
+     ],
+     "statements": 13,
+     "fields": []
+    },
+    {
+     "opcode": "0xb4",
+     "int": 180,
+     "name": null,
+     "name_address": null,
+     "callees": [],
+     "statements": 2,
+     "fields": []
+    },
+    {
+     "opcode": "0xb5",
+     "int": 181,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x407420"
+     ],
+     "statements": 3,
+     "fields": []
+    },
+    {
+     "opcode": "0xb9",
+     "int": 185,
+     "name": "NODE",
+     "name_address": "0x461204",
+     "callees": [
+      "0x40a2c3",
+      "0x40d862",
+      "0x4177c7",
+      "0x41dcc9",
+      "0x4319b3",
+      "0x432133",
+      "0x432295",
+      "0x436652"
+     ],
+     "statements": 26,
+     "fields": [
+      {
+       "offset": "0x4",
+       "width": "byte"
+      }
+     ]
+    },
+    {
+     "opcode": "0xba",
+     "int": 186,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x401c21",
+      "0x436652"
+     ],
+     "statements": 3,
+     "fields": []
+    },
+    {
+     "opcode": "0xbb",
+     "int": 187,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x407420",
+      "0x408c81",
+      "0x436652"
+     ],
+     "statements": 4,
+     "fields": []
+    },
+    {
+     "opcode": "0xbc",
+     "int": 188,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x4277ed",
+      "0x4281b1"
+     ],
+     "statements": 8,
+     "fields": []
+    },
+    {
+     "opcode": "0xbd",
+     "int": 189,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x40d031",
+      "0x436652"
+     ],
+     "statements": 13,
+     "fields": [
+      {
+       "offset": "0x3",
+       "width": "byte"
+      },
+      {
+       "offset": "0x4",
+       "width": "byte"
+      }
+     ]
+    },
+    {
+     "opcode": "0xbf",
+     "int": 191,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x4319b3",
+      "0x436652"
+     ],
+     "statements": 9,
+     "fields": [
+      {
+       "offset": "0x4",
+       "width": "byte"
+      }
+     ]
+    },
+    {
+     "opcode": "0xc0",
+     "int": 192,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x427d1a",
+      "0x4319b3",
+      "0x436652"
+     ],
+     "statements": 10,
+     "fields": [
+      {
+       "offset": "0x3",
+       "width": "byte"
+      },
+      {
+       "offset": "0x4",
+       "width": "byte"
+      }
+     ]
+    },
+    {
+     "opcode": "0xc1",
+     "int": 193,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x4319b3",
+      "0x436652"
+     ],
+     "statements": 6,
+     "fields": []
+    },
+    {
+     "opcode": "0xc2",
+     "int": 194,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x427d1a",
+      "0x4319b3",
+      "0x436652"
+     ],
+     "statements": 10,
+     "fields": [
+      {
+       "offset": "0x4",
+       "width": "byte"
+      }
+     ]
+    },
+    {
+     "opcode": "0xc4",
+     "int": 196,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x427de1"
+     ],
+     "statements": 6,
+     "fields": []
+    },
+    {
+     "opcode": "0xc5",
+     "int": 197,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x427d1a",
+      "0x4319b3",
+      "0x436652"
+     ],
+     "statements": 6,
+     "fields": []
+    },
+    {
+     "opcode": "0xce",
+     "int": 206,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x427d49",
+      "0x4319b3",
+      "0x436652"
+     ],
+     "statements": 9,
+     "fields": []
+    },
+    {
+     "opcode": "0xcf",
+     "int": 207,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x427a01"
+     ],
+     "statements": 5,
+     "fields": []
+    },
+    {
+     "opcode": "0xd0",
+     "int": 208,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x4278ab"
+     ],
+     "statements": 1,
+     "fields": []
+    }
+   ]
+  },
+  "0x42db22": {
+   "cases": 108,
+   "named": 3,
+   "commands": [
+    {
+     "opcode": "0x64",
+     "int": 100,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x409c5e",
+      "0x431b0f",
+      "0x4324b0",
+      "0x436652"
+     ],
+     "statements": 6,
+     "fields": []
+    },
+    {
+     "opcode": "0x65",
+     "int": 101,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x41d440",
+      "0x4319b3",
+      "0x436652",
+      "0x44c2f0"
+     ],
+     "statements": 29,
+     "fields": []
+    },
+    {
+     "opcode": "0x66",
+     "int": 102,
+     "name": null,
+     "name_address": null,
+     "callees": [],
+     "statements": 1,
+     "fields": []
+    },
+    {
+     "opcode": "0x67",
+     "int": 103,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x409901",
+      "0x4319b3",
+      "0x436652"
+     ],
+     "statements": 7,
+     "fields": []
+    },
+    {
+     "opcode": "0x68",
+     "int": 104,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x4278ab",
+      "0x42dad9",
+      "0x432464",
+      "0x436652",
+      "0x439349"
+     ],
+     "statements": 9,
+     "fields": []
+    },
+    {
+     "opcode": "0x69",
+     "int": 105,
+     "name": "BACKGRND",
+     "name_address": "0x460cbc",
+     "callees": [
+      "0x40a2c3",
+      "0x40d862",
+      "0x4177c7",
+      "0x417a17",
+      "0x41dcc9",
+      "0x431ec2",
+      "0x432133",
+      "0x436652"
+     ],
+     "statements": 19,
+     "fields": []
+    },
+    {
+     "opcode": "0x6a",
+     "int": 106,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x4319b3",
+      "0x436652",
+      "0x44c2f0"
+     ],
+     "statements": 16,
+     "fields": []
+    },
+    {
+     "opcode": "0x6b",
+     "int": 107,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x40abb4",
+      "0x436652"
+     ],
+     "statements": 7,
+     "fields": []
+    },
+    {
+     "opcode": "0x6c",
+     "int": 108,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x40abb4",
+      "0x436652"
+     ],
+     "statements": 5,
+     "fields": []
+    },
+    {
+     "opcode": "0x6d",
+     "int": 109,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x40ac38",
+      "0x40ac43",
+      "0x436652",
+      "0x438cd0"
+     ],
+     "statements": 9,
+     "fields": []
+    },
+    {
+     "opcode": "0x6e",
+     "int": 110,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x40ac38",
+      "0x40ac43",
+      "0x436652",
+      "0x438cd0"
+     ],
+     "statements": 9,
+     "fields": []
+    },
+    {
+     "opcode": "0x6f",
+     "int": 111,
+     "name": null,
+     "name_address": null,
+     "callees": [],
+     "statements": 1,
+     "fields": []
+    },
+    {
+     "opcode": "0x70",
+     "int": 112,
+     "name": "CONVERSE",
+     "name_address": "0x460cd0",
+     "callees": [
+      "0x409457",
+      "0x4094f2",
+      "0x410f09",
+      "0x432d6e",
+      "0x437bcc",
+      "0x437c72",
+      "0x438cd0",
+      "0x4599c0"
+     ],
+     "statements": 20,
+     "fields": []
+    },
+    {
+     "opcode": "0x71",
+     "int": 113,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x431a36",
+      "0x436652"
+     ],
+     "statements": 4,
+     "fields": []
+    },
+    {
+     "opcode": "0x72",
+     "int": 114,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x408bb2",
+      "0x40abb4",
+      "0x436652",
+      "0x44c2f0"
+     ],
+     "statements": 27,
+     "fields": []
+    },
+    {
+     "opcode": "0x73",
+     "int": 115,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x436652"
+     ],
+     "statements": 6,
+     "fields": []
+    },
+    {
+     "opcode": "0x74",
+     "int": 116,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x409a12",
+      "0x4319b3",
+      "0x436652"
+     ],
+     "statements": 6,
+     "fields": []
+    },
+    {
+     "opcode": "0x75",
+     "int": 117,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x409ab8",
+      "0x40ac38",
+      "0x40ac43",
+      "0x4319b3",
+      "0x436652"
+     ],
+     "statements": 9,
+     "fields": []
+    },
+    {
+     "opcode": "0x76",
+     "int": 118,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x436652"
+     ],
+     "statements": 4,
+     "fields": []
+    },
+    {
+     "opcode": "0x77",
+     "int": 119,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x431a36",
+      "0x436652"
+     ],
+     "statements": 4,
+     "fields": []
+    },
+    {
+     "opcode": "0x78",
+     "int": 120,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x436652"
+     ],
+     "statements": 7,
+     "fields": []
+    },
+    {
+     "opcode": "0x79",
+     "int": 121,
+     "name": null,
+     "name_address": null,
+     "callees": [],
+     "statements": 2,
+     "fields": []
+    },
+    {
+     "opcode": "0x7a",
+     "int": 122,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x436652"
+     ],
+     "statements": 3,
+     "fields": []
+    },
+    {
+     "opcode": "0x7b",
+     "int": 123,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x409881",
+      "0x4319b3"
+     ],
+     "statements": 4,
+     "fields": []
+    },
+    {
+     "opcode": "0x7d",
+     "int": 125,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x409981",
+      "0x431e89",
+      "0x436652"
+     ],
+     "statements": 10,
+     "fields": []
+    },
+    {
+     "opcode": "0x7e",
+     "int": 126,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x40abb4",
+      "0x4319b3",
+      "0x436652"
+     ],
+     "statements": 10,
+     "fields": []
+    },
+    {
+     "opcode": "0x7f",
+     "int": 127,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x40abb4",
+      "0x436652"
+     ],
+     "statements": 7,
+     "fields": []
+    },
+    {
+     "opcode": "0x80",
+     "int": 128,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x40abb4",
+      "0x436652"
+     ],
+     "statements": 6,
+     "fields": []
+    },
+    {
+     "opcode": "0x81",
+     "int": 129,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x40abb4",
+      "0x436652"
+     ],
+     "statements": 5,
+     "fields": []
+    },
+    {
+     "opcode": "0x82",
+     "int": 130,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x40abb4",
+      "0x436652"
+     ],
+     "statements": 7,
+     "fields": []
+    },
+    {
+     "opcode": "0x83",
+     "int": 131,
+     "name": null,
+     "name_address": null,
+     "callees": [],
+     "statements": 1,
+     "fields": []
+    },
+    {
+     "opcode": "0x84",
+     "int": 132,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x409d09",
+      "0x431b0f",
+      "0x4326eb",
+      "0x436652"
+     ],
+     "statements": 6,
+     "fields": []
+    },
+    {
+     "opcode": "0x85",
+     "int": 133,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x409db9",
+      "0x431b0f",
+      "0x432904",
+      "0x436652"
+     ],
+     "statements": 6,
+     "fields": []
+    },
+    {
+     "opcode": "0x86",
+     "int": 134,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x409efc",
+      "0x431b0f",
+      "0x43299d",
+      "0x436652"
+     ],
+     "statements": 6,
+     "fields": []
+    },
+    {
+     "opcode": "0x87",
+     "int": 135,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x409f8d",
+      "0x431b0f",
+      "0x4329e4",
+      "0x436652"
+     ],
+     "statements": 6,
+     "fields": []
+    },
+    {
+     "opcode": "0x88",
+     "int": 136,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x40a00a",
+      "0x431b0f",
+      "0x432a63",
+      "0x436652"
+     ],
+     "statements": 6,
+     "fields": []
+    },
+    {
+     "opcode": "0x89",
+     "int": 137,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x40a087",
+      "0x431b0f",
+      "0x432ad2",
+      "0x436652"
+     ],
+     "statements": 6,
+     "fields": []
+    },
+    {
+     "opcode": "0x8a",
+     "int": 138,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x40a0c0",
+      "0x431b0f",
+      "0x432b09",
+      "0x436652"
+     ],
+     "statements": 6,
+     "fields": []
+    },
+    {
+     "opcode": "0x8b",
+     "int": 139,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x40a109",
+      "0x431b0f",
+      "0x432c65",
+      "0x436652"
+     ],
+     "statements": 6,
+     "fields": []
+    },
+    {
+     "opcode": "0x8c",
+     "int": 140,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x40a142",
+      "0x431b0f",
+      "0x432c9c",
+      "0x436652"
+     ],
+     "statements": 6,
+     "fields": []
+    },
+    {
+     "opcode": "0x8d",
+     "int": 141,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x409513",
+      "0x4319b3",
+      "0x431a69"
+     ],
+     "statements": 6,
+     "fields": []
+    },
+    {
+     "opcode": "0x8e",
+     "int": 142,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x40a16b",
+      "0x431b0f",
+      "0x432d14",
+      "0x436652"
+     ],
+     "statements": 6,
+     "fields": []
+    },
+    {
+     "opcode": "0x8f",
+     "int": 143,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x40ac38",
+      "0x40ac43",
+      "0x436652",
+      "0x438cd0"
+     ],
+     "statements": 12,
+     "fields": []
+    },
+    {
+     "opcode": "0x90",
+     "int": 144,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x432303",
+      "0x432401",
+      "0x436652"
+     ],
+     "statements": 6,
+     "fields": []
+    },
+    {
+     "opcode": "0x91",
+     "int": 145,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x409e3a",
+      "0x4319b3",
+      "0x431b0f",
+      "0x4325d3",
+      "0x436652"
+     ],
+     "statements": 8,
+     "fields": []
+    },
+    {
+     "opcode": "0x95",
+     "int": 149,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x409e9b",
+      "0x4319b3",
+      "0x431b0f",
+      "0x436652"
+     ],
+     "statements": 11,
+     "fields": []
+    },
+    {
+     "opcode": "0x96",
+     "int": 150,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x431a36",
+      "0x436652"
+     ],
+     "statements": 4,
+     "fields": []
+    },
+    {
+     "opcode": "0x97",
+     "int": 151,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x431a36",
+      "0x436652"
+     ],
+     "statements": 4,
+     "fields": []
+    },
+    {
+     "opcode": "0x98",
+     "int": 152,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x431a36",
+      "0x436652"
+     ],
+     "statements": 4,
+     "fields": []
+    },
+    {
+     "opcode": "0x99",
+     "int": 153,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x431a36",
+      "0x436652"
+     ],
+     "statements": 4,
+     "fields": []
+    },
+    {
+     "opcode": "0x9a",
+     "int": 154,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x436652"
+     ],
+     "statements": 3,
+     "fields": []
+    },
+    {
+     "opcode": "0x9b",
+     "int": 155,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x43194f",
+      "0x436652"
+     ],
+     "statements": 5,
+     "fields": []
+    },
+    {
+     "opcode": "0x9c",
+     "int": 156,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x4102f7",
+      "0x436652"
+     ],
+     "statements": 6,
+     "fields": []
+    },
+    {
+     "opcode": "0x9d",
+     "int": 157,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x43194f",
+      "0x431a36",
+      "0x436652"
+     ],
+     "statements": 5,
+     "fields": []
+    },
+    {
+     "opcode": "0x9e",
+     "int": 158,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x43194f",
+      "0x431a36",
+      "0x436652"
+     ],
+     "statements": 5,
+     "fields": []
+    },
+    {
+     "opcode": "0x9f",
+     "int": 159,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x43194f",
+      "0x431a36",
+      "0x436652"
+     ],
+     "statements": 5,
+     "fields": []
+    },
+    {
+     "opcode": "0xa0",
+     "int": 160,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x43194f",
+      "0x431a36",
+      "0x436652"
+     ],
+     "statements": 5,
+     "fields": []
+    },
+    {
+     "opcode": "0xa1",
+     "int": 161,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x43194f",
+      "0x431a36",
+      "0x436652"
+     ],
+     "statements": 5,
+     "fields": []
+    },
+    {
+     "opcode": "0xa2",
+     "int": 162,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x43194f",
+      "0x431a36",
+      "0x436652"
+     ],
+     "statements": 5,
+     "fields": []
+    },
+    {
+     "opcode": "0xa3",
+     "int": 163,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x409b5e",
+      "0x40ac38",
+      "0x40ac43",
+      "0x4319b3",
+      "0x436652"
+     ],
+     "statements": 9,
+     "fields": []
+    },
+    {
+     "opcode": "0xa4",
+     "int": 164,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x409bde",
+      "0x40ac38",
+      "0x40ac43",
+      "0x4319b3",
+      "0x436652"
+     ],
+     "statements": 8,
+     "fields": []
+    },
+    {
+     "opcode": "0xa5",
+     "int": 165,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x4319b3"
+     ],
+     "statements": 3,
+     "fields": []
+    },
+    {
+     "opcode": "0xa6",
+     "int": 166,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x4319b3"
+     ],
+     "statements": 3,
+     "fields": []
+    },
+    {
+     "opcode": "0xa7",
+     "int": 167,
+     "name": null,
+     "name_address": null,
+     "callees": [],
+     "statements": 2,
+     "fields": []
+    },
+    {
+     "opcode": "0xa8",
+     "int": 168,
+     "name": null,
+     "name_address": null,
+     "callees": [],
+     "statements": 2,
+     "fields": []
+    },
+    {
+     "opcode": "0xa9",
+     "int": 169,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x40a194",
+      "0x431b0f",
+      "0x432d3b",
+      "0x436652"
+     ],
+     "statements": 6,
+     "fields": []
+    },
+    {
+     "opcode": "0xaa",
+     "int": 170,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x40a194",
+      "0x431b0f",
+      "0x432d46",
+      "0x436652"
+     ],
+     "statements": 6,
+     "fields": []
+    },
+    {
+     "opcode": "0xab",
+     "int": 171,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x4077b2",
+      "0x407933",
+      "0x408bb2",
+      "0x408c81",
+      "0x436652"
+     ],
+     "statements": 13,
+     "fields": []
+    },
+    {
+     "opcode": "0xac",
+     "int": 172,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x408bb2",
+      "0x436652"
+     ],
+     "statements": 8,
+     "fields": []
+    },
+    {
+     "opcode": "0xad",
+     "int": 173,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x408bb2",
+      "0x436652"
+     ],
+     "statements": 8,
+     "fields": []
+    },
+    {
+     "opcode": "0xae",
+     "int": 174,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x408bb2",
+      "0x43194f",
+      "0x436652"
+     ],
+     "statements": 9,
+     "fields": []
+    },
+    {
+     "opcode": "0xaf",
+     "int": 175,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x408bb2",
+      "0x43194f",
+      "0x436652"
+     ],
+     "statements": 9,
+     "fields": []
+    },
+    {
+     "opcode": "0xb0",
+     "int": 176,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x408bb2",
+      "0x436652"
+     ],
+     "statements": 10,
+     "fields": []
+    },
+    {
+     "opcode": "0xb1",
+     "int": 177,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x408bb2",
+      "0x436652"
+     ],
+     "statements": 10,
+     "fields": []
+    },
+    {
+     "opcode": "0xb2",
+     "int": 178,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x408bb2",
+      "0x43194f",
+      "0x436652"
+     ],
+     "statements": 11,
+     "fields": []
+    },
+    {
+     "opcode": "0xb3",
+     "int": 179,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x408bb2",
+      "0x43194f",
+      "0x436652"
+     ],
+     "statements": 11,
+     "fields": []
+    },
+    {
+     "opcode": "0xb4",
+     "int": 180,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x4075a1"
+     ],
+     "statements": 3,
+     "fields": []
+    },
+    {
+     "opcode": "0xb5",
+     "int": 181,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x407420"
+     ],
+     "statements": 3,
+     "fields": []
+    },
+    {
+     "opcode": "0xb6",
+     "int": 182,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x4077b2",
+      "0x407ad5",
+      "0x408bb2",
+      "0x408c81",
+      "0x436652"
+     ],
+     "statements": 10,
+     "fields": []
+    },
+    {
+     "opcode": "0xb7",
+     "int": 183,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x438d78"
+     ],
+     "statements": 2,
+     "fields": []
+    },
+    {
+     "opcode": "0xb8",
+     "int": 184,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x438cf9"
+     ],
+     "statements": 2,
+     "fields": []
+    },
+    {
+     "opcode": "0xb9",
+     "int": 185,
+     "name": "NODE",
+     "name_address": "0x460cc8",
+     "callees": [
+      "0x40a2c3",
+      "0x40d862",
+      "0x4177c7",
+      "0x41dcc9",
+      "0x4319b3",
+      "0x432133",
+      "0x432295",
+      "0x436652"
+     ],
+     "statements": 26,
+     "fields": []
+    },
+    {
+     "opcode": "0xba",
+     "int": 186,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x401c21",
+      "0x436652"
+     ],
+     "statements": 3,
+     "fields": []
+    },
+    {
+     "opcode": "0xbb",
+     "int": 187,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x4073f0",
+      "0x436652"
+     ],
+     "statements": 3,
+     "fields": []
+    },
+    {
+     "opcode": "0xbc",
+     "int": 188,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x4277ed",
+      "0x4281b1"
+     ],
+     "statements": 8,
+     "fields": []
+    },
+    {
+     "opcode": "0xbd",
+     "int": 189,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x40d031",
+      "0x436652"
+     ],
+     "statements": 13,
+     "fields": []
+    },
+    {
+     "opcode": "0xbe",
+     "int": 190,
+     "name": null,
+     "name_address": null,
+     "callees": [],
+     "statements": 0,
+     "fields": []
+    },
+    {
+     "opcode": "0xd2",
+     "int": 210,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x41d440",
+      "0x42515f"
+     ],
+     "statements": 2,
+     "fields": []
+    },
+    {
+     "opcode": "0xbf",
+     "int": 191,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x4319b3",
+      "0x436652"
+     ],
+     "statements": 9,
+     "fields": []
+    },
+    {
+     "opcode": "0xc0",
+     "int": 192,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x427d1a",
+      "0x4319b3",
+      "0x436652"
+     ],
+     "statements": 10,
+     "fields": []
+    },
+    {
+     "opcode": "0xc1",
+     "int": 193,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x4319b3",
+      "0x436652"
+     ],
+     "statements": 6,
+     "fields": []
+    },
+    {
+     "opcode": "0xc2",
+     "int": 194,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x427d1a",
+      "0x4319b3",
+      "0x436652"
+     ],
+     "statements": 10,
+     "fields": []
+    },
+    {
+     "opcode": "0xc3",
+     "int": 195,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x4111c7",
+      "0x436652"
+     ],
+     "statements": 7,
+     "fields": []
+    },
+    {
+     "opcode": "0xc4",
+     "int": 196,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x427de1"
+     ],
+     "statements": 9,
+     "fields": []
+    },
+    {
+     "opcode": "0xc5",
+     "int": 197,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x427d1a",
+      "0x4319b3",
+      "0x436652"
+     ],
+     "statements": 6,
+     "fields": []
+    },
+    {
+     "opcode": "0xc6",
+     "int": 198,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x408bb2",
+      "0x436652",
+      "0x44c2f0"
+     ],
+     "statements": 18,
+     "fields": []
+    },
+    {
+     "opcode": "0xc7",
+     "int": 199,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x408bb2",
+      "0x436652"
+     ],
+     "statements": 16,
+     "fields": []
+    },
+    {
+     "opcode": "0xc8",
+     "int": 200,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x427389",
+      "0x42a6aa",
+      "0x4319b3",
+      "0x436652"
+     ],
+     "statements": 29,
+     "fields": []
+    },
+    {
+     "opcode": "0xcb",
+     "int": 203,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x402285",
+      "0x4319b3"
+     ],
+     "statements": 7,
+     "fields": []
+    },
+    {
+     "opcode": "0xcc",
+     "int": 204,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x436652"
+     ],
+     "statements": 5,
+     "fields": []
+    },
+    {
+     "opcode": "0xcd",
+     "int": 205,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x417a17",
+      "0x436652"
+     ],
+     "statements": 6,
+     "fields": []
+    },
+    {
+     "opcode": "0xce",
+     "int": 206,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x427d49",
+      "0x4319b3",
+      "0x436652"
+     ],
+     "statements": 9,
+     "fields": []
+    },
+    {
+     "opcode": "0xcf",
+     "int": 207,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x427a01"
+     ],
+     "statements": 6,
+     "fields": []
+    },
+    {
+     "opcode": "0xd0",
+     "int": 208,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x4278ab"
+     ],
+     "statements": 2,
+     "fields": []
+    },
+    {
+     "opcode": "0xd1",
+     "int": 209,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x428cbd",
+      "0x436652"
+     ],
+     "statements": 10,
+     "fields": []
+    },
+    {
+     "opcode": "0xd3",
+     "int": 211,
+     "name": null,
+     "name_address": null,
+     "callees": [
+      "0x428cbd",
+      "0x4319b3",
+      "0x436652"
+     ],
+     "statements": 19,
+     "fields": []
+    },
+    {
+     "opcode": "0xd4",
+     "int": 212,
+     "name": null,
+     "name_address": null,
+     "callees": [],
+     "statements": 2,
+     "fields": []
+    },
+    {
+     "opcode": "0xd5",
+     "int": 213,
+     "name": null,
+     "name_address": null,
+     "callees": [],
+     "statements": 1,
+     "fields": []
+    }
+   ]
+  }
+ },
+ "union_opcodes": 155,
+ "named": 39,
+ "port_supported": 40,
+ "not_in_port": 115,
+ "commands": [
+  {
+   "opcode": "0x32",
+   "int": 50,
+   "name": "GOTO",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a719"
+   ],
+   "port": false,
+   "name_address": "0x4610d8",
+   "fields": [
+    {
+     "offset": "0xa",
+     "width": "undefined2"
+    }
+   ]
+  },
+  {
+   "opcode": "0x33",
+   "int": 51,
+   "name": "REPLY",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a719"
+   ],
+   "port": false,
+   "name_address": "0x4610e0",
+   "fields": [
+    {
+     "offset": "0xa",
+     "width": "undefined2"
+    }
+   ]
+  },
+  {
+   "opcode": "0x34",
+   "int": 52,
+   "name": "HOOK",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a6e2",
+    "0x43669a",
+    "0x436721"
+   ],
+   "port": false,
+   "name_address": "0x4610e8",
+   "fields": [
+    {
+     "offset": "0xa",
+     "width": "ushort"
+    },
+    {
+     "offset": "0xe",
+     "width": "ushort"
+    }
+   ]
+  },
+  {
+   "opcode": "0x35",
+   "int": 53,
+   "name": "THOOK",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a6e2",
+    "0x43669a",
+    "0x436721"
+   ],
+   "port": false,
+   "name_address": "0x4610f0",
+   "fields": [
+    {
+     "offset": "0xa",
+     "width": "ushort"
+    },
+    {
+     "offset": "0xe",
+     "width": "ushort"
+    }
+   ]
+  },
+  {
+   "opcode": "0x36",
+   "int": 54,
+   "name": "ON",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a760",
+    "0x4365b5",
+    "0x4367eb"
+   ],
+   "port": false,
+   "name_address": "0x4610f8"
+  },
+  {
+   "opcode": "0x37",
+   "int": 55,
+   "name": "OFF",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a760",
+    "0x4365b5",
+    "0x4367eb"
+   ],
+   "port": false,
+   "name_address": "0x4610fc"
+  },
+  {
+   "opcode": "0x38",
+   "int": 56,
+   "name": "SET",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a760",
+    "0x4367eb"
+   ],
+   "port": false,
+   "name_address": "0x46110c",
+   "fields": [
+    {
+     "offset": "0xa",
+     "width": "ushort"
+    },
+    {
+     "offset": "0xc",
+     "width": "byte"
+    }
+   ]
+  },
+  {
+   "opcode": "0x39",
+   "int": 57,
+   "name": null,
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [],
+   "port": false
+  },
+  {
+   "opcode": "0x3b",
+   "int": 59,
+   "name": "RUDE",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a719"
+   ],
+   "port": false,
+   "name_address": "0x461110",
+   "fields": [
+    {
+     "offset": "0xa",
+     "width": "byte"
+    }
+   ]
+  },
+  {
+   "opcode": "0x3c",
+   "int": 60,
+   "name": "DONE",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a6e2"
+   ],
+   "port": false,
+   "name_address": "0x461138",
+   "fields": [
+    {
+     "offset": "0xa",
+     "width": "ushort"
+    },
+    {
+     "offset": "0xe",
+     "width": "byte"
+    }
+   ]
+  },
+  {
+   "opcode": "0x3d",
+   "int": 61,
+   "name": null,
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [],
+   "port": false,
+   "fields": [
+    {
+     "offset": "0xa",
+     "width": "undefined2"
+    }
+   ]
+  },
+  {
+   "opcode": "0x3e",
+   "int": 62,
+   "name": "MOOD",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a7e5",
+    "0x436652"
+   ],
+   "port": false,
+   "name_address": "0x461120"
+  },
+  {
+   "opcode": "0x3f",
+   "int": 63,
+   "name": "UNSPEAK",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a760",
+    "0x4367eb"
+   ],
+   "port": false,
+   "name_address": "0x461128"
+  },
+  {
+   "opcode": "0x40",
+   "int": 64,
+   "name": "BACK",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a719"
+   ],
+   "port": true,
+   "name_address": "0x461118",
+   "fields": [
+    {
+     "offset": "0xa",
+     "width": "byte"
+    }
+   ]
+  },
+  {
+   "opcode": "0x41",
+   "int": 65,
+   "name": null,
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [],
+   "port": false,
+   "fields": [
+    {
+     "offset": "0xa",
+     "width": "ushort"
+    },
+    {
+     "offset": "0xe",
+     "width": "byte"
+    },
+    {
+     "offset": "0x12",
+     "width": "short"
+    }
+   ]
+  },
+  {
+   "opcode": "0x42",
+   "int": 66,
+   "name": "IFON",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a615",
+    "0x4365b5",
+    "0x436652",
+    "0x4367eb"
+   ],
+   "port": false,
+   "name_address": "0x461158"
+  },
+  {
+   "opcode": "0x43",
+   "int": 67,
+   "name": "IFOFF",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a615",
+    "0x4365b5",
+    "0x436652",
+    "0x4367eb"
+   ],
+   "port": false,
+   "name_address": "0x461150"
+  },
+  {
+   "opcode": "0x44",
+   "int": 68,
+   "name": "IFSET",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a615",
+    "0x436652",
+    "0x4367eb"
+   ],
+   "port": false,
+   "name_address": "0x461170",
+   "fields": [
+    {
+     "offset": "0x12",
+     "width": "ushort"
+    },
+    {
+     "offset": "0x14",
+     "width": "byte"
+    }
+   ]
+  },
+  {
+   "opcode": "0x45",
+   "int": 69,
+   "name": null,
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x4367eb",
+    "0x44c2f0"
+   ],
+   "port": false,
+   "fields": [
+    {
+     "offset": "0xa",
+     "width": "ushort"
+    },
+    {
+     "offset": "0xe",
+     "width": "byte"
+    }
+   ]
+  },
+  {
+   "opcode": "0x46",
+   "int": 70,
+   "name": null,
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x4367eb",
+    "0x44c2f0"
+   ],
+   "port": false,
+   "fields": [
+    {
+     "offset": "0xa",
+     "width": "ushort"
+    },
+    {
+     "offset": "0xe",
+     "width": "byte"
+    },
+    {
+     "offset": "0x16",
+     "width": "short"
+    }
+   ]
+  },
+  {
+   "opcode": "0x47",
+   "int": 71,
+   "name": null,
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x424780",
+    "0x436652"
+   ],
+   "port": false,
+   "fields": [
+    {
+     "offset": "0x1",
+     "width": "byte"
+    }
+   ]
+  },
+  {
+   "opcode": "0x48",
+   "int": 72,
+   "name": "IFREPLY",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a615",
+    "0x436652"
+   ],
+   "port": false,
+   "name_address": "0x461148",
+   "fields": [
+    {
+     "offset": "0x12",
+     "width": "undefined2"
+    }
+   ]
+  },
+  {
+   "opcode": "0x49",
+   "int": 73,
+   "name": "IFGOTO",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a615",
+    "0x436652"
+   ],
+   "port": false,
+   "name_address": "0x461140",
+   "fields": [
+    {
+     "offset": "0x12",
+     "width": "undefined2"
+    }
+   ]
+  },
+  {
+   "opcode": "0x4a",
+   "int": 74,
+   "name": "TOFF",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a760",
+    "0x4364ef",
+    "0x4367eb"
+   ],
+   "port": false,
+   "name_address": "0x461104",
+   "fields": [
+    {
+     "offset": "0xa",
+     "width": "undefined2"
+    },
+    {
+     "offset": "0xc",
+     "width": "undefined2"
+    }
+   ]
+  },
+  {
+   "opcode": "0x4b",
+   "int": 75,
+   "name": "TON",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a760",
+    "0x4364ef",
+    "0x4367eb"
+   ],
+   "port": false,
+   "name_address": "0x461100",
+   "fields": [
+    {
+     "offset": "0xa",
+     "width": "undefined2"
+    },
+    {
+     "offset": "0xc",
+     "width": "undefined2"
+    }
+   ]
+  },
+  {
+   "opcode": "0x4c",
+   "int": 76,
+   "name": "IFTOFF",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a615",
+    "0x4364ef",
+    "0x436652",
+    "0x4367eb"
+   ],
+   "port": false,
+   "name_address": "0x461160",
+   "fields": [
+    {
+     "offset": "0x12",
+     "width": "undefined2"
+    },
+    {
+     "offset": "0x14",
+     "width": "undefined2"
+    }
+   ]
+  },
+  {
+   "opcode": "0x4d",
+   "int": 77,
+   "name": "IFTON",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a615",
+    "0x4364ef",
+    "0x436652",
+    "0x4367eb"
+   ],
+   "port": false,
+   "name_address": "0x461168",
+   "fields": [
+    {
+     "offset": "0x12",
+     "width": "undefined2"
+    },
+    {
+     "offset": "0x14",
+     "width": "undefined2"
+    }
+   ]
+  },
+  {
+   "opcode": "0x4e",
+   "int": 78,
+   "name": null,
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x436652"
+   ],
+   "port": false,
+   "fields": [
+    {
+     "offset": "0xa",
+     "width": "ushort"
+    }
+   ]
+  },
+  {
+   "opcode": "0x4f",
+   "int": 79,
+   "name": "SPEAK",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a760",
+    "0x4367eb"
+   ],
+   "port": false,
+   "name_address": "0x461130"
+  },
+  {
+   "opcode": "0x52",
+   "int": 82,
+   "name": "INVGOTO",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a719",
+    "0x433309"
+   ],
+   "port": false,
+   "name_address": "0x461178",
+   "fields": [
+    {
+     "offset": "0x12",
+     "width": "undefined2"
+    }
+   ]
+  },
+  {
+   "opcode": "0x53",
+   "int": 83,
+   "name": "INVREPLY",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a719",
+    "0x433309"
+   ],
+   "port": false,
+   "name_address": "0x461180",
+   "fields": [
+    {
+     "offset": "0x12",
+     "width": "undefined2"
+    }
+   ]
+  },
+  {
+   "opcode": "0x54",
+   "int": 84,
+   "name": "INVSET",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a760",
+    "0x433309",
+    "0x4367eb"
+   ],
+   "port": false,
+   "name_address": "0x46118c",
+   "fields": [
+    {
+     "offset": "0x12",
+     "width": "ushort"
+    },
+    {
+     "offset": "0x14",
+     "width": "byte"
+    }
+   ]
+  },
+  {
+   "opcode": "0x55",
+   "int": 85,
+   "name": "INVOFF",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a760",
+    "0x433309",
+    "0x4365b5",
+    "0x4367eb"
+   ],
+   "port": false,
+   "name_address": "0x461194"
+  },
+  {
+   "opcode": "0x56",
+   "int": 86,
+   "name": "INVON",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a760",
+    "0x433309",
+    "0x4365b5",
+    "0x4367eb"
+   ],
+   "port": false,
+   "name_address": "0x46119c"
+  },
+  {
+   "opcode": "0x57",
+   "int": 87,
+   "name": "INVTOFF",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a760",
+    "0x433309",
+    "0x4364ef",
+    "0x4367eb"
+   ],
+   "port": false,
+   "name_address": "0x4611a4",
+   "fields": [
+    {
+     "offset": "0x12",
+     "width": "undefined2"
+    },
+    {
+     "offset": "0x14",
+     "width": "undefined2"
+    }
+   ]
+  },
+  {
+   "opcode": "0x58",
+   "int": 88,
+   "name": "INVTON",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a760",
+    "0x433309",
+    "0x4364ef",
+    "0x4367eb"
+   ],
+   "port": false,
+   "name_address": "0x4611ac",
+   "fields": [
+    {
+     "offset": "0x12",
+     "width": "undefined2"
+    },
+    {
+     "offset": "0x14",
+     "width": "undefined2"
+    }
+   ]
+  },
+  {
+   "opcode": "0x59",
+   "int": 89,
+   "name": "CURSGOTO",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a719",
+    "0x433384"
+   ],
+   "port": false,
+   "name_address": "0x4611b4",
+   "fields": [
+    {
+     "offset": "0xe",
+     "width": "undefined2"
+    }
+   ]
+  },
+  {
+   "opcode": "0x5a",
+   "int": 90,
+   "name": "CURSREPL",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a719",
+    "0x433384"
+   ],
+   "port": false,
+   "name_address": "0x4611c0",
+   "fields": [
+    {
+     "offset": "0xe",
+     "width": "undefined2"
+    }
+   ]
+  },
+  {
+   "opcode": "0x5b",
+   "int": 91,
+   "name": "CURSSET",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a760",
+    "0x433384",
+    "0x4367eb"
+   ],
+   "port": false,
+   "name_address": "0x4611cc",
+   "fields": [
+    {
+     "offset": "0xe",
+     "width": "ushort"
+    },
+    {
+     "offset": "0x10",
+     "width": "byte"
+    }
+   ]
+  },
+  {
+   "opcode": "0x5c",
+   "int": 92,
+   "name": "CURSOFF",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a760",
+    "0x433384",
+    "0x4365b5",
+    "0x4367eb"
+   ],
+   "port": false,
+   "name_address": "0x4611d4"
+  },
+  {
+   "opcode": "0x5d",
+   "int": 93,
+   "name": "CURSON",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a760",
+    "0x433384",
+    "0x4365b5",
+    "0x4367eb"
+   ],
+   "port": false,
+   "name_address": "0x4611dc"
+  },
+  {
+   "opcode": "0x5e",
+   "int": 94,
+   "name": "CURSTOFF",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a760",
+    "0x433384",
+    "0x4364ef",
+    "0x4367eb"
+   ],
+   "port": false,
+   "name_address": "0x4611e4",
+   "fields": [
+    {
+     "offset": "0xe",
+     "width": "undefined2"
+    },
+    {
+     "offset": "0x10",
+     "width": "undefined2"
+    }
+   ]
+  },
+  {
+   "opcode": "0x5f",
+   "int": 95,
+   "name": "CURSTON",
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x40a760",
+    "0x433384",
+    "0x4364ef",
+    "0x4367eb"
+   ],
+   "port": false,
+   "name_address": "0x4611f0",
+   "fields": [
+    {
+     "offset": "0xe",
+     "width": "undefined2"
+    },
+    {
+     "offset": "0x10",
+     "width": "undefined2"
+    }
+   ]
+  },
+  {
+   "opcode": "0x64",
+   "int": 100,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x409c5e",
+    "0x431b0f",
+    "0x4324b0",
+    "0x436652"
+   ],
+   "port": true
+  },
+  {
+   "opcode": "0x65",
+   "int": 101,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x41d440",
+    "0x4319b3",
+    "0x436652",
+    "0x44c2f0"
+   ],
+   "port": true,
+   "fields": [
+    {
+     "offset": "0x7",
+     "width": "byte"
+    },
+    {
+     "offset": "0x22",
+     "width": "ushort"
+    }
+   ]
+  },
+  {
+   "opcode": "0x66",
+   "int": 102,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [],
+   "port": false
+  },
+  {
+   "opcode": "0x67",
+   "int": 103,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x409901",
+    "0x4319b3",
+    "0x436652"
+   ],
+   "port": true,
+   "fields": [
+    {
+     "offset": "0x1",
+     "width": "byte"
+    }
+   ]
+  },
+  {
+   "opcode": "0x68",
+   "int": 104,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x4278ab",
+    "0x42dad9",
+    "0x432464",
+    "0x436652",
+    "0x439349"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0x69",
+   "int": 105,
+   "name": "BACKGRND",
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x40a2c3",
+    "0x40d862",
+    "0x4177c7",
+    "0x417a17",
+    "0x41dcc9",
+    "0x431ec2",
+    "0x432133",
+    "0x436652"
+   ],
+   "port": true,
+   "name_address": "0x4611f8",
+   "fields": [
+    {
+     "offset": "0x2",
+     "width": "byte"
+    }
+   ]
+  },
+  {
+   "opcode": "0x6a",
+   "int": 106,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x4319b3",
+    "0x436652",
+    "0x44c2f0"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0x6b",
+   "int": 107,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x40abb4",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0x6c",
+   "int": 108,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x40abb4",
+    "0x436652"
+   ],
+   "port": true
+  },
+  {
+   "opcode": "0x6d",
+   "int": 109,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x40ac38",
+    "0x40ac43",
+    "0x416295",
+    "0x436652",
+    "0x438cd0"
+   ],
+   "port": true
+  },
+  {
+   "opcode": "0x6e",
+   "int": 110,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x40ac38",
+    "0x40ac43",
+    "0x416295",
+    "0x436652",
+    "0x438cd0"
+   ],
+   "port": true
+  },
+  {
+   "opcode": "0x6f",
+   "int": 111,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [],
+   "port": true
+  },
+  {
+   "opcode": "0x70",
+   "int": 112,
+   "name": "CONVERSE",
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x409457",
+    "0x4094f2",
+    "0x410f09",
+    "0x432d6e",
+    "0x437bcc",
+    "0x437c72",
+    "0x438cd0",
+    "0x4599c0"
+   ],
+   "port": false,
+   "name_address": "0x460cd0"
+  },
+  {
+   "opcode": "0x71",
+   "int": 113,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x431a36",
+    "0x436652"
+   ],
+   "port": true
+  },
+  {
+   "opcode": "0x72",
+   "int": 114,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x408bb2",
+    "0x40abb4",
+    "0x436652",
+    "0x44c2f0"
+   ],
+   "port": true
+  },
+  {
+   "opcode": "0x73",
+   "int": 115,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0x74",
+   "int": 116,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x409a12",
+    "0x4319b3",
+    "0x436652"
+   ],
+   "port": true,
+   "fields": [
+    {
+     "offset": "0x1",
+     "width": "byte"
+    }
+   ]
+  },
+  {
+   "opcode": "0x75",
+   "int": 117,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x409ab8",
+    "0x40ac38",
+    "0x40ac43",
+    "0x4319b3",
+    "0x436652"
+   ],
+   "port": true,
+   "fields": [
+    {
+     "offset": "0x1",
+     "width": "byte"
+    }
+   ]
+  },
+  {
+   "opcode": "0x76",
+   "int": 118,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x436652"
+   ],
+   "port": true
+  },
+  {
+   "opcode": "0x77",
+   "int": 119,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x431a36",
+    "0x436652"
+   ],
+   "port": true
+  },
+  {
+   "opcode": "0x78",
+   "int": 120,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0x79",
+   "int": 121,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [],
+   "port": false
+  },
+  {
+   "opcode": "0x7a",
+   "int": 122,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0x7b",
+   "int": 123,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x409881",
+    "0x4319b3"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0x7c",
+   "int": 124,
+   "name": null,
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [],
+   "port": false
+  },
+  {
+   "opcode": "0x7d",
+   "int": 125,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x409981",
+    "0x431e89",
+    "0x436652"
+   ],
+   "port": true,
+   "fields": [
+    {
+     "offset": "0x2",
+     "width": "byte"
+    }
+   ]
+  },
+  {
+   "opcode": "0x7e",
+   "int": 126,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x40abb4",
+    "0x4319b3",
+    "0x436652"
+   ],
+   "port": false,
+   "fields": [
+    {
+     "offset": "0x2",
+     "width": "byte"
+    }
+   ]
+  },
+  {
+   "opcode": "0x7f",
+   "int": 127,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x40abb4",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0x80",
+   "int": 128,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x40abb4",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0x81",
+   "int": 129,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x40abb4",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0x82",
+   "int": 130,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x40abb4",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0x83",
+   "int": 131,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [],
+   "port": true
+  },
+  {
+   "opcode": "0x84",
+   "int": 132,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x409d09",
+    "0x431b0f",
+    "0x4326eb",
+    "0x436652"
+   ],
+   "port": true
+  },
+  {
+   "opcode": "0x85",
+   "int": 133,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x409db9",
+    "0x431b0f",
+    "0x432904",
+    "0x436652"
+   ],
+   "port": true
+  },
+  {
+   "opcode": "0x86",
+   "int": 134,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x409efc",
+    "0x431b0f",
+    "0x43299d",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0x87",
+   "int": 135,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x409f8d",
+    "0x431b0f",
+    "0x4329e4",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0x88",
+   "int": 136,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x40a00a",
+    "0x431b0f",
+    "0x432a63",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0x89",
+   "int": 137,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x40a087",
+    "0x431b0f",
+    "0x432ad2",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0x8a",
+   "int": 138,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x40a0c0",
+    "0x431b0f",
+    "0x432b09",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0x8b",
+   "int": 139,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x40a109",
+    "0x431b0f",
+    "0x432c65",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0x8c",
+   "int": 140,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x40a142",
+    "0x431b0f",
+    "0x432c9c",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0x8d",
+   "int": 141,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x409513",
+    "0x4319b3",
+    "0x431a69"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0x8e",
+   "int": 142,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x40a16b",
+    "0x431b0f",
+    "0x432d14",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0x8f",
+   "int": 143,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x40ac38",
+    "0x40ac43",
+    "0x436652",
+    "0x438cd0"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0x90",
+   "int": 144,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x432303",
+    "0x432401",
+    "0x436652"
+   ],
+   "port": true
+  },
+  {
+   "opcode": "0x91",
+   "int": 145,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x409e3a",
+    "0x4319b3",
+    "0x431b0f",
+    "0x4325d3",
+    "0x436652"
+   ],
+   "port": true,
+   "fields": [
+    {
+     "offset": "0x2",
+     "width": "byte"
+    }
+   ]
+  },
+  {
+   "opcode": "0x92",
+   "int": 146,
+   "name": null,
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [],
+   "port": false
+  },
+  {
+   "opcode": "0x93",
+   "int": 147,
+   "name": null,
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [],
+   "port": false
+  },
+  {
+   "opcode": "0x94",
+   "int": 148,
+   "name": null,
+   "dispatchers": [
+    "0x43340a"
+   ],
+   "callees": [
+    "0x4096f9"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0x95",
+   "int": 149,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x409e9b",
+    "0x4319b3",
+    "0x431b0f",
+    "0x436652"
+   ],
+   "port": true,
+   "fields": [
+    {
+     "offset": "0x2",
+     "width": "byte"
+    }
+   ]
+  },
+  {
+   "opcode": "0x96",
+   "int": 150,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x431a36",
+    "0x436652"
+   ],
+   "port": true
+  },
+  {
+   "opcode": "0x97",
+   "int": 151,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x431a36",
+    "0x436652"
+   ],
+   "port": true
+  },
+  {
+   "opcode": "0x98",
+   "int": 152,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x431a36",
+    "0x436652"
+   ],
+   "port": true
+  },
+  {
+   "opcode": "0x99",
+   "int": 153,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x431a36",
+    "0x436652"
+   ],
+   "port": true
+  },
+  {
+   "opcode": "0x9a",
+   "int": 154,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0x9b",
+   "int": 155,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x43194f",
+    "0x436652"
+   ],
+   "port": true
+  },
+  {
+   "opcode": "0x9c",
+   "int": 156,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x4102f7",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0x9d",
+   "int": 157,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x43194f",
+    "0x431a36",
+    "0x436652"
+   ],
+   "port": true
+  },
+  {
+   "opcode": "0x9e",
+   "int": 158,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x43194f",
+    "0x431a36",
+    "0x436652"
+   ],
+   "port": true
+  },
+  {
+   "opcode": "0x9f",
+   "int": 159,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x43194f",
+    "0x431a36",
+    "0x436652"
+   ],
+   "port": true
+  },
+  {
+   "opcode": "0xa0",
+   "int": 160,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x43194f",
+    "0x431a36",
+    "0x436652"
+   ],
+   "port": true
+  },
+  {
+   "opcode": "0xa1",
+   "int": 161,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x43194f",
+    "0x431a36",
+    "0x436652"
+   ],
+   "port": true
+  },
+  {
+   "opcode": "0xa2",
+   "int": 162,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x43194f",
+    "0x431a36",
+    "0x436652"
+   ],
+   "port": true
+  },
+  {
+   "opcode": "0xa3",
+   "int": 163,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x409b5e",
+    "0x40ac38",
+    "0x40ac43",
+    "0x4319b3",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0xa4",
+   "int": 164,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x409bde",
+    "0x40ac38",
+    "0x40ac43",
+    "0x4319b3",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0xa5",
+   "int": 165,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x4319b3"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0xa6",
+   "int": 166,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x4319b3"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0xa7",
+   "int": 167,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [],
+   "port": false
+  },
+  {
+   "opcode": "0xa8",
+   "int": 168,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [],
+   "port": false
+  },
+  {
+   "opcode": "0xa9",
+   "int": 169,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x40a194",
+    "0x431b0f",
+    "0x432d3b",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0xaa",
+   "int": 170,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x40a194",
+    "0x431b0f",
+    "0x432d46",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0xab",
+   "int": 171,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x4077b2",
+    "0x407933",
+    "0x408bb2",
+    "0x408c81",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0xac",
+   "int": 172,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x408bb2",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0xad",
+   "int": 173,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x408bb2",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0xae",
+   "int": 174,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x408bb2",
+    "0x43194f",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0xaf",
+   "int": 175,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x408bb2",
+    "0x43194f",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0xb0",
+   "int": 176,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x408bb2",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0xb1",
+   "int": 177,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x408bb2",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0xb2",
+   "int": 178,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x408bb2",
+    "0x43194f",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0xb3",
+   "int": 179,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x408bb2",
+    "0x43194f",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0xb4",
+   "int": 180,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x4075a1"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0xb5",
+   "int": 181,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x407420"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0xb6",
+   "int": 182,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x4077b2",
+    "0x407ad5",
+    "0x408bb2",
+    "0x408c81",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0xb7",
+   "int": 183,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x438d78"
+   ],
+   "port": true
+  },
+  {
+   "opcode": "0xb8",
+   "int": 184,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x438cf9"
+   ],
+   "port": true
+  },
+  {
+   "opcode": "0xb9",
+   "int": 185,
+   "name": "NODE",
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x40a2c3",
+    "0x40d862",
+    "0x4177c7",
+    "0x41dcc9",
+    "0x4319b3",
+    "0x432133",
+    "0x432295",
+    "0x436652"
+   ],
+   "port": false,
+   "name_address": "0x461204",
+   "fields": [
+    {
+     "offset": "0x4",
+     "width": "byte"
+    }
+   ]
+  },
+  {
+   "opcode": "0xba",
+   "int": 186,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x401c21",
+    "0x436652"
+   ],
+   "port": true
+  },
+  {
+   "opcode": "0xbb",
+   "int": 187,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x4073f0",
+    "0x407420",
+    "0x408c81",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0xbc",
+   "int": 188,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x4277ed",
+    "0x4281b1"
+   ],
+   "port": true
+  },
+  {
+   "opcode": "0xbd",
+   "int": 189,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x40d031",
+    "0x436652"
+   ],
+   "port": false,
+   "fields": [
+    {
+     "offset": "0x3",
+     "width": "byte"
+    },
+    {
+     "offset": "0x4",
+     "width": "byte"
+    }
+   ]
+  },
+  {
+   "opcode": "0xbe",
+   "int": 190,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [],
+   "port": false
+  },
+  {
+   "opcode": "0xbf",
+   "int": 191,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x4319b3",
+    "0x436652"
+   ],
+   "port": false,
+   "fields": [
+    {
+     "offset": "0x4",
+     "width": "byte"
+    }
+   ]
+  },
+  {
+   "opcode": "0xc0",
+   "int": 192,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x427d1a",
+    "0x4319b3",
+    "0x436652"
+   ],
+   "port": false,
+   "fields": [
+    {
+     "offset": "0x3",
+     "width": "byte"
+    },
+    {
+     "offset": "0x4",
+     "width": "byte"
+    }
+   ]
+  },
+  {
+   "opcode": "0xc1",
+   "int": 193,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x4319b3",
+    "0x436652"
+   ],
+   "port": true
+  },
+  {
+   "opcode": "0xc2",
+   "int": 194,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x427d1a",
+    "0x4319b3",
+    "0x436652"
+   ],
+   "port": false,
+   "fields": [
+    {
+     "offset": "0x4",
+     "width": "byte"
+    }
+   ]
+  },
+  {
+   "opcode": "0xc3",
+   "int": 195,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x4111c7",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0xc4",
+   "int": 196,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x427de1"
+   ],
+   "port": true
+  },
+  {
+   "opcode": "0xc5",
+   "int": 197,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x427d1a",
+    "0x4319b3",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0xc6",
+   "int": 198,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x408bb2",
+    "0x436652",
+    "0x44c2f0"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0xc7",
+   "int": 199,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x408bb2",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0xc8",
+   "int": 200,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x427389",
+    "0x42a6aa",
+    "0x4319b3",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0xcb",
+   "int": 203,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x402285",
+    "0x4319b3"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0xcc",
+   "int": 204,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0xcd",
+   "int": 205,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x417a17",
+    "0x436652"
+   ],
+   "port": true
+  },
+  {
+   "opcode": "0xce",
+   "int": 206,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x427d49",
+    "0x4319b3",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0xcf",
+   "int": 207,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x427a01"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0xd0",
+   "int": 208,
+   "name": null,
+   "dispatchers": [
+    "0x43340a",
+    "0x42db22"
+   ],
+   "callees": [
+    "0x4278ab"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0xd1",
+   "int": 209,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x428cbd",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0xd2",
+   "int": 210,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x41d440",
+    "0x42515f"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0xd3",
+   "int": 211,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [
+    "0x428cbd",
+    "0x4319b3",
+    "0x436652"
+   ],
+   "port": false
+  },
+  {
+   "opcode": "0xd4",
+   "int": 212,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [],
+   "port": false
+  },
+  {
+   "opcode": "0xd5",
+   "int": 213,
+   "name": null,
+   "dispatchers": [
+    "0x42db22"
+   ],
+   "callees": [],
+   "port": false
+  }
+ ],
+ "port_only_opcodes": [
+  "0xe1"
+ ]
+}

@@ -1,0 +1,79 @@
+// Reconstructed pseudocode (decompiler output, not original source)
+// address: 0x44cb20
+// name: __findnext
+// ranges: 0x44cb20-0x44cc31
+// calls: 0x44cc90
+
+/* Library Function - Single Match
+    __findnext
+   
+   Library: Visual Studio 1998 Release */
+
+undefined4 __cdecl __findnext(HANDLE param_1,DWORD *param_2)
+
+{
+  char cVar1;
+  BOOL BVar2;
+  DWORD DVar3;
+  uint uVar4;
+  uint uVar5;
+  CHAR *pCVar6;
+  CHAR *pCVar7;
+  DWORD *pDVar8;
+  _WIN32_FIND_DATAA local_140;
+  
+  BVar2 = FindNextFileA(param_1,&local_140);
+  if (BVar2 == 0) {
+    DVar3 = GetLastError();
+    switch(DVar3) {
+    case 2:
+    case 3:
+    case 0x12:
+      DAT_00462c74 = 2;
+      return 0xffffffff;
+    default:
+      DAT_00462c74 = 0x16;
+      return 0xffffffff;
+    case 8:
+      DAT_00462c74 = 0xc;
+      return 0xffffffff;
+    }
+  }
+  if (local_140.dwFileAttributes == 0x80) {
+    *param_2 = 0;
+  }
+  else {
+    *param_2 = local_140.dwFileAttributes;
+  }
+  DVar3 = FUN_0044cc90(&local_140.ftCreationTime);
+  param_2[1] = DVar3;
+  DVar3 = FUN_0044cc90(&local_140.ftLastAccessTime);
+  param_2[2] = DVar3;
+  DVar3 = FUN_0044cc90(&local_140.ftLastWriteTime);
+  uVar4 = 0xffffffff;
+  param_2[3] = DVar3;
+  param_2[4] = local_140.nFileSizeLow;
+  pCVar6 = local_140.cFileName;
+  do {
+    pCVar7 = pCVar6;
+    if (uVar4 == 0) break;
+    uVar4 = uVar4 - 1;
+    pCVar7 = pCVar6 + 1;
+    cVar1 = *pCVar6;
+    pCVar6 = pCVar7;
+  } while (cVar1 != '\0');
+  uVar4 = ~uVar4;
+  pCVar6 = pCVar7 + -uVar4;
+  pDVar8 = param_2 + 5;
+  for (uVar5 = uVar4 >> 2; uVar5 != 0; uVar5 = uVar5 - 1) {
+    *pDVar8 = *(DWORD *)pCVar6;
+    pCVar6 = pCVar6 + 4;
+    pDVar8 = pDVar8 + 1;
+  }
+  for (uVar4 = uVar4 & 3; uVar4 != 0; uVar4 = uVar4 - 1) {
+    *(CHAR *)pDVar8 = *pCVar6;
+    pCVar6 = pCVar6 + 1;
+    pDVar8 = (DWORD *)((int)pDVar8 + 1);
+  }
+  return 0;
+}

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Byzantine — The Betrayal · Ödenek Dosyası</title>
+  <style>
+    :root { color-scheme: dark; font-family: Georgia, "Times New Roman", serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: #151311; color: #e6d9bd; display: grid; place-items: center; }
+    main { width: min(96vw, 900px); padding: 24px 0; text-align: center; }
+    h1 { margin: 0 0 5px; font-weight: 400; letter-spacing: .12em; font-size: clamp(20px, 3vw, 32px); }
+    .subtitle { margin: 0 0 22px; color: #b5a88f; font-size: 15px; }
+    canvas { display: block; width: 100%; aspect-ratio: 640 / 420; background: #000; border: 1px solid #665842; box-shadow: 0 18px 50px #0009; touch-action: manipulation; }
+    .controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; }
+    button { font: inherit; color: #e6d9bd; background: #332b21; border: 1px solid #7a694f; padding: 10px 16px; min-width: 100px; cursor: pointer; }
+    button:hover:not(:disabled), button:focus-visible { background: #5a4328; outline: 2px solid #c9a86b; }
+    button:disabled { opacity: .35; cursor: default; }
+    #page { font-size: 15px; white-space: nowrap; }
+    #message { min-height: 1.5em; margin: 12px 0 0; color: #c3b79f; font-size: 14px; }
+    .help { font-size: 13px; color: #918671; margin: 8px 0 0; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>BYZANTINE · THE BETRAYAL</h1>
+    <p class="subtitle">Ödenek Dosyası</p>
+    <canvas id="game" width="640" height="420" aria-label="Oyun sahnesi"></canvas>
+    <div class="controls">
+      <button id="previous" type="button" aria-label="Önceki sayfa">← Geri</button>
+      <span id="page"></span>
+      <button id="next" type="button" aria-label="Sonraki sayfa">İleri →</button>
+    </div>
+    <p id="message" aria-live="polite"></p>
+    <p class="help">Sayfanın sağ veya sol kenarına tıkla; ok tuşları da çalışır.</p>
+  </main>
+  <script src="scene-data.js"></script>
+  <script src="play.js"></script>
+</body>
+</html>

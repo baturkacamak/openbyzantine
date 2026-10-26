@@ -1,0 +1,8242 @@
+{
+  "scope": "Saved binary evidence plus original-data parser and interpreter checks; no original-game runtime observation. New-game traces use the initial zero pool without executing startup.",
+  "sha256": {
+    "analysis/rea/engine_sample/copy2hd/engine/SHOW.LCC": "269b1d4e39adf62324bc723e0dbf573d07d84855c6ebc36714029f2f8e5f88c4",
+    "analysis/rea/engine_sample/copy2hd/engine/SHOW.LCV": "338ff3f51f38c9d2ad1b919b72efade1eb77465513a0515d636fd2d63f4c419c",
+    "analysis/rea/engine_sample/copy2hd/engine/SHOW.LVM": "79344b75ec19fc06ab781522d26c11303ed1c0c8e242d49eb166db1ea309fdcd",
+    "analysis/rea/BETRAYAL.EXE": "3b6191fd1c7c590ec3e04298f23742a94366eb1805011ed4ca3add8ad5963226"
+  },
+  "scene_count": 44,
+  "mapped_local_count": 1622,
+  "max_local_count": 133,
+  "layouts": {
+    "AL": [
+      {
+        "local": "0",
+        "global": "9",
+        "name": "setGCMus"
+      },
+      {
+        "local": "1",
+        "global": "8",
+        "name": "lastNode"
+      },
+      {
+        "local": "2",
+        "global": "10",
+        "name": "reLoad"
+      },
+      {
+        "local": "3",
+        "global": "11",
+        "name": "bALKeyLoc"
+      },
+      {
+        "local": "4",
+        "global": "12",
+        "name": "bKeyPos"
+      },
+      {
+        "local": "5",
+        "global": "13",
+        "name": "bNewKey"
+      },
+      {
+        "local": "6",
+        "global": "14",
+        "name": "bKeyVal1"
+      },
+      {
+        "local": "7",
+        "global": "15",
+        "name": "bKeyVal2"
+      },
+      {
+        "local": "8",
+        "global": "16",
+        "name": "bKeyVal3"
+      },
+      {
+        "local": "9",
+        "global": "17",
+        "name": "bKeyVal4"
+      },
+      {
+        "local": "10",
+        "global": "18",
+        "name": "bKeyVal5"
+      },
+      {
+        "local": "11",
+        "global": "19",
+        "name": "bKeyVal6"
+      },
+      {
+        "local": "12",
+        "global": "20",
+        "name": "temp"
+      },
+      {
+        "local": "13",
+        "global": "21",
+        "name": "temp2"
+      }
+    ],
+    "AM": [
+      {
+        "local": "0",
+        "global": "22",
+        "name": "Snucop"
+      },
+      {
+        "local": "1",
+        "global": "23",
+        "name": "Soffnu5"
+      },
+      {
+        "local": "2",
+        "global": "24",
+        "name": "Hherchks"
+      },
+      {
+        "local": "3",
+        "global": "25",
+        "name": "SBlownit"
+      },
+      {
+        "local": "4",
+        "global": "26",
+        "name": "SofftAk5"
+      },
+      {
+        "local": "5",
+        "global": "27",
+        "name": "SAkwin"
+      },
+      {
+        "local": "6",
+        "global": "28",
+        "name": "SoffaAk5"
+      },
+      {
+        "local": "7",
+        "global": "29",
+        "name": "die"
+      },
+      {
+        "local": "8",
+        "global": "30",
+        "name": "SAcarlo"
+      },
+      {
+        "local": "9",
+        "global": "31",
+        "name": "SAkGen"
+      },
+      {
+        "local": "10",
+        "global": "32",
+        "name": "SAkKLIO"
+      },
+      {
+        "local": "11",
+        "global": "33",
+        "name": "SAjune"
+      },
+      {
+        "local": "12",
+        "global": "34",
+        "name": "SCabar"
+      },
+      {
+        "local": "13",
+        "global": "35",
+        "name": "SOffAK3"
+      },
+      {
+        "local": "14",
+        "global": "36",
+        "name": "SAk3help"
+      },
+      {
+        "local": "15",
+        "global": "37",
+        "name": "SNurayA"
+      },
+      {
+        "local": "16",
+        "global": "38",
+        "name": "htearpic"
+      },
+      {
+        "local": "17",
+        "global": "39",
+        "name": "SHseen2"
+      },
+      {
+        "local": "18",
+        "global": "40",
+        "name": "SHknowe"
+      },
+      {
+        "local": "19",
+        "global": "41",
+        "name": "SgivePpic"
+      },
+      {
+        "local": "20",
+        "global": "42",
+        "name": "SHintro"
+      },
+      {
+        "local": "21",
+        "global": "43",
+        "name": "SPr2done"
+      },
+      {
+        "local": "22",
+        "global": "44",
+        "name": "ftopen"
+      },
+      {
+        "local": "23",
+        "global": "45",
+        "name": "SoffaPr2"
+      },
+      {
+        "local": "24",
+        "global": "46",
+        "name": "Hpresscrd"
+      },
+      {
+        "local": "25",
+        "global": "47",
+        "name": "SCu1yap"
+      },
+      {
+        "local": "26",
+        "global": "48",
+        "name": "SCu1all"
+      },
+      {
+        "local": "27",
+        "global": "49",
+        "name": "SCujem"
+      },
+      {
+        "local": "28",
+        "global": "50",
+        "name": "SCu1ring"
+      },
+      {
+        "local": "29",
+        "global": "51",
+        "name": "SNoring"
+      },
+      {
+        "local": "30",
+        "global": "52",
+        "name": "SOffCu1"
+      },
+      {
+        "local": "31",
+        "global": "53",
+        "name": "Bseenclip"
+      },
+      {
+        "local": "32",
+        "global": "54",
+        "name": "Soffcu2"
+      },
+      {
+        "local": "33",
+        "global": "55",
+        "name": "SoffCu4"
+      },
+      {
+        "local": "34",
+        "global": "56",
+        "name": "Soffcu3"
+      },
+      {
+        "local": "35",
+        "global": "57",
+        "name": "Hpaper1"
+      },
+      {
+        "local": "36",
+        "global": "58",
+        "name": "Hsunmed"
+      },
+      {
+        "local": "37",
+        "global": "59",
+        "name": "Hbeering"
+      },
+      {
+        "local": "38",
+        "global": "60",
+        "name": "Halxskch"
+      },
+      {
+        "local": "39",
+        "global": "61",
+        "name": "SCupaper"
+      },
+      {
+        "local": "40",
+        "global": "62",
+        "name": "SCuxdone"
+      },
+      {
+        "local": "41",
+        "global": "63",
+        "name": "SCusun"
+      },
+      {
+        "local": "42",
+        "global": "64",
+        "name": "SCubee"
+      },
+      {
+        "local": "43",
+        "global": "65",
+        "name": "SCuskch"
+      },
+      {
+        "local": "44",
+        "global": "66",
+        "name": "SoffNu3"
+      },
+      {
+        "local": "45",
+        "global": "67",
+        "name": "AMPhn1In"
+      },
+      {
+        "local": "46",
+        "global": "68",
+        "name": "bBeenAM"
+      },
+      {
+        "local": "47",
+        "global": "69",
+        "name": "AMPhnMax"
+      },
+      {
+        "local": "48",
+        "global": "70",
+        "name": "AMRngTme"
+      },
+      {
+        "local": "49",
+        "global": "71",
+        "name": "AMHitMin"
+      },
+      {
+        "local": "50",
+        "global": "72",
+        "name": "AMHitRng"
+      },
+      {
+        "local": "51",
+        "global": "73",
+        "name": "AMNumHit"
+      },
+      {
+        "local": "52",
+        "global": "74",
+        "name": "flowChk"
+      },
+      {
+        "local": "53",
+        "global": "75",
+        "name": "AMInst"
+      },
+      {
+        "local": "54",
+        "global": "76",
+        "name": "bVTScans"
+      },
+      {
+        "local": "55",
+        "global": "77",
+        "name": "bAM4Vt"
+      },
+      {
+        "local": "56",
+        "global": "78",
+        "name": "bCassAMOn"
+      },
+      {
+        "local": "57",
+        "global": "79",
+        "name": "blastSite"
+      },
+      {
+        "local": "58",
+        "global": "80",
+        "name": "blastInst"
+      },
+      {
+        "local": "59",
+        "global": "8",
+        "name": "lastNode"
+      },
+      {
+        "local": "60",
+        "global": "10",
+        "name": "reLoad"
+      },
+      {
+        "local": "61",
+        "global": "81",
+        "name": "bMAkAm3a"
+      },
+      {
+        "local": "62",
+        "global": "82",
+        "name": "bAkMus"
+      },
+      {
+        "local": "63",
+        "global": "83",
+        "name": "bSetFlow9"
+      },
+      {
+        "local": "64",
+        "global": "84",
+        "name": "bSetFlw13"
+      },
+      {
+        "local": "65",
+        "global": "85",
+        "name": "bVCSetUp"
+      },
+      {
+        "local": "66",
+        "global": "86",
+        "name": "bVBDone"
+      },
+      {
+        "local": "67",
+        "global": "87",
+        "name": "flowGo"
+      },
+      {
+        "local": "68",
+        "global": "88",
+        "name": "sFlowChk"
+      },
+      {
+        "local": "69",
+        "global": "89",
+        "name": "bNewDisk"
+      },
+      {
+        "local": "70",
+        "global": "90",
+        "name": "bCarloEA"
+      },
+      {
+        "local": "71",
+        "global": "91",
+        "name": "cassAM22"
+      },
+      {
+        "local": "72",
+        "global": "92",
+        "name": "cassPalm"
+      },
+      {
+        "local": "73",
+        "global": "93",
+        "name": "cassRoman"
+      },
+      {
+        "local": "74",
+        "global": "94",
+        "name": "cassGarSa"
+      },
+      {
+        "local": "75",
+        "global": "95",
+        "name": "bHomerChg"
+      },
+      {
+        "local": "76",
+        "global": "96",
+        "name": "bHomerCal"
+      },
+      {
+        "local": "77",
+        "global": "97",
+        "name": "bHomerTme"
+      },
+      {
+        "local": "78",
+        "global": "98",
+        "name": "bNewScans"
+      },
+      {
+        "local": "79",
+        "global": "99",
+        "name": "bNumScans"
+      },
+      {
+        "local": "80",
+        "global": "100",
+        "name": "bFstEph"
+      },
+      {
+        "local": "81",
+        "global": "101",
+        "name": "bHSNoPwr"
+      },
+      {
+        "local": "82",
+        "global": "102",
+        "name": "bIshIu7a"
+      },
+      {
+        "local": "83",
+        "global": "103",
+        "name": "cassAM05"
+      },
+      {
+        "local": "84",
+        "global": "104",
+        "name": "cassFlTil"
+      },
+      {
+        "local": "85",
+        "global": "105",
+        "name": "cassCircm"
+      },
+      {
+        "local": "86",
+        "global": "106",
+        "name": "cassCLune"
+      },
+      {
+        "local": "87",
+        "global": "107",
+        "name": "bFstOtt"
+      },
+      {
+        "local": "88",
+        "global": "108",
+        "name": "bSharTk"
+      },
+      {
+        "local": "89",
+        "global": "109",
+        "name": "visitShar"
+      },
+      {
+        "local": "90",
+        "global": "110",
+        "name": "cassSymp"
+      },
+      {
+        "local": "91",
+        "global": "111",
+        "name": "cassMedus"
+      },
+      {
+        "local": "92",
+        "global": "112",
+        "name": "bAMIMus"
+      },
+      {
+        "local": "93",
+        "global": "20",
+        "name": "temp"
+      },
+      {
+        "local": "94",
+        "global": "113",
+        "name": "amhittme"
+      },
+      {
+        "local": "95",
+        "global": "114",
+        "name": "AMIHitLoc"
+      },
+      {
+        "local": "96",
+        "global": "115",
+        "name": "AMIHitTyp"
+      },
+      {
+        "local": "97",
+        "global": "116",
+        "name": "bAMChat"
+      },
+      {
+        "local": "98",
+        "global": "117",
+        "name": "AMChatNum"
+      },
+      {
+        "local": "99",
+        "global": "118",
+        "name": "bIAkofia"
+      },
+      {
+        "local": "100",
+        "global": "119",
+        "name": "cassBust"
+      },
+      {
+        "local": "101",
+        "global": "120",
+        "name": "cassActAn"
+      },
+      {
+        "local": "102",
+        "global": "121",
+        "name": "CASSAm02"
+      },
+      {
+        "local": "103",
+        "global": "122",
+        "name": "cassTomb"
+      },
+      {
+        "local": "104",
+        "global": "123",
+        "name": "amprofon"
+      },
+      {
+        "local": "105",
+        "global": "124",
+        "name": "bTlkProf"
+      },
+      {
+        "local": "106",
+        "global": "125",
+        "name": "cassArtor"
+      },
+      {
+        "local": "107",
+        "global": "126",
+        "name": "GTOpen"
+      },
+      {
+        "local": "108",
+        "global": "127",
+        "name": "cassbell"
+      },
+      {
+        "local": "109",
+        "global": "128",
+        "name": "cassChain"
+      },
+      {
+        "local": "110",
+        "global": "129",
+        "name": "cassPic"
+      },
+      {
+        "local": "111",
+        "global": "130",
+        "name": "cassAltar"
+      },
+      {
+        "local": "112",
+        "global": "131",
+        "name": "bAM06Fst"
+      },
+      {
+        "local": "113",
+        "global": "132",
+        "name": "bCurPCrd"
+      },
+      {
+        "local": "114",
+        "global": "133",
+        "name": "bOffNoPub"
+      },
+      {
+        "local": "115",
+        "global": "134",
+        "name": "bCurRustl"
+      },
+      {
+        "local": "116",
+        "global": "135",
+        "name": "getPhne"
+      },
+      {
+        "local": "117",
+        "global": "136",
+        "name": "AMPhnTme"
+      },
+      {
+        "local": "118",
+        "global": "137",
+        "name": "SoffCUx"
+      },
+      {
+        "local": "119",
+        "global": "138",
+        "name": "bVCSetup1"
+      },
+      {
+        "local": "120",
+        "global": "139",
+        "name": "bNumCurXa"
+      },
+      {
+        "local": "121",
+        "global": "140",
+        "name": "GCOpen"
+      },
+      {
+        "local": "122",
+        "global": "141",
+        "name": "AMCurTme"
+      },
+      {
+        "local": "123",
+        "global": "142",
+        "name": "bVisCur3"
+      },
+      {
+        "local": "124",
+        "global": "143",
+        "name": "HPaper"
+      },
+      {
+        "local": "125",
+        "global": "144",
+        "name": "HEphLtrs"
+      },
+      {
+        "local": "126",
+        "global": "145",
+        "name": "cassAM01"
+      },
+      {
+        "local": "127",
+        "global": "146",
+        "name": "bNurHang"
+      },
+      {
+        "local": "128",
+        "global": "147",
+        "name": "cassherm"
+      },
+      {
+        "local": "129",
+        "global": "148",
+        "name": "cassSaytr"
+      },
+      {
+        "local": "130",
+        "global": "149",
+        "name": "cassGirl"
+      },
+      {
+        "local": "131",
+        "global": "150",
+        "name": "cassArtms"
+      },
+      {
+        "local": "132",
+        "global": "151",
+        "name": "cassAlex"
+      }
+    ],
+    "AS": [
+      {
+        "local": "0",
+        "global": "152",
+        "name": "SRltrs"
+      },
+      {
+        "local": "1",
+        "global": "153",
+        "name": "SRnazar"
+      },
+      {
+        "local": "2",
+        "global": "154",
+        "name": "SRoffltrs"
+      },
+      {
+        "local": "3",
+        "global": "155",
+        "name": "Stakeye"
+      },
+      {
+        "local": "4",
+        "global": "156",
+        "name": "asBirdNum"
+      },
+      {
+        "local": "5",
+        "global": "157",
+        "name": "asBirdRng"
+      },
+      {
+        "local": "6",
+        "global": "158",
+        "name": "asBirdMin"
+      },
+      {
+        "local": "7",
+        "global": "159",
+        "name": "asBirdMax"
+      },
+      {
+        "local": "8",
+        "global": "8",
+        "name": "lastNode"
+      },
+      {
+        "local": "9",
+        "global": "10",
+        "name": "reLoad"
+      },
+      {
+        "local": "10",
+        "global": "160",
+        "name": "asBirdTme"
+      },
+      {
+        "local": "11",
+        "global": "161",
+        "name": "asBirdTyp"
+      },
+      {
+        "local": "12",
+        "global": "162",
+        "name": "asBirdLoc"
+      },
+      {
+        "local": "13",
+        "global": "163",
+        "name": "AsInst"
+      },
+      {
+        "local": "14",
+        "global": "74",
+        "name": "flowChk"
+      },
+      {
+        "local": "15",
+        "global": "79",
+        "name": "blastSite"
+      },
+      {
+        "local": "16",
+        "global": "80",
+        "name": "blastInst"
+      },
+      {
+        "local": "17",
+        "global": "164",
+        "name": "bFrstAS01"
+      },
+      {
+        "local": "18",
+        "global": "165",
+        "name": "bASGule"
+      },
+      {
+        "local": "19",
+        "global": "166",
+        "name": "AsMerOn"
+      },
+      {
+        "local": "20",
+        "global": "167",
+        "name": "ASMerSnd"
+      },
+      {
+        "local": "21",
+        "global": "168",
+        "name": "asMerSpr"
+      },
+      {
+        "local": "22",
+        "global": "169",
+        "name": "bASVoDag"
+      },
+      {
+        "local": "23",
+        "global": "170",
+        "name": "bASVoEyes"
+      },
+      {
+        "local": "24",
+        "global": "171",
+        "name": "bASVoVase"
+      },
+      {
+        "local": "25",
+        "global": "172",
+        "name": "bASVoLant"
+      },
+      {
+        "local": "26",
+        "global": "173",
+        "name": "bASVoPch"
+      },
+      {
+        "local": "27",
+        "global": "174",
+        "name": "bHveEphs"
+      },
+      {
+        "local": "28",
+        "global": "175",
+        "name": "bMidLint"
+      }
+    ],
+    "BB": [
+      {
+        "local": "0",
+        "global": "176",
+        "name": "Sltrsclk"
+      },
+      {
+        "local": "1",
+        "global": "177",
+        "name": "SIcoin"
+      },
+      {
+        "local": "2",
+        "global": "178",
+        "name": "Hburnt"
+      },
+      {
+        "local": "3",
+        "global": "58",
+        "name": "Hsunmed"
+      },
+      {
+        "local": "4",
+        "global": "59",
+        "name": "Hbeering"
+      },
+      {
+        "local": "5",
+        "global": "179",
+        "name": "SCmoffer"
+      },
+      {
+        "local": "6",
+        "global": "180",
+        "name": "BCmNote"
+      },
+      {
+        "local": "7",
+        "global": "181",
+        "name": "SCmsun"
+      },
+      {
+        "local": "8",
+        "global": "182",
+        "name": "SCmbee"
+      },
+      {
+        "local": "9",
+        "global": "53",
+        "name": "Bseenclip"
+      },
+      {
+        "local": "10",
+        "global": "24",
+        "name": "Hherchks"
+      },
+      {
+        "local": "11",
+        "global": "183",
+        "name": "SJsmug"
+      },
+      {
+        "local": "12",
+        "global": "184",
+        "name": "SoffpJm2"
+      },
+      {
+        "local": "13",
+        "global": "185",
+        "name": "SoffaJm2"
+      },
+      {
+        "local": "14",
+        "global": "186",
+        "name": "SMhX1a"
+      },
+      {
+        "local": "15",
+        "global": "187",
+        "name": "SoffBM1"
+      },
+      {
+        "local": "16",
+        "global": "188",
+        "name": "Salxbk"
+      },
+      {
+        "local": "17",
+        "global": "189",
+        "name": "SBbook"
+      },
+      {
+        "local": "18",
+        "global": "190",
+        "name": "EA2SfxRng"
+      },
+      {
+        "local": "19",
+        "global": "191",
+        "name": "EA2SfxMin"
+      },
+      {
+        "local": "20",
+        "global": "192",
+        "name": "EA2SfxNum"
+      },
+      {
+        "local": "21",
+        "global": "193",
+        "name": "EA2MusLoc"
+      },
+      {
+        "local": "22",
+        "global": "8",
+        "name": "lastNode"
+      },
+      {
+        "local": "23",
+        "global": "10",
+        "name": "reLoad"
+      },
+      {
+        "local": "24",
+        "global": "194",
+        "name": "bCMGreet"
+      },
+      {
+        "local": "25",
+        "global": "195",
+        "name": "EA2SfxTme"
+      },
+      {
+        "local": "26",
+        "global": "196",
+        "name": "EA2SfxTyp"
+      },
+      {
+        "local": "27",
+        "global": "197",
+        "name": "EA2SfxLoc"
+      },
+      {
+        "local": "28",
+        "global": "74",
+        "name": "flowChk"
+      },
+      {
+        "local": "29",
+        "global": "198",
+        "name": "BBInst"
+      },
+      {
+        "local": "30",
+        "global": "199",
+        "name": "fstBBLeav"
+      },
+      {
+        "local": "31",
+        "global": "200",
+        "name": "doneCMer"
+      },
+      {
+        "local": "32",
+        "global": "201",
+        "name": "bNoBSel"
+      },
+      {
+        "local": "33",
+        "global": "202",
+        "name": "bDonBBJm"
+      },
+      {
+        "local": "34",
+        "global": "203",
+        "name": "numJmGrp"
+      },
+      {
+        "local": "35",
+        "global": "204",
+        "name": "soffhjm2"
+      },
+      {
+        "local": "36",
+        "global": "205",
+        "name": "doneTMer"
+      },
+      {
+        "local": "37",
+        "global": "80",
+        "name": "blastInst"
+      },
+      {
+        "local": "38",
+        "global": "79",
+        "name": "blastSite"
+      },
+      {
+        "local": "39",
+        "global": "206",
+        "name": "inHand"
+      },
+      {
+        "local": "40",
+        "global": "207",
+        "name": "BBNoguy"
+      },
+      {
+        "local": "41",
+        "global": "208",
+        "name": "seenjmbm"
+      },
+      {
+        "local": "42",
+        "global": "209",
+        "name": "scoinbye"
+      },
+      {
+        "local": "43",
+        "global": "210",
+        "name": "MemAtIu"
+      },
+      {
+        "local": "44",
+        "global": "211",
+        "name": "bNeedAlBk"
+      },
+      {
+        "local": "45",
+        "global": "20",
+        "name": "temp"
+      },
+      {
+        "local": "46",
+        "global": "212",
+        "name": "sfanclip"
+      },
+      {
+        "local": "47",
+        "global": "213",
+        "name": "ASOpen"
+      }
+    ],
+    "BC": [
+      {
+        "local": "0",
+        "global": "214",
+        "name": "BCpatch"
+      },
+      {
+        "local": "1",
+        "global": "215",
+        "name": "SBgcemnt"
+      },
+      {
+        "local": "2",
+        "global": "216",
+        "name": "Soffbg1"
+      },
+      {
+        "local": "3",
+        "global": "217",
+        "name": "SCaMR"
+      },
+      {
+        "local": "4",
+        "global": "34",
+        "name": "SCabar"
+      },
+      {
+        "local": "5",
+        "global": "31",
+        "name": "SAkGen"
+      },
+      {
+        "local": "6",
+        "global": "218",
+        "name": "SAk2ca"
+      },
+      {
+        "local": "7",
+        "global": "30",
+        "name": "SAcarlo"
+      },
+      {
+        "local": "8",
+        "global": "219",
+        "name": "Sak2scp"
+      },
+      {
+        "local": "9",
+        "global": "220",
+        "name": "SAMehmet"
+      },
+      {
+        "local": "10",
+        "global": "221",
+        "name": "SAK2Mh"
+      },
+      {
+        "local": "11",
+        "global": "222",
+        "name": "fingers"
+      },
+      {
+        "local": "12",
+        "global": "223",
+        "name": "SAkcapic"
+      },
+      {
+        "local": "13",
+        "global": "224",
+        "name": "SoffAK2"
+      },
+      {
+        "local": "14",
+        "global": "225",
+        "name": "BCPhnMin"
+      },
+      {
+        "local": "15",
+        "global": "226",
+        "name": "BCPhnRng"
+      },
+      {
+        "local": "16",
+        "global": "227",
+        "name": "BCRngTme"
+      },
+      {
+        "local": "17",
+        "global": "228",
+        "name": "maxWatInt"
+      },
+      {
+        "local": "18",
+        "global": "229",
+        "name": "minWatInt"
+      },
+      {
+        "local": "19",
+        "global": "230",
+        "name": "watRange"
+      },
+      {
+        "local": "20",
+        "global": "231",
+        "name": "Car1Tme"
+      },
+      {
+        "local": "21",
+        "global": "232",
+        "name": "Car2Tme"
+      },
+      {
+        "local": "22",
+        "global": "233",
+        "name": "Car3Tme"
+      },
+      {
+        "local": "23",
+        "global": "10",
+        "name": "reLoad"
+      },
+      {
+        "local": "24",
+        "global": "234",
+        "name": "bcmus2Tme"
+      },
+      {
+        "local": "25",
+        "global": "235",
+        "name": "BcClosed"
+      },
+      {
+        "local": "26",
+        "global": "8",
+        "name": "lastNode"
+      },
+      {
+        "local": "27",
+        "global": "236",
+        "name": "BCPhnTme"
+      },
+      {
+        "local": "28",
+        "global": "237",
+        "name": "watInt1"
+      },
+      {
+        "local": "29",
+        "global": "238",
+        "name": "watInt2"
+      },
+      {
+        "local": "30",
+        "global": "74",
+        "name": "flowChk"
+      },
+      {
+        "local": "31",
+        "global": "239",
+        "name": "BCInst"
+      },
+      {
+        "local": "32",
+        "global": "79",
+        "name": "blastSite"
+      },
+      {
+        "local": "33",
+        "global": "80",
+        "name": "blastInst"
+      },
+      {
+        "local": "34",
+        "global": "240",
+        "name": "bShwPass"
+      },
+      {
+        "local": "35",
+        "global": "241",
+        "name": "BCGrdGn"
+      },
+      {
+        "local": "36",
+        "global": "53",
+        "name": "Bseenclip"
+      },
+      {
+        "local": "37",
+        "global": "242",
+        "name": "bSeenGrd"
+      },
+      {
+        "local": "38",
+        "global": "243",
+        "name": "bSeenCBrd"
+      },
+      {
+        "local": "39",
+        "global": "244",
+        "name": "bSnDedEm"
+      },
+      {
+        "local": "40",
+        "global": "245",
+        "name": "bHuntEmr"
+      },
+      {
+        "local": "41",
+        "global": "246",
+        "name": "bcmustme"
+      },
+      {
+        "local": "42",
+        "global": "247",
+        "name": "baseDrLev"
+      },
+      {
+        "local": "43",
+        "global": "248",
+        "name": "WatNdlRng"
+      },
+      {
+        "local": "44",
+        "global": "249",
+        "name": "WatNdlMin"
+      },
+      {
+        "local": "45",
+        "global": "250",
+        "name": "BCChase"
+      },
+      {
+        "local": "46",
+        "global": "89",
+        "name": "bNewDisk"
+      },
+      {
+        "local": "47",
+        "global": "95",
+        "name": "bHomerChg"
+      },
+      {
+        "local": "48",
+        "global": "87",
+        "name": "flowGo"
+      },
+      {
+        "local": "49",
+        "global": "251",
+        "name": "bIULocked"
+      },
+      {
+        "local": "50",
+        "global": "252",
+        "name": "bMrLocked"
+      },
+      {
+        "local": "51",
+        "global": "253",
+        "name": "iuopen"
+      },
+      {
+        "local": "52",
+        "global": "96",
+        "name": "bHomerCal"
+      },
+      {
+        "local": "53",
+        "global": "97",
+        "name": "bHomerTme"
+      },
+      {
+        "local": "54",
+        "global": "254",
+        "name": "bWrngCol"
+      },
+      {
+        "local": "55",
+        "global": "255",
+        "name": "bFstByz"
+      },
+      {
+        "local": "56",
+        "global": "101",
+        "name": "bHSNoPwr"
+      },
+      {
+        "local": "57",
+        "global": "256",
+        "name": "bcflash"
+      },
+      {
+        "local": "58",
+        "global": "257",
+        "name": "bSnEmDie"
+      },
+      {
+        "local": "59",
+        "global": "258",
+        "name": "bNoFlash"
+      },
+      {
+        "local": "60",
+        "global": "259",
+        "name": "BCNoRun"
+      },
+      {
+        "local": "61",
+        "global": "260",
+        "name": "which"
+      },
+      {
+        "local": "62",
+        "global": "261",
+        "name": "level"
+      },
+      {
+        "local": "63",
+        "global": "262",
+        "name": "watNeedle"
+      }
+    ],
+    "CLOCK": [
+      {
+        "local": "0",
+        "global": "263",
+        "name": "vt0SndRng"
+      },
+      {
+        "local": "1",
+        "global": "264",
+        "name": "vt0SndMin"
+      },
+      {
+        "local": "2",
+        "global": "265",
+        "name": "vt0SndNum"
+      },
+      {
+        "local": "3",
+        "global": "266",
+        "name": "ClockWin"
+      },
+      {
+        "local": "4",
+        "global": "267",
+        "name": "bPostVr"
+      },
+      {
+        "local": "5",
+        "global": "268",
+        "name": "bSetFlow8"
+      },
+      {
+        "local": "6",
+        "global": "74",
+        "name": "flowChk"
+      },
+      {
+        "local": "7",
+        "global": "269",
+        "name": "hourSel"
+      },
+      {
+        "local": "8",
+        "global": "270",
+        "name": "minSel"
+      },
+      {
+        "local": "9",
+        "global": "271",
+        "name": "sunChck"
+      },
+      {
+        "local": "10",
+        "global": "272",
+        "name": "starChck"
+      },
+      {
+        "local": "11",
+        "global": "273",
+        "name": "moonChck"
+      },
+      {
+        "local": "12",
+        "global": "274",
+        "name": "hourLoc"
+      },
+      {
+        "local": "13",
+        "global": "275",
+        "name": "minLoc"
+      },
+      {
+        "local": "14",
+        "global": "276",
+        "name": "selNum"
+      },
+      {
+        "local": "15",
+        "global": "8",
+        "name": "lastNode"
+      },
+      {
+        "local": "16",
+        "global": "277",
+        "name": "bHveStar"
+      },
+      {
+        "local": "17",
+        "global": "278",
+        "name": "dHour"
+      },
+      {
+        "local": "18",
+        "global": "279",
+        "name": "dMin"
+      },
+      {
+        "local": "19",
+        "global": "280",
+        "name": "midFlwr1"
+      },
+      {
+        "local": "20",
+        "global": "281",
+        "name": "midClock"
+      },
+      {
+        "local": "21",
+        "global": "282",
+        "name": "bHveGlass"
+      },
+      {
+        "local": "22",
+        "global": "283",
+        "name": "vtSndTme"
+      },
+      {
+        "local": "23",
+        "global": "284",
+        "name": "vt0SndTyp"
+      }
+    ],
+    "EA": [
+      {
+        "local": "0",
+        "global": "285",
+        "name": "MCaEA"
+      },
+      {
+        "local": "1",
+        "global": "33",
+        "name": "SAjune"
+      },
+      {
+        "local": "2",
+        "global": "222",
+        "name": "fingers"
+      },
+      {
+        "local": "3",
+        "global": "286",
+        "name": "SoffSHX"
+      },
+      {
+        "local": "4",
+        "global": "287",
+        "name": "Igoggles"
+      },
+      {
+        "local": "5",
+        "global": "8",
+        "name": "lastNode"
+      },
+      {
+        "local": "6",
+        "global": "288",
+        "name": "EAPhnTme1"
+      },
+      {
+        "local": "7",
+        "global": "289",
+        "name": "EAPhnTme2"
+      },
+      {
+        "local": "8",
+        "global": "290",
+        "name": "EAUghTme1"
+      },
+      {
+        "local": "9",
+        "global": "291",
+        "name": "EAUghTme2"
+      },
+      {
+        "local": "10",
+        "global": "292",
+        "name": "EARing"
+      },
+      {
+        "local": "11",
+        "global": "293",
+        "name": "EATapeTme"
+      },
+      {
+        "local": "12",
+        "global": "294",
+        "name": "EmCallTme"
+      },
+      {
+        "local": "13",
+        "global": "295",
+        "name": "EAPhneDwn"
+      },
+      {
+        "local": "14",
+        "global": "296",
+        "name": "EAPhneUp"
+      },
+      {
+        "local": "15",
+        "global": "190",
+        "name": "EA2SfxRng"
+      },
+      {
+        "local": "16",
+        "global": "191",
+        "name": "EA2SfxMin"
+      },
+      {
+        "local": "17",
+        "global": "192",
+        "name": "EA2SfxNum"
+      },
+      {
+        "local": "18",
+        "global": "297",
+        "name": "EA0SfxNum"
+      },
+      {
+        "local": "19",
+        "global": "193",
+        "name": "EA2MusLoc"
+      },
+      {
+        "local": "20",
+        "global": "298",
+        "name": "ea0sfxloc"
+      },
+      {
+        "local": "21",
+        "global": "299",
+        "name": "eaKidLoc"
+      },
+      {
+        "local": "22",
+        "global": "300",
+        "name": "carsfxtme"
+      },
+      {
+        "local": "23",
+        "global": "301",
+        "name": "carlWait1"
+      },
+      {
+        "local": "24",
+        "global": "302",
+        "name": "carlWait3"
+      },
+      {
+        "local": "25",
+        "global": "303",
+        "name": "carlWait2"
+      },
+      {
+        "local": "26",
+        "global": "74",
+        "name": "flowChk"
+      },
+      {
+        "local": "27",
+        "global": "304",
+        "name": "EAInst"
+      },
+      {
+        "local": "28",
+        "global": "79",
+        "name": "blastSite"
+      },
+      {
+        "local": "29",
+        "global": "80",
+        "name": "blastInst"
+      },
+      {
+        "local": "30",
+        "global": "305",
+        "name": "EAPhnLoop"
+      },
+      {
+        "local": "31",
+        "global": "10",
+        "name": "reLoad"
+      },
+      {
+        "local": "32",
+        "global": "306",
+        "name": "EA0SfxTme"
+      },
+      {
+        "local": "33",
+        "global": "307",
+        "name": "EA0SfxMin"
+      },
+      {
+        "local": "34",
+        "global": "308",
+        "name": "EA0SfxTyp"
+      },
+      {
+        "local": "35",
+        "global": "309",
+        "name": "ea0sfxVol"
+      },
+      {
+        "local": "36",
+        "global": "310",
+        "name": "bPhnWait"
+      },
+      {
+        "local": "37",
+        "global": "311",
+        "name": "bEmCall2"
+      },
+      {
+        "local": "38",
+        "global": "312",
+        "name": "bEARing"
+      },
+      {
+        "local": "39",
+        "global": "313",
+        "name": "bHveCass"
+      },
+      {
+        "local": "40",
+        "global": "314",
+        "name": "gotCass"
+      },
+      {
+        "local": "41",
+        "global": "315",
+        "name": "EATapeOn"
+      },
+      {
+        "local": "42",
+        "global": "316",
+        "name": "bCarloIn"
+      },
+      {
+        "local": "43",
+        "global": "317",
+        "name": "bCarloSfx"
+      },
+      {
+        "local": "44",
+        "global": "318",
+        "name": "carlAtt2"
+      },
+      {
+        "local": "45",
+        "global": "319",
+        "name": "bEANoRun"
+      },
+      {
+        "local": "46",
+        "global": "320",
+        "name": "hBoxLeft"
+      },
+      {
+        "local": "47",
+        "global": "321",
+        "name": "HBoxSeq"
+      },
+      {
+        "local": "48",
+        "global": "322",
+        "name": "bRugBkOut"
+      },
+      {
+        "local": "49",
+        "global": "323",
+        "name": "bEmShoe"
+      },
+      {
+        "local": "50",
+        "global": "324",
+        "name": "sskch1"
+      },
+      {
+        "local": "51",
+        "global": "95",
+        "name": "bHomerChg"
+      },
+      {
+        "local": "52",
+        "global": "235",
+        "name": "BcClosed"
+      },
+      {
+        "local": "53",
+        "global": "325",
+        "name": "bGotCam"
+      },
+      {
+        "local": "54",
+        "global": "326",
+        "name": "bHaveNurP"
+      },
+      {
+        "local": "55",
+        "global": "327",
+        "name": "messGrab"
+      },
+      {
+        "local": "56",
+        "global": "328",
+        "name": "bEAEscTDr"
+      },
+      {
+        "local": "57",
+        "global": "329",
+        "name": "intro"
+      },
+      {
+        "local": "58",
+        "global": "195",
+        "name": "EA2SfxTme"
+      },
+      {
+        "local": "59",
+        "global": "196",
+        "name": "EA2SfxTyp"
+      },
+      {
+        "local": "60",
+        "global": "197",
+        "name": "EA2SfxLoc"
+      },
+      {
+        "local": "61",
+        "global": "86",
+        "name": "bVBDone"
+      },
+      {
+        "local": "62",
+        "global": "330",
+        "name": "SNIntro"
+      },
+      {
+        "local": "63",
+        "global": "331",
+        "name": "SeenMyst"
+      },
+      {
+        "local": "64",
+        "global": "0",
+        "name": "bMaxMyst"
+      },
+      {
+        "local": "65",
+        "global": "2",
+        "name": "lastMyst"
+      },
+      {
+        "local": "66",
+        "global": "1",
+        "name": "bRecMyst"
+      },
+      {
+        "local": "67",
+        "global": "332",
+        "name": "BMyst1"
+      },
+      {
+        "local": "68",
+        "global": "333",
+        "name": "bVBOpen"
+      },
+      {
+        "local": "69",
+        "global": "97",
+        "name": "bHomerTme"
+      },
+      {
+        "local": "70",
+        "global": "96",
+        "name": "bHomerCal"
+      },
+      {
+        "local": "71",
+        "global": "334",
+        "name": "bSetFlw10"
+      },
+      {
+        "local": "72",
+        "global": "88",
+        "name": "sFlowChk"
+      },
+      {
+        "local": "73",
+        "global": "335",
+        "name": "BBOpen"
+      }
+    ],
+    "EXAMINE": [
+      {
+        "local": "0",
+        "global": "336",
+        "name": "HomerX"
+      },
+      {
+        "local": "1",
+        "global": "337",
+        "name": "HomerY"
+      },
+      {
+        "local": "2",
+        "global": "338",
+        "name": "bHomPass"
+      },
+      {
+        "local": "3",
+        "global": "339",
+        "name": "bHomerOn"
+      },
+      {
+        "local": "4",
+        "global": "87",
+        "name": "flowGo"
+      },
+      {
+        "local": "5",
+        "global": "88",
+        "name": "sFlowChk"
+      },
+      {
+        "local": "6",
+        "global": "340",
+        "name": "HLOpen"
+      },
+      {
+        "local": "7",
+        "global": "142",
+        "name": "bVisCur3"
+      },
+      {
+        "local": "8",
+        "global": "74",
+        "name": "flowChk"
+      },
+      {
+        "local": "9",
+        "global": "86",
+        "name": "bVBDone"
+      },
+      {
+        "local": "10",
+        "global": "213",
+        "name": "ASOpen"
+      },
+      {
+        "local": "11",
+        "global": "138",
+        "name": "bVCSetup1"
+      },
+      {
+        "local": "12",
+        "global": "341",
+        "name": "bSeenClm"
+      },
+      {
+        "local": "13",
+        "global": "342",
+        "name": "bFrstDuf"
+      },
+      {
+        "local": "14",
+        "global": "343",
+        "name": "NBOpen"
+      },
+      {
+        "local": "15",
+        "global": "344",
+        "name": "ihomer"
+      },
+      {
+        "local": "16",
+        "global": "345",
+        "name": "bPassHave"
+      },
+      {
+        "local": "17",
+        "global": "346",
+        "name": "BCOpen"
+      },
+      {
+        "local": "18",
+        "global": "347",
+        "name": "bNotePen"
+      },
+      {
+        "local": "19",
+        "global": "44",
+        "name": "ftopen"
+      },
+      {
+        "local": "20",
+        "global": "348",
+        "name": "bAMClue"
+      },
+      {
+        "local": "21",
+        "global": "349",
+        "name": "AMOpen"
+      },
+      {
+        "local": "22",
+        "global": "350",
+        "name": "HSOpen"
+      },
+      {
+        "local": "23",
+        "global": "351",
+        "name": "missLibTi"
+      },
+      {
+        "local": "24",
+        "global": "352",
+        "name": "bdufnoHs"
+      },
+      {
+        "local": "25",
+        "global": "353",
+        "name": "bMemDead"
+      },
+      {
+        "local": "26",
+        "global": "95",
+        "name": "bHomerChg"
+      },
+      {
+        "local": "27",
+        "global": "96",
+        "name": "bHomerCal"
+      },
+      {
+        "local": "28",
+        "global": "97",
+        "name": "bHomerTme"
+      },
+      {
+        "local": "29",
+        "global": "101",
+        "name": "bHSNoPwr"
+      },
+      {
+        "local": "30",
+        "global": "98",
+        "name": "bNewScans"
+      },
+      {
+        "local": "31",
+        "global": "99",
+        "name": "bNumScans"
+      },
+      {
+        "local": "32",
+        "global": "100",
+        "name": "bFstEph"
+      },
+      {
+        "local": "33",
+        "global": "354",
+        "name": "bScandEph"
+      },
+      {
+        "local": "34",
+        "global": "355",
+        "name": "sexhomr"
+      },
+      {
+        "local": "35",
+        "global": "356",
+        "name": "HomInvOld"
+      },
+      {
+        "local": "36",
+        "global": "357",
+        "name": "HomInvLoc"
+      },
+      {
+        "local": "37",
+        "global": "358",
+        "name": "HomInvBad"
+      },
+      {
+        "local": "38",
+        "global": "359",
+        "name": "bHomerPwr"
+      },
+      {
+        "local": "39",
+        "global": "360",
+        "name": "TimeY"
+      },
+      {
+        "local": "40",
+        "global": "361",
+        "name": "TimeWid"
+      },
+      {
+        "local": "41",
+        "global": "362",
+        "name": "bOttPan"
+      },
+      {
+        "local": "42",
+        "global": "363",
+        "name": "bOttGone"
+      },
+      {
+        "local": "43",
+        "global": "364",
+        "name": "bOttTil"
+      },
+      {
+        "local": "44",
+        "global": "365",
+        "name": "bByzCol"
+      },
+      {
+        "local": "45",
+        "global": "366",
+        "name": "bByzGone"
+      },
+      {
+        "local": "46",
+        "global": "367",
+        "name": "bEphSar"
+      },
+      {
+        "local": "47",
+        "global": "368",
+        "name": "bHomTrys"
+      },
+      {
+        "local": "48",
+        "global": "107",
+        "name": "bFstOtt"
+      },
+      {
+        "local": "49",
+        "global": "255",
+        "name": "bFstByz"
+      },
+      {
+        "local": "50",
+        "global": "369",
+        "name": "bHomPasWd"
+      },
+      {
+        "local": "51",
+        "global": "370",
+        "name": "xPos"
+      },
+      {
+        "local": "52",
+        "global": "371",
+        "name": "yPos"
+      },
+      {
+        "local": "53",
+        "global": "372",
+        "name": "CharLoc"
+      },
+      {
+        "local": "54",
+        "global": "373",
+        "name": "Char"
+      },
+      {
+        "local": "55",
+        "global": "374",
+        "name": "onTrack"
+      },
+      {
+        "local": "56",
+        "global": "375",
+        "name": "done"
+      },
+      {
+        "local": "57",
+        "global": "253",
+        "name": "iuopen"
+      },
+      {
+        "local": "58",
+        "global": "251",
+        "name": "bIULocked"
+      },
+      {
+        "local": "59",
+        "global": "376",
+        "name": "bMrExLock"
+      },
+      {
+        "local": "60",
+        "global": "235",
+        "name": "BcClosed"
+      },
+      {
+        "local": "61",
+        "global": "377",
+        "name": "bInKlio"
+      }
+    ],
+    "EXAMVB": [],
+    "EXAMVC": [],
+    "EXAMVH": [],
+    "EXAMVT": [],
+    "FT": [
+      {
+        "local": "0",
+        "global": "34",
+        "name": "SCabar"
+      },
+      {
+        "local": "1",
+        "global": "30",
+        "name": "SAcarlo"
+      },
+      {
+        "local": "2",
+        "global": "378",
+        "name": "SIbackup"
+      },
+      {
+        "local": "3",
+        "global": "379",
+        "name": "SoffIs1"
+      },
+      {
+        "local": "4",
+        "global": "380",
+        "name": "SICLIO"
+      },
+      {
+        "local": "5",
+        "global": "381",
+        "name": "SIinvest"
+      },
+      {
+        "local": "6",
+        "global": "382",
+        "name": "SIblack"
+      },
+      {
+        "local": "7",
+        "global": "383",
+        "name": "waitTme1"
+      },
+      {
+        "local": "8",
+        "global": "384",
+        "name": "waitTme3"
+      },
+      {
+        "local": "9",
+        "global": "10",
+        "name": "reLoad"
+      },
+      {
+        "local": "10",
+        "global": "385",
+        "name": "numftAcc"
+      },
+      {
+        "local": "11",
+        "global": "386",
+        "name": "ftMaxPray"
+      },
+      {
+        "local": "12",
+        "global": "387",
+        "name": "ftMinPray"
+      },
+      {
+        "local": "13",
+        "global": "388",
+        "name": "ftNdlMax"
+      },
+      {
+        "local": "14",
+        "global": "389",
+        "name": "ftNdlMin"
+      },
+      {
+        "local": "15",
+        "global": "390",
+        "name": "ftMaxAcc"
+      },
+      {
+        "local": "16",
+        "global": "391",
+        "name": "ftMinAcc"
+      },
+      {
+        "local": "17",
+        "global": "392",
+        "name": "numGtAcc"
+      },
+      {
+        "local": "18",
+        "global": "393",
+        "name": "GtMaxPray"
+      },
+      {
+        "local": "19",
+        "global": "394",
+        "name": "GtMinPray"
+      },
+      {
+        "local": "20",
+        "global": "395",
+        "name": "GtNdlMax"
+      },
+      {
+        "local": "21",
+        "global": "396",
+        "name": "GtNdlMin"
+      },
+      {
+        "local": "22",
+        "global": "397",
+        "name": "GtMaxAcc"
+      },
+      {
+        "local": "23",
+        "global": "398",
+        "name": "GtMinAcc"
+      },
+      {
+        "local": "24",
+        "global": "399",
+        "name": "ONEINPRAY"
+      },
+      {
+        "local": "25",
+        "global": "8",
+        "name": "lastNode"
+      },
+      {
+        "local": "26",
+        "global": "400",
+        "name": "bFTPrayer"
+      },
+      {
+        "local": "27",
+        "global": "401",
+        "name": "ftPrayTme"
+      },
+      {
+        "local": "28",
+        "global": "20",
+        "name": "temp"
+      },
+      {
+        "local": "29",
+        "global": "402",
+        "name": "ftAccSnd"
+      },
+      {
+        "local": "30",
+        "global": "403",
+        "name": "ftAccType"
+      },
+      {
+        "local": "31",
+        "global": "404",
+        "name": "ftAccNdl"
+      },
+      {
+        "local": "32",
+        "global": "254",
+        "name": "bWrngCol"
+      },
+      {
+        "local": "33",
+        "global": "255",
+        "name": "bFstByz"
+      },
+      {
+        "local": "34",
+        "global": "405",
+        "name": "waitTme2"
+      },
+      {
+        "local": "35",
+        "global": "406",
+        "name": "bDeadCarl"
+      },
+      {
+        "local": "36",
+        "global": "126",
+        "name": "GTOpen"
+      },
+      {
+        "local": "37",
+        "global": "251",
+        "name": "bIULocked"
+      },
+      {
+        "local": "38",
+        "global": "407",
+        "name": "bGtPrayer"
+      },
+      {
+        "local": "39",
+        "global": "408",
+        "name": "GtPrayTme"
+      },
+      {
+        "local": "40",
+        "global": "409",
+        "name": "GtAccSnd"
+      },
+      {
+        "local": "41",
+        "global": "410",
+        "name": "GtAccType"
+      },
+      {
+        "local": "42",
+        "global": "411",
+        "name": "GtAccNdl"
+      },
+      {
+        "local": "43",
+        "global": "80",
+        "name": "blastInst"
+      },
+      {
+        "local": "44",
+        "global": "79",
+        "name": "blastSite"
+      }
+    ],
+    "GC": [
+      {
+        "local": "0",
+        "global": "412",
+        "name": "GCWaitTme"
+      },
+      {
+        "local": "1",
+        "global": "413",
+        "name": "ALSfxRng"
+      },
+      {
+        "local": "2",
+        "global": "414",
+        "name": "ALSfxMin"
+      },
+      {
+        "local": "3",
+        "global": "415",
+        "name": "ALNumSfx"
+      },
+      {
+        "local": "4",
+        "global": "416",
+        "name": "ALNumLoc"
+      },
+      {
+        "local": "5",
+        "global": "9",
+        "name": "setGCMus"
+      },
+      {
+        "local": "6",
+        "global": "417",
+        "name": "AlSfxTme"
+      },
+      {
+        "local": "7",
+        "global": "418",
+        "name": "ALLocTyp"
+      },
+      {
+        "local": "8",
+        "global": "419",
+        "name": "ALSfxNdl"
+      },
+      {
+        "local": "9",
+        "global": "420",
+        "name": "alsfxtyp"
+      },
+      {
+        "local": "10",
+        "global": "8",
+        "name": "lastNode"
+      },
+      {
+        "local": "11",
+        "global": "10",
+        "name": "reLoad"
+      },
+      {
+        "local": "12",
+        "global": "11",
+        "name": "bALKeyLoc"
+      },
+      {
+        "local": "13",
+        "global": "12",
+        "name": "bKeyPos"
+      },
+      {
+        "local": "14",
+        "global": "421",
+        "name": "bSolGCPad"
+      },
+      {
+        "local": "15",
+        "global": "422",
+        "name": "bSeenPad"
+      },
+      {
+        "local": "16",
+        "global": "13",
+        "name": "bNewKey"
+      },
+      {
+        "local": "17",
+        "global": "14",
+        "name": "bKeyVal1"
+      },
+      {
+        "local": "18",
+        "global": "15",
+        "name": "bKeyVal2"
+      },
+      {
+        "local": "19",
+        "global": "16",
+        "name": "bKeyVal3"
+      },
+      {
+        "local": "20",
+        "global": "17",
+        "name": "bKeyVal4"
+      },
+      {
+        "local": "21",
+        "global": "423",
+        "name": "bHveHInvs"
+      },
+      {
+        "local": "22",
+        "global": "424",
+        "name": "sGCHint"
+      },
+      {
+        "local": "23",
+        "global": "18",
+        "name": "bKeyVal5"
+      },
+      {
+        "local": "24",
+        "global": "19",
+        "name": "bKeyVal6"
+      },
+      {
+        "local": "25",
+        "global": "20",
+        "name": "temp"
+      },
+      {
+        "local": "26",
+        "global": "21",
+        "name": "temp2"
+      },
+      {
+        "local": "27",
+        "global": "343",
+        "name": "NBOpen"
+      },
+      {
+        "local": "28",
+        "global": "425",
+        "name": "GCInst"
+      },
+      {
+        "local": "29",
+        "global": "80",
+        "name": "blastInst"
+      },
+      {
+        "local": "30",
+        "global": "79",
+        "name": "blastSite"
+      },
+      {
+        "local": "31",
+        "global": "74",
+        "name": "flowChk"
+      }
+    ],
+    "GT": [
+      {
+        "local": "0",
+        "global": "24",
+        "name": "Hherchks"
+      },
+      {
+        "local": "1",
+        "global": "25",
+        "name": "SBlownit"
+      },
+      {
+        "local": "2",
+        "global": "426",
+        "name": "SoffShMt"
+      },
+      {
+        "local": "3",
+        "global": "427",
+        "name": "Scuttoend"
+      },
+      {
+        "local": "4",
+        "global": "8",
+        "name": "lastNode"
+      },
+      {
+        "local": "5",
+        "global": "392",
+        "name": "numGtAcc"
+      },
+      {
+        "local": "6",
+        "global": "393",
+        "name": "GtMaxPray"
+      },
+      {
+        "local": "7",
+        "global": "394",
+        "name": "GtMinPray"
+      },
+      {
+        "local": "8",
+        "global": "395",
+        "name": "GtNdlMax"
+      },
+      {
+        "local": "9",
+        "global": "396",
+        "name": "GtNdlMin"
+      },
+      {
+        "local": "10",
+        "global": "397",
+        "name": "GtMaxAcc"
+      },
+      {
+        "local": "11",
+        "global": "398",
+        "name": "GtMinAcc"
+      },
+      {
+        "local": "12",
+        "global": "399",
+        "name": "ONEINPRAY"
+      },
+      {
+        "local": "13",
+        "global": "10",
+        "name": "reLoad"
+      },
+      {
+        "local": "14",
+        "global": "74",
+        "name": "flowChk"
+      },
+      {
+        "local": "15",
+        "global": "428",
+        "name": "Popout"
+      },
+      {
+        "local": "16",
+        "global": "429",
+        "name": "bGogs"
+      },
+      {
+        "local": "17",
+        "global": "97",
+        "name": "bHomerTme"
+      },
+      {
+        "local": "18",
+        "global": "80",
+        "name": "blastInst"
+      },
+      {
+        "local": "19",
+        "global": "79",
+        "name": "blastSite"
+      },
+      {
+        "local": "20",
+        "global": "407",
+        "name": "bGtPrayer"
+      },
+      {
+        "local": "21",
+        "global": "408",
+        "name": "GtPrayTme"
+      },
+      {
+        "local": "22",
+        "global": "20",
+        "name": "temp"
+      },
+      {
+        "local": "23",
+        "global": "409",
+        "name": "GtAccSnd"
+      },
+      {
+        "local": "24",
+        "global": "410",
+        "name": "GtAccType"
+      },
+      {
+        "local": "25",
+        "global": "411",
+        "name": "GtAccNdl"
+      }
+    ],
+    "HINTS": [
+      {
+        "local": "0",
+        "global": "430",
+        "name": "Ishoes"
+      },
+      {
+        "local": "1",
+        "global": "431",
+        "name": "bdoneclm"
+      },
+      {
+        "local": "2",
+        "global": "432",
+        "name": "Sbackpk"
+      },
+      {
+        "local": "3",
+        "global": "345",
+        "name": "bPassHave"
+      },
+      {
+        "local": "4",
+        "global": "240",
+        "name": "bShwPass"
+      },
+      {
+        "local": "5",
+        "global": "242",
+        "name": "bSeenGrd"
+      },
+      {
+        "local": "6",
+        "global": "245",
+        "name": "bHuntEmr"
+      },
+      {
+        "local": "7",
+        "global": "355",
+        "name": "sexhomr"
+      },
+      {
+        "local": "8",
+        "global": "319",
+        "name": "bEANoRun"
+      },
+      {
+        "local": "9",
+        "global": "258",
+        "name": "bNoFlash"
+      },
+      {
+        "local": "10",
+        "global": "101",
+        "name": "bHSNoPwr"
+      },
+      {
+        "local": "11",
+        "global": "95",
+        "name": "bHomerChg"
+      },
+      {
+        "local": "12",
+        "global": "369",
+        "name": "bHomPasWd"
+      },
+      {
+        "local": "13",
+        "global": "359",
+        "name": "bHomerPwr"
+      },
+      {
+        "local": "14",
+        "global": "433",
+        "name": "Bseeniu"
+      },
+      {
+        "local": "15",
+        "global": "434",
+        "name": "SS1nohom"
+      },
+      {
+        "local": "16",
+        "global": "435",
+        "name": "SS1nohlp"
+      },
+      {
+        "local": "17",
+        "global": "436",
+        "name": "bmkeydone"
+      },
+      {
+        "local": "18",
+        "global": "437",
+        "name": "BMRlock1"
+      },
+      {
+        "local": "19",
+        "global": "438",
+        "name": "Bhveduf"
+      },
+      {
+        "local": "20",
+        "global": "439",
+        "name": "SinClio1"
+      },
+      {
+        "local": "21",
+        "global": "76",
+        "name": "bVTScans"
+      },
+      {
+        "local": "22",
+        "global": "440",
+        "name": "Bhveowood"
+      },
+      {
+        "local": "23",
+        "global": "441",
+        "name": "needlibti"
+      },
+      {
+        "local": "24",
+        "global": "350",
+        "name": "HSOpen"
+      },
+      {
+        "local": "25",
+        "global": "77",
+        "name": "bAM4Vt"
+      },
+      {
+        "local": "26",
+        "global": "351",
+        "name": "missLibTi"
+      },
+      {
+        "local": "27",
+        "global": "442",
+        "name": "Shint85"
+      },
+      {
+        "local": "28",
+        "global": "443",
+        "name": "bhvelibti"
+      },
+      {
+        "local": "29",
+        "global": "444",
+        "name": "needowood"
+      },
+      {
+        "local": "30",
+        "global": "109",
+        "name": "visitShar"
+      },
+      {
+        "local": "31",
+        "global": "445",
+        "name": "Bstarseen"
+      },
+      {
+        "local": "32",
+        "global": "446",
+        "name": "starwin"
+      },
+      {
+        "local": "33",
+        "global": "447",
+        "name": "VTLopen"
+      },
+      {
+        "local": "34",
+        "global": "448",
+        "name": "midvoice"
+      },
+      {
+        "local": "35",
+        "global": "449",
+        "name": "voicewin"
+      },
+      {
+        "local": "36",
+        "global": "450",
+        "name": "Bhveseal"
+      },
+      {
+        "local": "37",
+        "global": "277",
+        "name": "bHveStar"
+      },
+      {
+        "local": "38",
+        "global": "281",
+        "name": "midClock"
+      },
+      {
+        "local": "39",
+        "global": "266",
+        "name": "ClockWin"
+      },
+      {
+        "local": "40",
+        "global": "280",
+        "name": "midFlwr1"
+      },
+      {
+        "local": "41",
+        "global": "451",
+        "name": "midflwr2"
+      },
+      {
+        "local": "42",
+        "global": "452",
+        "name": "locktreas"
+      },
+      {
+        "local": "43",
+        "global": "453",
+        "name": "bmoron1"
+      },
+      {
+        "local": "44",
+        "global": "52",
+        "name": "SOffCu1"
+      },
+      {
+        "local": "45",
+        "global": "66",
+        "name": "SoffNu3"
+      },
+      {
+        "local": "46",
+        "global": "132",
+        "name": "bCurPCrd"
+      },
+      {
+        "local": "47",
+        "global": "286",
+        "name": "SoffSHX"
+      },
+      {
+        "local": "48",
+        "global": "254",
+        "name": "bWrngCol"
+      },
+      {
+        "local": "49",
+        "global": "41",
+        "name": "SgivePpic"
+      },
+      {
+        "local": "50",
+        "global": "406",
+        "name": "bDeadCarl"
+      },
+      {
+        "local": "51",
+        "global": "454",
+        "name": "BnewVB"
+      },
+      {
+        "local": "52",
+        "global": "455",
+        "name": "bhstbuilt"
+      },
+      {
+        "local": "53",
+        "global": "456",
+        "name": "Shint119"
+      },
+      {
+        "local": "54",
+        "global": "457",
+        "name": "Bhstcrsh"
+      },
+      {
+        "local": "55",
+        "global": "458",
+        "name": "Smidhst"
+      },
+      {
+        "local": "56",
+        "global": "459",
+        "name": "Bneedhnd"
+      },
+      {
+        "local": "57",
+        "global": "460",
+        "name": "Bmidmed"
+      },
+      {
+        "local": "58",
+        "global": "461",
+        "name": "medwin"
+      },
+      {
+        "local": "59",
+        "global": "462",
+        "name": "Snoforcep"
+      },
+      {
+        "local": "60",
+        "global": "463",
+        "name": "bvbtrywhl"
+      },
+      {
+        "local": "61",
+        "global": "464",
+        "name": "bvbclose"
+      },
+      {
+        "local": "62",
+        "global": "186",
+        "name": "SMhX1a"
+      },
+      {
+        "local": "63",
+        "global": "353",
+        "name": "bMemDead"
+      },
+      {
+        "local": "64",
+        "global": "210",
+        "name": "MemAtIu"
+      },
+      {
+        "local": "65",
+        "global": "313",
+        "name": "bHveCass"
+      },
+      {
+        "local": "66",
+        "global": "211",
+        "name": "bNeedAlBk"
+      },
+      {
+        "local": "67",
+        "global": "142",
+        "name": "bVisCur3"
+      },
+      {
+        "local": "68",
+        "global": "465",
+        "name": "bgovisak"
+      },
+      {
+        "local": "69",
+        "global": "466",
+        "name": "bstrtlint"
+      },
+      {
+        "local": "70",
+        "global": "174",
+        "name": "bHveEphs"
+      },
+      {
+        "local": "71",
+        "global": "467",
+        "name": "letterwin"
+      },
+      {
+        "local": "72",
+        "global": "468",
+        "name": "bseentmb"
+      },
+      {
+        "local": "73",
+        "global": "469",
+        "name": "bmidvc"
+      },
+      {
+        "local": "74",
+        "global": "470",
+        "name": "bseenba"
+      },
+      {
+        "local": "75",
+        "global": "471",
+        "name": "bseenbee"
+      },
+      {
+        "local": "76",
+        "global": "472",
+        "name": "bmidVA"
+      },
+      {
+        "local": "77",
+        "global": "422",
+        "name": "bSeenPad"
+      },
+      {
+        "local": "78",
+        "global": "421",
+        "name": "bSolGCPad"
+      },
+      {
+        "local": "79",
+        "global": "424",
+        "name": "sGCHint"
+      },
+      {
+        "local": "80",
+        "global": "473",
+        "name": "bmidomp"
+      },
+      {
+        "local": "81",
+        "global": "474",
+        "name": "bompwin"
+      },
+      {
+        "local": "82",
+        "global": "475",
+        "name": "bstrtend"
+      },
+      {
+        "local": "83",
+        "global": "476",
+        "name": "bfndhole"
+      },
+      {
+        "local": "84",
+        "global": "477",
+        "name": "bmidend"
+      },
+      {
+        "local": "85",
+        "global": "478",
+        "name": "SVHhint1"
+      },
+      {
+        "local": "86",
+        "global": "479",
+        "name": "Swon"
+      },
+      {
+        "local": "87",
+        "global": "88",
+        "name": "sFlowChk"
+      },
+      {
+        "local": "88",
+        "global": "74",
+        "name": "flowChk"
+      },
+      {
+        "local": "89",
+        "global": "175",
+        "name": "bMidLint"
+      },
+      {
+        "local": "90",
+        "global": "325",
+        "name": "bGotCam"
+      },
+      {
+        "local": "91",
+        "global": "480",
+        "name": "SMafacan"
+      },
+      {
+        "local": "92",
+        "global": "352",
+        "name": "bdufnoHs"
+      },
+      {
+        "local": "93",
+        "global": "330",
+        "name": "SNIntro"
+      },
+      {
+        "local": "94",
+        "global": "282",
+        "name": "bHveGlass"
+      },
+      {
+        "local": "95",
+        "global": "37",
+        "name": "SNurayA"
+      },
+      {
+        "local": "96",
+        "global": "481",
+        "name": "bhvesunr"
+      }
+    ],
+    "HL": [
+      {
+        "local": "0",
+        "global": "36",
+        "name": "SAk3help"
+      },
+      {
+        "local": "1",
+        "global": "220",
+        "name": "SAMehmet"
+      },
+      {
+        "local": "2",
+        "global": "482",
+        "name": "SMwarn"
+      },
+      {
+        "local": "3",
+        "global": "32",
+        "name": "SAkKLIO"
+      },
+      {
+        "local": "4",
+        "global": "30",
+        "name": "SAcarlo"
+      },
+      {
+        "local": "5",
+        "global": "483",
+        "name": "SAcutoff"
+      },
+      {
+        "local": "6",
+        "global": "484",
+        "name": "SAMdead"
+      },
+      {
+        "local": "7",
+        "global": "186",
+        "name": "SMhX1a"
+      },
+      {
+        "local": "8",
+        "global": "485",
+        "name": "SoffAk4"
+      },
+      {
+        "local": "9",
+        "global": "24",
+        "name": "Hherchks"
+      },
+      {
+        "local": "10",
+        "global": "486",
+        "name": "SofftIs2"
+      },
+      {
+        "local": "11",
+        "global": "25",
+        "name": "SBlownit"
+      },
+      {
+        "local": "12",
+        "global": "487",
+        "name": "SoffaIs2"
+      },
+      {
+        "local": "13",
+        "global": "8",
+        "name": "lastNode"
+      },
+      {
+        "local": "14",
+        "global": "488",
+        "name": "HLRadTme"
+      },
+      {
+        "local": "15",
+        "global": "489",
+        "name": "HLMusTme"
+      },
+      {
+        "local": "16",
+        "global": "10",
+        "name": "reLoad"
+      },
+      {
+        "local": "17",
+        "global": "490",
+        "name": "bHLRadOn"
+      },
+      {
+        "local": "18",
+        "global": "74",
+        "name": "flowChk"
+      },
+      {
+        "local": "19",
+        "global": "491",
+        "name": "HLInst"
+      },
+      {
+        "local": "20",
+        "global": "27",
+        "name": "SAkwin"
+      },
+      {
+        "local": "21",
+        "global": "492",
+        "name": "bIskClue"
+      },
+      {
+        "local": "22",
+        "global": "493",
+        "name": "soffDC1"
+      },
+      {
+        "local": "23",
+        "global": "431",
+        "name": "bdoneclm"
+      },
+      {
+        "local": "24",
+        "global": "432",
+        "name": "Sbackpk"
+      },
+      {
+        "local": "25",
+        "global": "494",
+        "name": "bIsHLOn"
+      },
+      {
+        "local": "26",
+        "global": "495",
+        "name": "bAkHlOn"
+      },
+      {
+        "local": "27",
+        "global": "465",
+        "name": "bgovisak"
+      },
+      {
+        "local": "28",
+        "global": "79",
+        "name": "blastSite"
+      },
+      {
+        "local": "29",
+        "global": "80",
+        "name": "blastInst"
+      }
+    ],
+    "HSLOWER": [
+      {
+        "local": "0",
+        "global": "42",
+        "name": "SHintro"
+      },
+      {
+        "local": "1",
+        "global": "40",
+        "name": "SHknowe"
+      },
+      {
+        "local": "2",
+        "global": "496",
+        "name": "Soffpr1"
+      },
+      {
+        "local": "3",
+        "global": "497",
+        "name": "SNxhire"
+      },
+      {
+        "local": "4",
+        "global": "330",
+        "name": "SNIntro"
+      },
+      {
+        "local": "5",
+        "global": "498",
+        "name": "SNhomer"
+      },
+      {
+        "local": "6",
+        "global": "499",
+        "name": "SN2told"
+      },
+      {
+        "local": "7",
+        "global": "500",
+        "name": "SoffNu2"
+      },
+      {
+        "local": "8",
+        "global": "501",
+        "name": "HSStepRng"
+      },
+      {
+        "local": "9",
+        "global": "502",
+        "name": "HSStepMin"
+      },
+      {
+        "local": "10",
+        "global": "503",
+        "name": "HSStepArc"
+      },
+      {
+        "local": "11",
+        "global": "504",
+        "name": "HSchoir"
+      },
+      {
+        "local": "12",
+        "global": "505",
+        "name": "bCassHSon"
+      },
+      {
+        "local": "13",
+        "global": "351",
+        "name": "missLibTi"
+      },
+      {
+        "local": "14",
+        "global": "506",
+        "name": "bMosHSOn"
+      },
+      {
+        "local": "15",
+        "global": "507",
+        "name": "HSStepTme"
+      },
+      {
+        "local": "16",
+        "global": "508",
+        "name": "HSStepLoc"
+      },
+      {
+        "local": "17",
+        "global": "8",
+        "name": "lastNode"
+      },
+      {
+        "local": "18",
+        "global": "10",
+        "name": "reLoad"
+      },
+      {
+        "local": "19",
+        "global": "509",
+        "name": "bCasImpDr"
+      },
+      {
+        "local": "20",
+        "global": "510",
+        "name": "bCassHS00"
+      },
+      {
+        "local": "21",
+        "global": "74",
+        "name": "flowChk"
+      },
+      {
+        "local": "22",
+        "global": "511",
+        "name": "HSInst"
+      },
+      {
+        "local": "23",
+        "global": "79",
+        "name": "blastSite"
+      },
+      {
+        "local": "24",
+        "global": "80",
+        "name": "blastInst"
+      },
+      {
+        "local": "25",
+        "global": "512",
+        "name": "cassImpMs"
+      },
+      {
+        "local": "26",
+        "global": "513",
+        "name": "cassVesmo"
+      },
+      {
+        "local": "27",
+        "global": "514",
+        "name": "cassMary"
+      },
+      {
+        "local": "28",
+        "global": "515",
+        "name": "cassJust"
+      },
+      {
+        "local": "29",
+        "global": "516",
+        "name": "cassConst"
+      },
+      {
+        "local": "30",
+        "global": "517",
+        "name": "cassBronz"
+      },
+      {
+        "local": "31",
+        "global": "518",
+        "name": "bCassHS01"
+      },
+      {
+        "local": "32",
+        "global": "519",
+        "name": "cassMarPl"
+      },
+      {
+        "local": "33",
+        "global": "520",
+        "name": "LuUrCass"
+      },
+      {
+        "local": "34",
+        "global": "521",
+        "name": "bCassHS04"
+      },
+      {
+        "local": "35",
+        "global": "522",
+        "name": "cassFingh"
+      },
+      {
+        "local": "36",
+        "global": "523",
+        "name": "bCassHS02"
+      },
+      {
+        "local": "37",
+        "global": "524",
+        "name": "bCassOmp"
+      },
+      {
+        "local": "38",
+        "global": "525",
+        "name": "cassHSMed"
+      },
+      {
+        "local": "39",
+        "global": "526",
+        "name": "cassLibr"
+      },
+      {
+        "local": "40",
+        "global": "527",
+        "name": "cassApseM"
+      },
+      {
+        "local": "41",
+        "global": "528",
+        "name": "cassScaf"
+      },
+      {
+        "local": "42",
+        "global": "529",
+        "name": "cassLamp"
+      },
+      {
+        "local": "43",
+        "global": "96",
+        "name": "bHomerCal"
+      },
+      {
+        "local": "44",
+        "global": "95",
+        "name": "bHomerChg"
+      },
+      {
+        "local": "45",
+        "global": "97",
+        "name": "bHomerTme"
+      },
+      {
+        "local": "46",
+        "global": "530",
+        "name": "cassMinbr"
+      },
+      {
+        "local": "47",
+        "global": "531",
+        "name": "cassMihrb"
+      },
+      {
+        "local": "48",
+        "global": "532",
+        "name": "HSLNurMus"
+      },
+      {
+        "local": "49",
+        "global": "98",
+        "name": "bNewScans"
+      },
+      {
+        "local": "50",
+        "global": "99",
+        "name": "bNumScans"
+      },
+      {
+        "local": "51",
+        "global": "443",
+        "name": "bhvelibti"
+      },
+      {
+        "local": "52",
+        "global": "441",
+        "name": "needlibti"
+      },
+      {
+        "local": "53",
+        "global": "108",
+        "name": "bSharTk"
+      },
+      {
+        "local": "54",
+        "global": "107",
+        "name": "bFstOtt"
+      },
+      {
+        "local": "55",
+        "global": "76",
+        "name": "bVTScans"
+      },
+      {
+        "local": "56",
+        "global": "440",
+        "name": "Bhveowood"
+      },
+      {
+        "local": "57",
+        "global": "77",
+        "name": "bAM4Vt"
+      },
+      {
+        "local": "58",
+        "global": "109",
+        "name": "visitShar"
+      },
+      {
+        "local": "59",
+        "global": "444",
+        "name": "needowood"
+      },
+      {
+        "local": "60",
+        "global": "101",
+        "name": "bHSNoPwr"
+      }
+    ],
+    "HSTMED": [
+      {
+        "local": "0",
+        "global": "533",
+        "name": "VBSndTme"
+      },
+      {
+        "local": "1",
+        "global": "534",
+        "name": "VBSndMin"
+      },
+      {
+        "local": "2",
+        "global": "535",
+        "name": "VBSndMax"
+      },
+      {
+        "local": "3",
+        "global": "536",
+        "name": "VBMusTme1"
+      },
+      {
+        "local": "4",
+        "global": "537",
+        "name": "vbMusTme2"
+      },
+      {
+        "local": "5",
+        "global": "538",
+        "name": "bNumTile"
+      },
+      {
+        "local": "6",
+        "global": "539",
+        "name": "bBeenHst"
+      },
+      {
+        "local": "7",
+        "global": "540",
+        "name": "numVBSnd"
+      },
+      {
+        "local": "8",
+        "global": "541",
+        "name": "VBDisc"
+      },
+      {
+        "local": "9",
+        "global": "542",
+        "name": "bNeedCrw"
+      },
+      {
+        "local": "10",
+        "global": "461",
+        "name": "medwin"
+      },
+      {
+        "local": "11",
+        "global": "543",
+        "name": "bMedHnIn"
+      },
+      {
+        "local": "12",
+        "global": "459",
+        "name": "Bneedhnd"
+      },
+      {
+        "local": "13",
+        "global": "460",
+        "name": "Bmidmed"
+      },
+      {
+        "local": "14",
+        "global": "544",
+        "name": "hstStep"
+      },
+      {
+        "local": "15",
+        "global": "545",
+        "name": "vbSndNdl"
+      },
+      {
+        "local": "16",
+        "global": "546",
+        "name": "vbSndTyp"
+      },
+      {
+        "local": "17",
+        "global": "547",
+        "name": "framT"
+      },
+      {
+        "local": "18",
+        "global": "548",
+        "name": "framB"
+      },
+      {
+        "local": "19",
+        "global": "549",
+        "name": "HandLoc"
+      },
+      {
+        "local": "20",
+        "global": "550",
+        "name": "hstWin"
+      },
+      {
+        "local": "21",
+        "global": "551",
+        "name": "bVBTile1"
+      },
+      {
+        "local": "22",
+        "global": "552",
+        "name": "bVBTile2"
+      },
+      {
+        "local": "23",
+        "global": "553",
+        "name": "bstrtHst1"
+      },
+      {
+        "local": "24",
+        "global": "554",
+        "name": "bVbtile3"
+      },
+      {
+        "local": "25",
+        "global": "555",
+        "name": "locB1prt"
+      },
+      {
+        "local": "26",
+        "global": "556",
+        "name": "bVbtile6"
+      },
+      {
+        "local": "27",
+        "global": "557",
+        "name": "locB2Prt"
+      },
+      {
+        "local": "28",
+        "global": "558",
+        "name": "bVbtile5"
+      },
+      {
+        "local": "29",
+        "global": "559",
+        "name": "locA1prt"
+      },
+      {
+        "local": "30",
+        "global": "560",
+        "name": "bVbtile9"
+      },
+      {
+        "local": "31",
+        "global": "561",
+        "name": "locA2Prt"
+      },
+      {
+        "local": "32",
+        "global": "562",
+        "name": "bVbtile4"
+      },
+      {
+        "local": "33",
+        "global": "563",
+        "name": "locDPrt"
+      },
+      {
+        "local": "34",
+        "global": "564",
+        "name": "bVbtile7"
+      },
+      {
+        "local": "35",
+        "global": "565",
+        "name": "locEprt"
+      },
+      {
+        "local": "36",
+        "global": "566",
+        "name": "bVbtile8"
+      },
+      {
+        "local": "37",
+        "global": "567",
+        "name": "locHPrt"
+      },
+      {
+        "local": "38",
+        "global": "568",
+        "name": "locCPrt"
+      },
+      {
+        "local": "39",
+        "global": "569",
+        "name": "locFPrt"
+      },
+      {
+        "local": "40",
+        "global": "570",
+        "name": "locGPrt"
+      },
+      {
+        "local": "41",
+        "global": "571",
+        "name": "locIPrt"
+      },
+      {
+        "local": "42",
+        "global": "455",
+        "name": "bhstbuilt"
+      },
+      {
+        "local": "43",
+        "global": "457",
+        "name": "Bhstcrsh"
+      },
+      {
+        "local": "44",
+        "global": "454",
+        "name": "BnewVB"
+      },
+      {
+        "local": "45",
+        "global": "458",
+        "name": "Smidhst"
+      },
+      {
+        "local": "46",
+        "global": "8",
+        "name": "lastNode"
+      },
+      {
+        "local": "47",
+        "global": "10",
+        "name": "reLoad"
+      },
+      {
+        "local": "48",
+        "global": "20",
+        "name": "temp"
+      },
+      {
+        "local": "49",
+        "global": "572",
+        "name": "bstrtHst2"
+      },
+      {
+        "local": "50",
+        "global": "462",
+        "name": "Snoforcep"
+      },
+      {
+        "local": "51",
+        "global": "463",
+        "name": "bvbtrywhl"
+      },
+      {
+        "local": "52",
+        "global": "464",
+        "name": "bvbclose"
+      },
+      {
+        "local": "53",
+        "global": "333",
+        "name": "bVBOpen"
+      },
+      {
+        "local": "54",
+        "global": "465",
+        "name": "bgovisak"
+      },
+      {
+        "local": "55",
+        "global": "89",
+        "name": "bNewDisk"
+      },
+      {
+        "local": "56",
+        "global": "87",
+        "name": "flowGo"
+      },
+      {
+        "local": "57",
+        "global": "96",
+        "name": "bHomerCal"
+      },
+      {
+        "local": "58",
+        "global": "86",
+        "name": "bVBDone"
+      },
+      {
+        "local": "59",
+        "global": "138",
+        "name": "bVCSetup1"
+      },
+      {
+        "local": "60",
+        "global": "85",
+        "name": "bVCSetUp"
+      }
+    ],
+    "HSUPPER": [
+      {
+        "local": "0",
+        "global": "573",
+        "name": "Iforum"
+      },
+      {
+        "local": "1",
+        "global": "574",
+        "name": "HSMusRng"
+      },
+      {
+        "local": "2",
+        "global": "575",
+        "name": "HSMusMin"
+      },
+      {
+        "local": "3",
+        "global": "505",
+        "name": "bCassHSon"
+      },
+      {
+        "local": "4",
+        "global": "506",
+        "name": "bMosHSOn"
+      },
+      {
+        "local": "5",
+        "global": "8",
+        "name": "lastNode"
+      },
+      {
+        "local": "6",
+        "global": "10",
+        "name": "reLoad"
+      },
+      {
+        "local": "7",
+        "global": "74",
+        "name": "flowChk"
+      },
+      {
+        "local": "8",
+        "global": "576",
+        "name": "HSMusTme"
+      },
+      {
+        "local": "9",
+        "global": "577",
+        "name": "cassEmpr1"
+      },
+      {
+        "local": "10",
+        "global": "578",
+        "name": "cassEmpr2"
+      },
+      {
+        "local": "11",
+        "global": "523",
+        "name": "bCassHS02"
+      },
+      {
+        "local": "12",
+        "global": "37",
+        "name": "SNurayA"
+      },
+      {
+        "local": "13",
+        "global": "579",
+        "name": "HSUNurMus"
+      },
+      {
+        "local": "14",
+        "global": "580",
+        "name": "cassDeesi"
+      },
+      {
+        "local": "15",
+        "global": "581",
+        "name": "cassJesus"
+      },
+      {
+        "local": "16",
+        "global": "582",
+        "name": "cassCross"
+      },
+      {
+        "local": "17",
+        "global": "583",
+        "name": "bCassRune"
+      },
+      {
+        "local": "18",
+        "global": "584",
+        "name": "cassMorri"
+      },
+      {
+        "local": "19",
+        "global": "585",
+        "name": "cassVikgr"
+      },
+      {
+        "local": "20",
+        "global": "586",
+        "name": "cassQuake"
+      },
+      {
+        "local": "21",
+        "global": "587",
+        "name": "cassDanTm"
+      },
+      {
+        "local": "22",
+        "global": "588",
+        "name": "cassEiren"
+      },
+      {
+        "local": "23",
+        "global": "589",
+        "name": "cassZoeMS"
+      }
+    ],
+    "IU": [
+      {
+        "local": "0",
+        "global": "186",
+        "name": "SMhX1a"
+      },
+      {
+        "local": "1",
+        "global": "590",
+        "name": "STksign"
+      },
+      {
+        "local": "2",
+        "global": "324",
+        "name": "sskch1"
+      },
+      {
+        "local": "3",
+        "global": "251",
+        "name": "bIULocked"
+      },
+      {
+        "local": "4",
+        "global": "591",
+        "name": "SNpalshut"
+      },
+      {
+        "local": "5",
+        "global": "592",
+        "name": "SKnowshut"
+      },
+      {
+        "local": "6",
+        "global": "439",
+        "name": "SinClio1"
+      },
+      {
+        "local": "7",
+        "global": "593",
+        "name": "SShscan"
+      },
+      {
+        "local": "8",
+        "global": "594",
+        "name": "SShTshut"
+      },
+      {
+        "local": "9",
+        "global": "595",
+        "name": "Soffsh1b"
+      },
+      {
+        "local": "10",
+        "global": "96",
+        "name": "bHomerCal"
+      },
+      {
+        "local": "11",
+        "global": "97",
+        "name": "bHomerTme"
+      },
+      {
+        "local": "12",
+        "global": "596",
+        "name": "HHomer"
+      },
+      {
+        "local": "13",
+        "global": "597",
+        "name": "SoffSh1a"
+      },
+      {
+        "local": "14",
+        "global": "434",
+        "name": "SS1nohom"
+      },
+      {
+        "local": "15",
+        "global": "598",
+        "name": "SS2blk"
+      },
+      {
+        "local": "16",
+        "global": "599",
+        "name": "SSintro"
+      },
+      {
+        "local": "17",
+        "global": "435",
+        "name": "SS1nohlp"
+      },
+      {
+        "local": "18",
+        "global": "600",
+        "name": "SSpress"
+      },
+      {
+        "local": "19",
+        "global": "601",
+        "name": "Scutmsg"
+      },
+      {
+        "local": "20",
+        "global": "602",
+        "name": "SSh7stoln"
+      },
+      {
+        "local": "21",
+        "global": "603",
+        "name": "Soffsh7"
+      },
+      {
+        "local": "22",
+        "global": "212",
+        "name": "sfanclip"
+      },
+      {
+        "local": "23",
+        "global": "604",
+        "name": "SSh7gogo"
+      },
+      {
+        "local": "24",
+        "global": "605",
+        "name": "MaxCmpTme"
+      },
+      {
+        "local": "25",
+        "global": "606",
+        "name": "numCmpTyp"
+      },
+      {
+        "local": "26",
+        "global": "607",
+        "name": "MinCmpTme"
+      },
+      {
+        "local": "27",
+        "global": "608",
+        "name": "NumCmpLoc"
+      },
+      {
+        "local": "28",
+        "global": "609",
+        "name": "IUPhnMax"
+      },
+      {
+        "local": "29",
+        "global": "610",
+        "name": "IUPhnMin"
+      },
+      {
+        "local": "30",
+        "global": "611",
+        "name": "IUModTme"
+      },
+      {
+        "local": "31",
+        "global": "612",
+        "name": "IUSfxMin"
+      },
+      {
+        "local": "32",
+        "global": "613",
+        "name": "IUSfxRng"
+      },
+      {
+        "local": "33",
+        "global": "614",
+        "name": "IuSfxNum"
+      },
+      {
+        "local": "34",
+        "global": "433",
+        "name": "Bseeniu"
+      },
+      {
+        "local": "35",
+        "global": "267",
+        "name": "bPostVr"
+      },
+      {
+        "local": "36",
+        "global": "74",
+        "name": "flowChk"
+      },
+      {
+        "local": "37",
+        "global": "615",
+        "name": "bMMhx"
+      },
+      {
+        "local": "38",
+        "global": "86",
+        "name": "bVBDone"
+      },
+      {
+        "local": "39",
+        "global": "482",
+        "name": "SMwarn"
+      },
+      {
+        "local": "40",
+        "global": "210",
+        "name": "MemAtIu"
+      },
+      {
+        "local": "41",
+        "global": "616",
+        "name": "iusfxtme"
+      },
+      {
+        "local": "42",
+        "global": "617",
+        "name": "iusfxtyp"
+      },
+      {
+        "local": "43",
+        "global": "618",
+        "name": "IUInst"
+      },
+      {
+        "local": "44",
+        "global": "8",
+        "name": "lastNode"
+      },
+      {
+        "local": "45",
+        "global": "10",
+        "name": "reLoad"
+      },
+      {
+        "local": "46",
+        "global": "619",
+        "name": "IUCmpTme"
+      },
+      {
+        "local": "47",
+        "global": "620",
+        "name": "IUCmpLoc"
+      },
+      {
+        "local": "48",
+        "global": "621",
+        "name": "IUCmpTyp"
+      },
+      {
+        "local": "49",
+        "global": "622",
+        "name": "IUPhnTme"
+      },
+      {
+        "local": "50",
+        "global": "623",
+        "name": "bFstClio"
+      },
+      {
+        "local": "51",
+        "global": "20",
+        "name": "temp"
+      },
+      {
+        "local": "52",
+        "global": "429",
+        "name": "bGogs"
+      },
+      {
+        "local": "53",
+        "global": "87",
+        "name": "flowGo"
+      },
+      {
+        "local": "54",
+        "global": "89",
+        "name": "bNewDisk"
+      },
+      {
+        "local": "55",
+        "global": "624",
+        "name": "bSharAp1"
+      },
+      {
+        "local": "56",
+        "global": "625",
+        "name": "bSharPisd"
+      },
+      {
+        "local": "57",
+        "global": "626",
+        "name": "lstScn"
+      },
+      {
+        "local": "58",
+        "global": "627",
+        "name": "bTookHmr"
+      },
+      {
+        "local": "59",
+        "global": "333",
+        "name": "bVBOpen"
+      },
+      {
+        "local": "60",
+        "global": "465",
+        "name": "bgovisak"
+      },
+      {
+        "local": "61",
+        "global": "349",
+        "name": "AMOpen"
+      },
+      {
+        "local": "62",
+        "global": "98",
+        "name": "bNewScans"
+      },
+      {
+        "local": "63",
+        "global": "109",
+        "name": "visitShar"
+      },
+      {
+        "local": "64",
+        "global": "108",
+        "name": "bSharTk"
+      },
+      {
+        "local": "65",
+        "global": "99",
+        "name": "bNumScans"
+      },
+      {
+        "local": "66",
+        "global": "628",
+        "name": "bNewTrip"
+      },
+      {
+        "local": "67",
+        "global": "79",
+        "name": "blastSite"
+      },
+      {
+        "local": "68",
+        "global": "80",
+        "name": "blastInst"
+      },
+      {
+        "local": "69",
+        "global": "629",
+        "name": "bVCDone"
+      }
+    ],
+    "IUEND": [
+      {
+        "local": "0",
+        "global": "429",
+        "name": "bGogs"
+      },
+      {
+        "local": "1",
+        "global": "10",
+        "name": "reLoad"
+      },
+      {
+        "local": "2",
+        "global": "428",
+        "name": "Popout"
+      }
+    ],
+    "IUOVER": [
+      {
+        "local": "0",
+        "global": "630",
+        "name": "gameWon"
+      },
+      {
+        "local": "1",
+        "global": "631",
+        "name": "bPulitzer"
+      },
+      {
+        "local": "2",
+        "global": "632",
+        "name": "bNoJail"
+      },
+      {
+        "local": "3",
+        "global": "479",
+        "name": "Swon"
+      },
+      {
+        "local": "4",
+        "global": "20",
+        "name": "temp"
+      }
+    ],
+    "LINTEL": [
+      {
+        "local": "0",
+        "global": "467",
+        "name": "letterwin"
+      },
+      {
+        "local": "1",
+        "global": "466",
+        "name": "bstrtlint"
+      },
+      {
+        "local": "2",
+        "global": "633",
+        "name": "bFrstLint"
+      },
+      {
+        "local": "3",
+        "global": "267",
+        "name": "bPostVr"
+      },
+      {
+        "local": "4",
+        "global": "8",
+        "name": "lastNode"
+      },
+      {
+        "local": "5",
+        "global": "634",
+        "name": "bTypeLoc1"
+      },
+      {
+        "local": "6",
+        "global": "635",
+        "name": "bTypeLoc2"
+      },
+      {
+        "local": "7",
+        "global": "636",
+        "name": "bTypeLoc3"
+      },
+      {
+        "local": "8",
+        "global": "637",
+        "name": "bTypeLoc4"
+      },
+      {
+        "local": "9",
+        "global": "638",
+        "name": "bSwapLoc"
+      },
+      {
+        "local": "10",
+        "global": "639",
+        "name": "bOldLoc"
+      },
+      {
+        "local": "11",
+        "global": "640",
+        "name": "bSwapType"
+      },
+      {
+        "local": "12",
+        "global": "641",
+        "name": "bTempVal"
+      },
+      {
+        "local": "13",
+        "global": "642",
+        "name": "bCursType"
+      },
+      {
+        "local": "14",
+        "global": "175",
+        "name": "bMidLint"
+      },
+      {
+        "local": "15",
+        "global": "643",
+        "name": "EphHitTme"
+      },
+      {
+        "local": "16",
+        "global": "644",
+        "name": "EphHitRng"
+      },
+      {
+        "local": "17",
+        "global": "645",
+        "name": "EphHitMin"
+      },
+      {
+        "local": "18",
+        "global": "646",
+        "name": "EphHitTyp"
+      },
+      {
+        "local": "19",
+        "global": "647",
+        "name": "NumEphHit"
+      },
+      {
+        "local": "20",
+        "global": "648",
+        "name": "EphHitLoc"
+      }
+    ],
+    "MAP": [
+      {
+        "local": "0",
+        "global": "628",
+        "name": "bNewTrip"
+      },
+      {
+        "local": "1",
+        "global": "3",
+        "name": "EAOpen"
+      },
+      {
+        "local": "2",
+        "global": "340",
+        "name": "HLOpen"
+      },
+      {
+        "local": "3",
+        "global": "126",
+        "name": "GTOpen"
+      },
+      {
+        "local": "4",
+        "global": "140",
+        "name": "GCOpen"
+      },
+      {
+        "local": "5",
+        "global": "343",
+        "name": "NBOpen"
+      },
+      {
+        "local": "6",
+        "global": "5",
+        "name": "SMOpen"
+      },
+      {
+        "local": "7",
+        "global": "253",
+        "name": "iuopen"
+      },
+      {
+        "local": "8",
+        "global": "44",
+        "name": "ftopen"
+      },
+      {
+        "local": "9",
+        "global": "335",
+        "name": "BBOpen"
+      },
+      {
+        "local": "10",
+        "global": "213",
+        "name": "ASOpen"
+      },
+      {
+        "local": "11",
+        "global": "349",
+        "name": "AMOpen"
+      },
+      {
+        "local": "12",
+        "global": "346",
+        "name": "BCOpen"
+      },
+      {
+        "local": "13",
+        "global": "649",
+        "name": "mapmehmet"
+      },
+      {
+        "local": "14",
+        "global": "4",
+        "name": "TKOpen"
+      },
+      {
+        "local": "15",
+        "global": "350",
+        "name": "HSOpen"
+      },
+      {
+        "local": "16",
+        "global": "6",
+        "name": "SPOpen"
+      },
+      {
+        "local": "17",
+        "global": "333",
+        "name": "bVBOpen"
+      },
+      {
+        "local": "18",
+        "global": "10",
+        "name": "reLoad"
+      },
+      {
+        "local": "19",
+        "global": "87",
+        "name": "flowGo"
+      },
+      {
+        "local": "20",
+        "global": "74",
+        "name": "flowChk"
+      },
+      {
+        "local": "21",
+        "global": "88",
+        "name": "sFlowChk"
+      },
+      {
+        "local": "22",
+        "global": "89",
+        "name": "bNewDisk"
+      },
+      {
+        "local": "23",
+        "global": "650",
+        "name": "sOffCa1"
+      },
+      {
+        "local": "24",
+        "global": "651",
+        "name": "bJustMyst"
+      },
+      {
+        "local": "25",
+        "global": "2",
+        "name": "lastMyst"
+      },
+      {
+        "local": "26",
+        "global": "8",
+        "name": "lastNode"
+      }
+    ],
+    "MORRIS": [
+      {
+        "local": "0",
+        "global": "645",
+        "name": "EphHitMin"
+      },
+      {
+        "local": "1",
+        "global": "644",
+        "name": "EphHitRng"
+      },
+      {
+        "local": "2",
+        "global": "647",
+        "name": "NumEphHit"
+      },
+      {
+        "local": "3",
+        "global": "652",
+        "name": "NewGame"
+      },
+      {
+        "local": "4",
+        "global": "653",
+        "name": "Continue"
+      },
+      {
+        "local": "5",
+        "global": "654",
+        "name": "EndGame"
+      },
+      {
+        "local": "6",
+        "global": "655",
+        "name": "MorrisWin"
+      },
+      {
+        "local": "7",
+        "global": "267",
+        "name": "bPostVr"
+      },
+      {
+        "local": "8",
+        "global": "656",
+        "name": "toggSet"
+      },
+      {
+        "local": "9",
+        "global": "8",
+        "name": "lastNode"
+      },
+      {
+        "local": "10",
+        "global": "20",
+        "name": "temp"
+      },
+      {
+        "local": "11",
+        "global": "657",
+        "name": "both"
+      },
+      {
+        "local": "12",
+        "global": "658",
+        "name": "locb01"
+      },
+      {
+        "local": "13",
+        "global": "659",
+        "name": "locb02"
+      },
+      {
+        "local": "14",
+        "global": "660",
+        "name": "locb03"
+      },
+      {
+        "local": "15",
+        "global": "661",
+        "name": "locb04"
+      },
+      {
+        "local": "16",
+        "global": "662",
+        "name": "locb05"
+      },
+      {
+        "local": "17",
+        "global": "663",
+        "name": "locb06"
+      },
+      {
+        "local": "18",
+        "global": "664",
+        "name": "locb07"
+      },
+      {
+        "local": "19",
+        "global": "665",
+        "name": "locb08"
+      },
+      {
+        "local": "20",
+        "global": "666",
+        "name": "locb09"
+      },
+      {
+        "local": "21",
+        "global": "667",
+        "name": "locw01"
+      },
+      {
+        "local": "22",
+        "global": "668",
+        "name": "locw02"
+      },
+      {
+        "local": "23",
+        "global": "669",
+        "name": "locw03"
+      },
+      {
+        "local": "24",
+        "global": "670",
+        "name": "locw04"
+      },
+      {
+        "local": "25",
+        "global": "671",
+        "name": "locw05"
+      },
+      {
+        "local": "26",
+        "global": "672",
+        "name": "locw06"
+      },
+      {
+        "local": "27",
+        "global": "673",
+        "name": "locw07"
+      },
+      {
+        "local": "28",
+        "global": "674",
+        "name": "locw08"
+      },
+      {
+        "local": "29",
+        "global": "675",
+        "name": "locw09"
+      },
+      {
+        "local": "30",
+        "global": "676",
+        "name": "brdLoc01"
+      },
+      {
+        "local": "31",
+        "global": "677",
+        "name": "brdLoc02"
+      },
+      {
+        "local": "32",
+        "global": "678",
+        "name": "brdLoc03"
+      },
+      {
+        "local": "33",
+        "global": "679",
+        "name": "brdLoc04"
+      },
+      {
+        "local": "34",
+        "global": "680",
+        "name": "brdLoc05"
+      },
+      {
+        "local": "35",
+        "global": "681",
+        "name": "brdLoc06"
+      },
+      {
+        "local": "36",
+        "global": "682",
+        "name": "brdLoc07"
+      },
+      {
+        "local": "37",
+        "global": "683",
+        "name": "brdLoc08"
+      },
+      {
+        "local": "38",
+        "global": "684",
+        "name": "brdLoc09"
+      },
+      {
+        "local": "39",
+        "global": "685",
+        "name": "brdLoc10"
+      },
+      {
+        "local": "40",
+        "global": "686",
+        "name": "brdLoc11"
+      },
+      {
+        "local": "41",
+        "global": "687",
+        "name": "brdLoc12"
+      },
+      {
+        "local": "42",
+        "global": "688",
+        "name": "brdLoc13"
+      },
+      {
+        "local": "43",
+        "global": "689",
+        "name": "brdLoc14"
+      },
+      {
+        "local": "44",
+        "global": "690",
+        "name": "brdLoc15"
+      },
+      {
+        "local": "45",
+        "global": "691",
+        "name": "brdLoc16"
+      },
+      {
+        "local": "46",
+        "global": "692",
+        "name": "brdLoc17"
+      },
+      {
+        "local": "47",
+        "global": "693",
+        "name": "brdLoc18"
+      },
+      {
+        "local": "48",
+        "global": "694",
+        "name": "brdLoc19"
+      },
+      {
+        "local": "49",
+        "global": "695",
+        "name": "brdLoc20"
+      },
+      {
+        "local": "50",
+        "global": "696",
+        "name": "brdLoc21"
+      },
+      {
+        "local": "51",
+        "global": "697",
+        "name": "brdLoc22"
+      },
+      {
+        "local": "52",
+        "global": "698",
+        "name": "brdLoc23"
+      },
+      {
+        "local": "53",
+        "global": "699",
+        "name": "brdLoc24"
+      },
+      {
+        "local": "54",
+        "global": "700",
+        "name": "bmoType"
+      },
+      {
+        "local": "55",
+        "global": "701",
+        "name": "MoResult"
+      },
+      {
+        "local": "56",
+        "global": "702",
+        "name": "stoneLoc"
+      },
+      {
+        "local": "57",
+        "global": "703",
+        "name": "lineWin"
+      },
+      {
+        "local": "58",
+        "global": "643",
+        "name": "EphHitTme"
+      },
+      {
+        "local": "59",
+        "global": "646",
+        "name": "EphHitTyp"
+      },
+      {
+        "local": "60",
+        "global": "648",
+        "name": "EphHitLoc"
+      }
+    ],
+    "MR": [
+      {
+        "local": "0",
+        "global": "217",
+        "name": "SCaMR"
+      },
+      {
+        "local": "1",
+        "global": "344",
+        "name": "ihomer"
+      },
+      {
+        "local": "2",
+        "global": "74",
+        "name": "flowChk"
+      },
+      {
+        "local": "3",
+        "global": "704",
+        "name": "MRstuff"
+      },
+      {
+        "local": "4",
+        "global": "705",
+        "name": "MRantiq"
+      },
+      {
+        "local": "5",
+        "global": "706",
+        "name": "MRemrug"
+      },
+      {
+        "local": "6",
+        "global": "707",
+        "name": "MRkilrug"
+      },
+      {
+        "local": "7",
+        "global": "708",
+        "name": "MRleave"
+      },
+      {
+        "local": "8",
+        "global": "709",
+        "name": "imhmr1a"
+      },
+      {
+        "local": "9",
+        "global": "710",
+        "name": "SgoMR1"
+      },
+      {
+        "local": "10",
+        "global": "711",
+        "name": "SMintro"
+      },
+      {
+        "local": "11",
+        "global": "29",
+        "name": "die"
+      },
+      {
+        "local": "12",
+        "global": "712",
+        "name": "SOffMh1"
+      },
+      {
+        "local": "13",
+        "global": "34",
+        "name": "SCabar"
+      },
+      {
+        "local": "14",
+        "global": "713",
+        "name": "SgotMbet"
+      },
+      {
+        "local": "15",
+        "global": "714",
+        "name": "Suserace"
+      },
+      {
+        "local": "16",
+        "global": "480",
+        "name": "SMafacan"
+      },
+      {
+        "local": "17",
+        "global": "715",
+        "name": "SoffMh2"
+      },
+      {
+        "local": "18",
+        "global": "10",
+        "name": "reLoad"
+      },
+      {
+        "local": "19",
+        "global": "716",
+        "name": "MRByeTme"
+      },
+      {
+        "local": "20",
+        "global": "717",
+        "name": "MRWaitTme"
+      },
+      {
+        "local": "21",
+        "global": "376",
+        "name": "bMrExLock"
+      },
+      {
+        "local": "22",
+        "global": "252",
+        "name": "bMrLocked"
+      },
+      {
+        "local": "23",
+        "global": "718",
+        "name": "mrInst"
+      },
+      {
+        "local": "24",
+        "global": "8",
+        "name": "lastNode"
+      },
+      {
+        "local": "25",
+        "global": "438",
+        "name": "Bhveduf"
+      },
+      {
+        "local": "26",
+        "global": "436",
+        "name": "bmkeydone"
+      },
+      {
+        "local": "27",
+        "global": "437",
+        "name": "BMRlock1"
+      },
+      {
+        "local": "28",
+        "global": "719",
+        "name": "bMrNote"
+      },
+      {
+        "local": "29",
+        "global": "335",
+        "name": "BBOpen"
+      },
+      {
+        "local": "30",
+        "global": "720",
+        "name": "introMr"
+      },
+      {
+        "local": "31",
+        "global": "721",
+        "name": "bMoveRg"
+      },
+      {
+        "local": "32",
+        "global": "352",
+        "name": "bdufnoHs"
+      },
+      {
+        "local": "33",
+        "global": "722",
+        "name": "bMemBye"
+      },
+      {
+        "local": "34",
+        "global": "723",
+        "name": "bMRGrief"
+      },
+      {
+        "local": "35",
+        "global": "359",
+        "name": "bHomerPwr"
+      },
+      {
+        "local": "36",
+        "global": "253",
+        "name": "iuopen"
+      },
+      {
+        "local": "37",
+        "global": "251",
+        "name": "bIULocked"
+      },
+      {
+        "local": "38",
+        "global": "235",
+        "name": "BcClosed"
+      },
+      {
+        "local": "39",
+        "global": "724",
+        "name": "bKilim"
+      },
+      {
+        "local": "40",
+        "global": "725",
+        "name": "bWeapVo"
+      },
+      {
+        "local": "41",
+        "global": "726",
+        "name": "bHeadrs"
+      },
+      {
+        "local": "42",
+        "global": "727",
+        "name": "bAxeVo"
+      },
+      {
+        "local": "43",
+        "global": "728",
+        "name": "bEmRug"
+      },
+      {
+        "local": "44",
+        "global": "729",
+        "name": "bCutRid"
+      },
+      {
+        "local": "45",
+        "global": "481",
+        "name": "bhvesunr"
+      },
+      {
+        "local": "46",
+        "global": "79",
+        "name": "blastSite"
+      },
+      {
+        "local": "47",
+        "global": "80",
+        "name": "blastInst"
+      }
+    ],
+    "MZ2": [
+      {
+        "local": "0",
+        "global": "263",
+        "name": "vt0SndRng"
+      },
+      {
+        "local": "1",
+        "global": "264",
+        "name": "vt0SndMin"
+      },
+      {
+        "local": "2",
+        "global": "265",
+        "name": "vt0SndNum"
+      },
+      {
+        "local": "3",
+        "global": "8",
+        "name": "lastNode"
+      },
+      {
+        "local": "4",
+        "global": "730",
+        "name": "bVTMzDr"
+      },
+      {
+        "local": "5",
+        "global": "731",
+        "name": "bVTMidMz"
+      },
+      {
+        "local": "6",
+        "global": "10",
+        "name": "reLoad"
+      },
+      {
+        "local": "7",
+        "global": "732",
+        "name": "bKTPass"
+      },
+      {
+        "local": "8",
+        "global": "267",
+        "name": "bPostVr"
+      },
+      {
+        "local": "9",
+        "global": "268",
+        "name": "bSetFlow8"
+      },
+      {
+        "local": "10",
+        "global": "74",
+        "name": "flowChk"
+      },
+      {
+        "local": "11",
+        "global": "283",
+        "name": "vtSndTme"
+      },
+      {
+        "local": "12",
+        "global": "284",
+        "name": "vt0SndTyp"
+      }
+    ],
+    "NB": [
+      {
+        "local": "0",
+        "global": "498",
+        "name": "SNhomer"
+      },
+      {
+        "local": "1",
+        "global": "29",
+        "name": "die"
+      },
+      {
+        "local": "2",
+        "global": "650",
+        "name": "sOffCa1"
+      },
+      {
+        "local": "3",
+        "global": "733",
+        "name": "NBstairs"
+      },
+      {
+        "local": "4",
+        "global": "734",
+        "name": "Sracing"
+      },
+      {
+        "local": "5",
+        "global": "735",
+        "name": "SofftBr1"
+      },
+      {
+        "local": "6",
+        "global": "736",
+        "name": "SBracdone"
+      },
+      {
+        "local": "7",
+        "global": "714",
+        "name": "Suserace"
+      },
+      {
+        "local": "8",
+        "global": "34",
+        "name": "SCabar"
+      },
+      {
+        "local": "9",
+        "global": "737",
+        "name": "SoffaBr1"
+      },
+      {
+        "local": "10",
+        "global": "738",
+        "name": "SNBgostr"
+      },
+      {
+        "local": "11",
+        "global": "739",
+        "name": "bCPicDone"
+      },
+      {
+        "local": "12",
+        "global": "740",
+        "name": "SoffBr2"
+      },
+      {
+        "local": "13",
+        "global": "741",
+        "name": "NB1CarTme"
+      },
+      {
+        "local": "14",
+        "global": "742",
+        "name": "NBHukRng"
+      },
+      {
+        "local": "15",
+        "global": "743",
+        "name": "NBHukMin"
+      },
+      {
+        "local": "16",
+        "global": "744",
+        "name": "NBNumSfx"
+      },
+      {
+        "local": "17",
+        "global": "745",
+        "name": "NBOutLoc"
+      },
+      {
+        "local": "18",
+        "global": "413",
+        "name": "ALSfxRng"
+      },
+      {
+        "local": "19",
+        "global": "414",
+        "name": "ALSfxMin"
+      },
+      {
+        "local": "20",
+        "global": "415",
+        "name": "ALNumSfx"
+      },
+      {
+        "local": "21",
+        "global": "416",
+        "name": "ALNumLoc"
+      },
+      {
+        "local": "22",
+        "global": "746",
+        "name": "nbinst"
+      },
+      {
+        "local": "23",
+        "global": "8",
+        "name": "lastNode"
+      },
+      {
+        "local": "24",
+        "global": "10",
+        "name": "reLoad"
+      },
+      {
+        "local": "25",
+        "global": "747",
+        "name": "NBHukTme"
+      },
+      {
+        "local": "26",
+        "global": "748",
+        "name": "NBSfxTyp"
+      },
+      {
+        "local": "27",
+        "global": "74",
+        "name": "flowChk"
+      },
+      {
+        "local": "28",
+        "global": "186",
+        "name": "SMhX1a"
+      },
+      {
+        "local": "29",
+        "global": "90",
+        "name": "bCarloEA"
+      },
+      {
+        "local": "30",
+        "global": "749",
+        "name": "bNBDwnStr"
+      },
+      {
+        "local": "31",
+        "global": "79",
+        "name": "blastSite"
+      },
+      {
+        "local": "32",
+        "global": "80",
+        "name": "blastInst"
+      },
+      {
+        "local": "33",
+        "global": "20",
+        "name": "temp"
+      },
+      {
+        "local": "34",
+        "global": "750",
+        "name": "bTixInPlc"
+      },
+      {
+        "local": "35",
+        "global": "751",
+        "name": "bPltInPlc"
+      },
+      {
+        "local": "36",
+        "global": "752",
+        "name": "bTixMade"
+      },
+      {
+        "local": "37",
+        "global": "417",
+        "name": "AlSfxTme"
+      },
+      {
+        "local": "38",
+        "global": "418",
+        "name": "ALLocTyp"
+      },
+      {
+        "local": "39",
+        "global": "419",
+        "name": "ALSfxNdl"
+      },
+      {
+        "local": "40",
+        "global": "420",
+        "name": "alsfxtyp"
+      }
+    ],
+    "SM": [
+      {
+        "local": "0",
+        "global": "330",
+        "name": "SNIntro"
+      },
+      {
+        "local": "1",
+        "global": "753",
+        "name": "Needshoe"
+      },
+      {
+        "local": "2",
+        "global": "754",
+        "name": "Doffshoes"
+      },
+      {
+        "local": "3",
+        "global": "755",
+        "name": "SIempal"
+      },
+      {
+        "local": "4",
+        "global": "756",
+        "name": "emreshoe"
+      },
+      {
+        "local": "5",
+        "global": "757",
+        "name": "IEmrepic"
+      },
+      {
+        "local": "6",
+        "global": "758",
+        "name": "offshoes"
+      },
+      {
+        "local": "7",
+        "global": "759",
+        "name": "sofftim1"
+      },
+      {
+        "local": "8",
+        "global": "649",
+        "name": "mapmehmet"
+      },
+      {
+        "local": "9",
+        "global": "430",
+        "name": "Ishoes"
+      },
+      {
+        "local": "10",
+        "global": "760",
+        "name": "SoffaIm1"
+      },
+      {
+        "local": "11",
+        "global": "761",
+        "name": "SOffim2"
+      },
+      {
+        "local": "12",
+        "global": "762",
+        "name": "SM4TypSnd"
+      },
+      {
+        "local": "13",
+        "global": "763",
+        "name": "SM0NumSnd"
+      },
+      {
+        "local": "14",
+        "global": "764",
+        "name": "maxSM4Tme"
+      },
+      {
+        "local": "15",
+        "global": "765",
+        "name": "minSM4Tme"
+      },
+      {
+        "local": "16",
+        "global": "766",
+        "name": "SMPigRng"
+      },
+      {
+        "local": "17",
+        "global": "767",
+        "name": "SMPigMin"
+      },
+      {
+        "local": "18",
+        "global": "399",
+        "name": "ONEINPRAY"
+      },
+      {
+        "local": "19",
+        "global": "768",
+        "name": "SMPRAYMin"
+      },
+      {
+        "local": "20",
+        "global": "769",
+        "name": "SMPRAYRng"
+      },
+      {
+        "local": "21",
+        "global": "770",
+        "name": "donePray"
+      },
+      {
+        "local": "22",
+        "global": "8",
+        "name": "lastNode"
+      },
+      {
+        "local": "23",
+        "global": "10",
+        "name": "reLoad"
+      },
+      {
+        "local": "24",
+        "global": "74",
+        "name": "flowChk"
+      },
+      {
+        "local": "25",
+        "global": "771",
+        "name": "smInst"
+      },
+      {
+        "local": "26",
+        "global": "79",
+        "name": "blastSite"
+      },
+      {
+        "local": "27",
+        "global": "80",
+        "name": "blastInst"
+      },
+      {
+        "local": "28",
+        "global": "772",
+        "name": "SMPigTme"
+      },
+      {
+        "local": "29",
+        "global": "773",
+        "name": "smpigloc"
+      },
+      {
+        "local": "30",
+        "global": "774",
+        "name": "SM0SndTyp"
+      },
+      {
+        "local": "31",
+        "global": "775",
+        "name": "bSMPray"
+      },
+      {
+        "local": "32",
+        "global": "20",
+        "name": "temp"
+      },
+      {
+        "local": "33",
+        "global": "776",
+        "name": "sm00pTm"
+      },
+      {
+        "local": "34",
+        "global": "777",
+        "name": "smPryrId"
+      },
+      {
+        "local": "35",
+        "global": "778",
+        "name": "bDoneSm"
+      },
+      {
+        "local": "36",
+        "global": "779",
+        "name": "bSMBnIn"
+      },
+      {
+        "local": "37",
+        "global": "780",
+        "name": "bImamPic"
+      },
+      {
+        "local": "38",
+        "global": "781",
+        "name": "sm"
+      },
+      {
+        "local": "39",
+        "global": "782",
+        "name": "bGaveSho"
+      },
+      {
+        "local": "40",
+        "global": "783",
+        "name": "bTookSho"
+      },
+      {
+        "local": "41",
+        "global": "784",
+        "name": "bIntToff"
+      },
+      {
+        "local": "42",
+        "global": "95",
+        "name": "bHomerChg"
+      },
+      {
+        "local": "43",
+        "global": "96",
+        "name": "bHomerCal"
+      },
+      {
+        "local": "44",
+        "global": "97",
+        "name": "bHomerTme"
+      },
+      {
+        "local": "45",
+        "global": "98",
+        "name": "bNewScans"
+      },
+      {
+        "local": "46",
+        "global": "99",
+        "name": "bNumScans"
+      },
+      {
+        "local": "47",
+        "global": "107",
+        "name": "bFstOtt"
+      },
+      {
+        "local": "48",
+        "global": "108",
+        "name": "bSharTk"
+      },
+      {
+        "local": "49",
+        "global": "101",
+        "name": "bHSNoPwr"
+      },
+      {
+        "local": "50",
+        "global": "440",
+        "name": "Bhveowood"
+      },
+      {
+        "local": "51",
+        "global": "444",
+        "name": "needowood"
+      },
+      {
+        "local": "52",
+        "global": "76",
+        "name": "bVTScans"
+      },
+      {
+        "local": "53",
+        "global": "443",
+        "name": "bhvelibti"
+      },
+      {
+        "local": "54",
+        "global": "77",
+        "name": "bAM4Vt"
+      },
+      {
+        "local": "55",
+        "global": "109",
+        "name": "visitShar"
+      },
+      {
+        "local": "56",
+        "global": "441",
+        "name": "needlibti"
+      },
+      {
+        "local": "57",
+        "global": "785",
+        "name": "SM4Tme"
+      },
+      {
+        "local": "58",
+        "global": "786",
+        "name": "sm04sPck"
+      },
+      {
+        "local": "59",
+        "global": "787",
+        "name": "sm04Loc"
+      },
+      {
+        "local": "60",
+        "global": "788",
+        "name": "sm05pTm"
+      }
+    ],
+    "SP": [
+      {
+        "local": "0",
+        "global": "789",
+        "name": "MaxWndTme"
+      },
+      {
+        "local": "1",
+        "global": "790",
+        "name": "MinWndTme"
+      },
+      {
+        "local": "2",
+        "global": "791",
+        "name": "numSPSfx"
+      },
+      {
+        "local": "3",
+        "global": "8",
+        "name": "lastNode"
+      },
+      {
+        "local": "4",
+        "global": "10",
+        "name": "reLoad"
+      },
+      {
+        "local": "5",
+        "global": "792",
+        "name": "spInst"
+      },
+      {
+        "local": "6",
+        "global": "793",
+        "name": "bDoneAkCu"
+      },
+      {
+        "local": "7",
+        "global": "74",
+        "name": "flowChk"
+      },
+      {
+        "local": "8",
+        "global": "79",
+        "name": "blastSite"
+      },
+      {
+        "local": "9",
+        "global": "80",
+        "name": "blastInst"
+      },
+      {
+        "local": "10",
+        "global": "794",
+        "name": "spWindTme"
+      },
+      {
+        "local": "11",
+        "global": "795",
+        "name": "spWindloc"
+      },
+      {
+        "local": "12",
+        "global": "796",
+        "name": "SpSfxTyp"
+      }
+    ],
+    "STAR": [
+      {
+        "local": "0",
+        "global": "263",
+        "name": "vt0SndRng"
+      },
+      {
+        "local": "1",
+        "global": "264",
+        "name": "vt0SndMin"
+      },
+      {
+        "local": "2",
+        "global": "265",
+        "name": "vt0SndNum"
+      },
+      {
+        "local": "3",
+        "global": "446",
+        "name": "starwin"
+      },
+      {
+        "local": "4",
+        "global": "445",
+        "name": "Bstarseen"
+      },
+      {
+        "local": "5",
+        "global": "267",
+        "name": "bPostVr"
+      },
+      {
+        "local": "6",
+        "global": "268",
+        "name": "bSetFlow8"
+      },
+      {
+        "local": "7",
+        "global": "74",
+        "name": "flowChk"
+      },
+      {
+        "local": "8",
+        "global": "797",
+        "name": "startTogg"
+      },
+      {
+        "local": "9",
+        "global": "8",
+        "name": "lastNode"
+      },
+      {
+        "local": "10",
+        "global": "798",
+        "name": "color1"
+      },
+      {
+        "local": "11",
+        "global": "799",
+        "name": "color2"
+      },
+      {
+        "local": "12",
+        "global": "800",
+        "name": "color3"
+      },
+      {
+        "local": "13",
+        "global": "801",
+        "name": "color4"
+      },
+      {
+        "local": "14",
+        "global": "802",
+        "name": "color6"
+      },
+      {
+        "local": "15",
+        "global": "803",
+        "name": "color7"
+      },
+      {
+        "local": "16",
+        "global": "804",
+        "name": "color9"
+      },
+      {
+        "local": "17",
+        "global": "805",
+        "name": "color10"
+      },
+      {
+        "local": "18",
+        "global": "806",
+        "name": "color11"
+      },
+      {
+        "local": "19",
+        "global": "807",
+        "name": "color12"
+      },
+      {
+        "local": "20",
+        "global": "808",
+        "name": "actColor"
+      },
+      {
+        "local": "21",
+        "global": "21",
+        "name": "temp2"
+      },
+      {
+        "local": "22",
+        "global": "20",
+        "name": "temp"
+      },
+      {
+        "local": "23",
+        "global": "809",
+        "name": "starTogg"
+      },
+      {
+        "local": "24",
+        "global": "810",
+        "name": "color5"
+      },
+      {
+        "local": "25",
+        "global": "811",
+        "name": "color8"
+      },
+      {
+        "local": "26",
+        "global": "812",
+        "name": "colorE1"
+      },
+      {
+        "local": "27",
+        "global": "813",
+        "name": "colorE2"
+      },
+      {
+        "local": "28",
+        "global": "814",
+        "name": "colorE3"
+      },
+      {
+        "local": "29",
+        "global": "815",
+        "name": "colorE5"
+      },
+      {
+        "local": "30",
+        "global": "816",
+        "name": "colorE6"
+      },
+      {
+        "local": "31",
+        "global": "817",
+        "name": "colorE7"
+      },
+      {
+        "local": "32",
+        "global": "818",
+        "name": "colorA1"
+      },
+      {
+        "local": "33",
+        "global": "819",
+        "name": "colorA2"
+      },
+      {
+        "local": "34",
+        "global": "820",
+        "name": "colorA3"
+      },
+      {
+        "local": "35",
+        "global": "821",
+        "name": "colorA5"
+      },
+      {
+        "local": "36",
+        "global": "822",
+        "name": "colorA6"
+      },
+      {
+        "local": "37",
+        "global": "823",
+        "name": "colorA7"
+      },
+      {
+        "local": "38",
+        "global": "824",
+        "name": "colorD1"
+      },
+      {
+        "local": "39",
+        "global": "825",
+        "name": "colorD2"
+      },
+      {
+        "local": "40",
+        "global": "826",
+        "name": "colorD3"
+      },
+      {
+        "local": "41",
+        "global": "827",
+        "name": "colorD4"
+      },
+      {
+        "local": "42",
+        "global": "828",
+        "name": "colorD5"
+      },
+      {
+        "local": "43",
+        "global": "829",
+        "name": "colorD6"
+      },
+      {
+        "local": "44",
+        "global": "830",
+        "name": "colorD7"
+      },
+      {
+        "local": "45",
+        "global": "831",
+        "name": "colorC1"
+      },
+      {
+        "local": "46",
+        "global": "832",
+        "name": "colorC2"
+      },
+      {
+        "local": "47",
+        "global": "833",
+        "name": "colorC3"
+      },
+      {
+        "local": "48",
+        "global": "834",
+        "name": "colorC4"
+      },
+      {
+        "local": "49",
+        "global": "835",
+        "name": "colorC5"
+      },
+      {
+        "local": "50",
+        "global": "836",
+        "name": "colorC6"
+      },
+      {
+        "local": "51",
+        "global": "837",
+        "name": "colorC7"
+      },
+      {
+        "local": "52",
+        "global": "838",
+        "name": "colorB1"
+      },
+      {
+        "local": "53",
+        "global": "839",
+        "name": "colorB2"
+      },
+      {
+        "local": "54",
+        "global": "840",
+        "name": "colorB3"
+      },
+      {
+        "local": "55",
+        "global": "841",
+        "name": "colorB4"
+      },
+      {
+        "local": "56",
+        "global": "842",
+        "name": "colorB5"
+      },
+      {
+        "local": "57",
+        "global": "843",
+        "name": "colorB6"
+      },
+      {
+        "local": "58",
+        "global": "844",
+        "name": "colorB7"
+      },
+      {
+        "local": "59",
+        "global": "370",
+        "name": "xPos"
+      },
+      {
+        "local": "60",
+        "global": "371",
+        "name": "yPos"
+      },
+      {
+        "local": "61",
+        "global": "845",
+        "name": "ColorE4"
+      },
+      {
+        "local": "62",
+        "global": "846",
+        "name": "ColorA4"
+      },
+      {
+        "local": "63",
+        "global": "283",
+        "name": "vtSndTme"
+      },
+      {
+        "local": "64",
+        "global": "284",
+        "name": "vt0SndTyp"
+      }
+    ],
+    "START": [
+      {
+        "local": "0",
+        "global": "0",
+        "name": "bMaxMyst"
+      },
+      {
+        "local": "1",
+        "global": "1",
+        "name": "bRecMyst"
+      },
+      {
+        "local": "2",
+        "global": "2",
+        "name": "lastMyst"
+      },
+      {
+        "local": "3",
+        "global": "3",
+        "name": "EAOpen"
+      },
+      {
+        "local": "4",
+        "global": "4",
+        "name": "TKOpen"
+      },
+      {
+        "local": "5",
+        "global": "5",
+        "name": "SMOpen"
+      },
+      {
+        "local": "6",
+        "global": "6",
+        "name": "SPOpen"
+      },
+      {
+        "local": "7",
+        "global": "7",
+        "name": "MAPinit"
+      },
+      {
+        "local": "8",
+        "global": "8",
+        "name": "lastNode"
+      }
+    ],
+    "TK": [
+      {
+        "local": "0",
+        "global": "74",
+        "name": "flowChk"
+      },
+      {
+        "local": "1",
+        "global": "847",
+        "name": "SNid"
+      },
+      {
+        "local": "2",
+        "global": "848",
+        "name": "SN1where"
+      },
+      {
+        "local": "3",
+        "global": "330",
+        "name": "SNIntro"
+      },
+      {
+        "local": "4",
+        "global": "222",
+        "name": "fingers"
+      },
+      {
+        "local": "5",
+        "global": "591",
+        "name": "SNpalshut"
+      },
+      {
+        "local": "6",
+        "global": "649",
+        "name": "mapmehmet"
+      },
+      {
+        "local": "7",
+        "global": "849",
+        "name": "Soffnu1"
+      },
+      {
+        "local": "8",
+        "global": "79",
+        "name": "blastSite"
+      },
+      {
+        "local": "9",
+        "global": "850",
+        "name": "tkInst"
+      },
+      {
+        "local": "10",
+        "global": "80",
+        "name": "blastInst"
+      },
+      {
+        "local": "11",
+        "global": "590",
+        "name": "STksign"
+      }
+    ],
+    "VA": [
+      {
+        "local": "0",
+        "global": "851",
+        "name": "VCDisc"
+      },
+      {
+        "local": "1",
+        "global": "852",
+        "name": "vaSndTme"
+      },
+      {
+        "local": "2",
+        "global": "853",
+        "name": "vaSndMin"
+      },
+      {
+        "local": "3",
+        "global": "854",
+        "name": "vaSndMax"
+      },
+      {
+        "local": "4",
+        "global": "855",
+        "name": "NumvaHit"
+      },
+      {
+        "local": "5",
+        "global": "856",
+        "name": "va04Ing"
+      },
+      {
+        "local": "6",
+        "global": "857",
+        "name": "va05Ing"
+      },
+      {
+        "local": "7",
+        "global": "377",
+        "name": "bInKlio"
+      },
+      {
+        "local": "8",
+        "global": "472",
+        "name": "bmidVA"
+      },
+      {
+        "local": "9",
+        "global": "858",
+        "name": "bBeenVa"
+      },
+      {
+        "local": "10",
+        "global": "8",
+        "name": "lastNode"
+      },
+      {
+        "local": "11",
+        "global": "859",
+        "name": "vaHitType"
+      },
+      {
+        "local": "12",
+        "global": "860",
+        "name": "vaSndNdl"
+      },
+      {
+        "local": "13",
+        "global": "10",
+        "name": "reLoad"
+      },
+      {
+        "local": "14",
+        "global": "861",
+        "name": "bVoPliny"
+      },
+      {
+        "local": "15",
+        "global": "267",
+        "name": "bPostVr"
+      },
+      {
+        "local": "16",
+        "global": "862",
+        "name": "bVoVitru"
+      },
+      {
+        "local": "17",
+        "global": "863",
+        "name": "bVAActs"
+      },
+      {
+        "local": "18",
+        "global": "864",
+        "name": "bVoByron"
+      },
+      {
+        "local": "19",
+        "global": "865",
+        "name": "va05Gone"
+      },
+      {
+        "local": "20",
+        "global": "471",
+        "name": "bseenbee"
+      },
+      {
+        "local": "21",
+        "global": "866",
+        "name": "va04Gone"
+      },
+      {
+        "local": "22",
+        "global": "867",
+        "name": "bVoplato"
+      },
+      {
+        "local": "23",
+        "global": "868",
+        "name": "zodWin"
+      },
+      {
+        "local": "24",
+        "global": "869",
+        "name": "vazdLoc1"
+      },
+      {
+        "local": "25",
+        "global": "870",
+        "name": "zdLoc01"
+      },
+      {
+        "local": "26",
+        "global": "871",
+        "name": "zdLoc02"
+      },
+      {
+        "local": "27",
+        "global": "872",
+        "name": "zdLoc03"
+      },
+      {
+        "local": "28",
+        "global": "873",
+        "name": "zdLoc04"
+      },
+      {
+        "local": "29",
+        "global": "874",
+        "name": "zdLoc05"
+      },
+      {
+        "local": "30",
+        "global": "875",
+        "name": "zdLoc06"
+      },
+      {
+        "local": "31",
+        "global": "876",
+        "name": "zdLoc07"
+      },
+      {
+        "local": "32",
+        "global": "877",
+        "name": "zdLoc08"
+      },
+      {
+        "local": "33",
+        "global": "878",
+        "name": "zdLoc09"
+      },
+      {
+        "local": "34",
+        "global": "879",
+        "name": "zdActSign"
+      },
+      {
+        "local": "35",
+        "global": "880",
+        "name": "zdClckLoc"
+      },
+      {
+        "local": "36",
+        "global": "20",
+        "name": "temp"
+      },
+      {
+        "local": "37",
+        "global": "74",
+        "name": "flowChk"
+      },
+      {
+        "local": "38",
+        "global": "96",
+        "name": "bHomerCal"
+      }
+    ],
+    "VB": [
+      {
+        "local": "0",
+        "global": "377",
+        "name": "bInKlio"
+      },
+      {
+        "local": "1",
+        "global": "533",
+        "name": "VBSndTme"
+      },
+      {
+        "local": "2",
+        "global": "534",
+        "name": "VBSndMin"
+      },
+      {
+        "local": "3",
+        "global": "535",
+        "name": "VBSndMax"
+      },
+      {
+        "local": "4",
+        "global": "536",
+        "name": "VBMusTme1"
+      },
+      {
+        "local": "5",
+        "global": "537",
+        "name": "vbMusTme2"
+      },
+      {
+        "local": "6",
+        "global": "881",
+        "name": "vbextme"
+      },
+      {
+        "local": "7",
+        "global": "123",
+        "name": "amprofon"
+      },
+      {
+        "local": "8",
+        "global": "8",
+        "name": "lastNode"
+      },
+      {
+        "local": "9",
+        "global": "882",
+        "name": "bVBMusOn"
+      },
+      {
+        "local": "10",
+        "global": "454",
+        "name": "BnewVB"
+      },
+      {
+        "local": "11",
+        "global": "883",
+        "name": "bNumHst"
+      },
+      {
+        "local": "12",
+        "global": "553",
+        "name": "bstrtHst1"
+      },
+      {
+        "local": "13",
+        "global": "572",
+        "name": "bstrtHst2"
+      },
+      {
+        "local": "14",
+        "global": "884",
+        "name": "bVBFixed"
+      },
+      {
+        "local": "15",
+        "global": "885",
+        "name": "vbMusOn"
+      },
+      {
+        "local": "16",
+        "global": "886",
+        "name": "vbHitType"
+      },
+      {
+        "local": "17",
+        "global": "887",
+        "name": "numVBHit"
+      },
+      {
+        "local": "18",
+        "global": "545",
+        "name": "vbSndNdl"
+      },
+      {
+        "local": "19",
+        "global": "888",
+        "name": "bStupVB1"
+      },
+      {
+        "local": "20",
+        "global": "10",
+        "name": "reLoad"
+      },
+      {
+        "local": "21",
+        "global": "889",
+        "name": "bStupVb3"
+      },
+      {
+        "local": "22",
+        "global": "890",
+        "name": "bStupVB4"
+      },
+      {
+        "local": "23",
+        "global": "365",
+        "name": "bByzCol"
+      },
+      {
+        "local": "24",
+        "global": "891",
+        "name": "bStupVB5"
+      },
+      {
+        "local": "25",
+        "global": "550",
+        "name": "hstWin"
+      },
+      {
+        "local": "26",
+        "global": "544",
+        "name": "hstStep"
+      },
+      {
+        "local": "27",
+        "global": "554",
+        "name": "bVbtile3"
+      },
+      {
+        "local": "28",
+        "global": "562",
+        "name": "bVbtile4"
+      },
+      {
+        "local": "29",
+        "global": "558",
+        "name": "bVbtile5"
+      },
+      {
+        "local": "30",
+        "global": "556",
+        "name": "bVbtile6"
+      },
+      {
+        "local": "31",
+        "global": "564",
+        "name": "bVbtile7"
+      },
+      {
+        "local": "32",
+        "global": "566",
+        "name": "bVbtile8"
+      },
+      {
+        "local": "33",
+        "global": "560",
+        "name": "bVbtile9"
+      },
+      {
+        "local": "34",
+        "global": "551",
+        "name": "bVBTile1"
+      },
+      {
+        "local": "35",
+        "global": "552",
+        "name": "bVBTile2"
+      },
+      {
+        "local": "36",
+        "global": "461",
+        "name": "medwin"
+      }
+    ],
+    "VBDISC": [
+      {
+        "local": "0",
+        "global": "884",
+        "name": "bVBFixed"
+      },
+      {
+        "local": "1",
+        "global": "461",
+        "name": "medwin"
+      },
+      {
+        "local": "2",
+        "global": "550",
+        "name": "hstWin"
+      },
+      {
+        "local": "3",
+        "global": "544",
+        "name": "hstStep"
+      },
+      {
+        "local": "4",
+        "global": "551",
+        "name": "bVBTile1"
+      },
+      {
+        "local": "5",
+        "global": "552",
+        "name": "bVBTile2"
+      },
+      {
+        "local": "6",
+        "global": "554",
+        "name": "bVbtile3"
+      },
+      {
+        "local": "7",
+        "global": "562",
+        "name": "bVbtile4"
+      },
+      {
+        "local": "8",
+        "global": "558",
+        "name": "bVbtile5"
+      },
+      {
+        "local": "9",
+        "global": "556",
+        "name": "bVbtile6"
+      },
+      {
+        "local": "10",
+        "global": "564",
+        "name": "bVbtile7"
+      },
+      {
+        "local": "11",
+        "global": "566",
+        "name": "bVbtile8"
+      },
+      {
+        "local": "12",
+        "global": "560",
+        "name": "bVbtile9"
+      },
+      {
+        "local": "13",
+        "global": "8",
+        "name": "lastNode"
+      },
+      {
+        "local": "14",
+        "global": "10",
+        "name": "reLoad"
+      }
+    ],
+    "VC": [
+      {
+        "local": "0",
+        "global": "892",
+        "name": "minEphHst"
+      },
+      {
+        "local": "1",
+        "global": "893",
+        "name": "sepEphHst"
+      },
+      {
+        "local": "2",
+        "global": "645",
+        "name": "EphHitMin"
+      },
+      {
+        "local": "3",
+        "global": "644",
+        "name": "EphHitRng"
+      },
+      {
+        "local": "4",
+        "global": "647",
+        "name": "NumEphHit"
+      },
+      {
+        "local": "5",
+        "global": "894",
+        "name": "VCSndTme"
+      },
+      {
+        "local": "6",
+        "global": "895",
+        "name": "VCSndMin"
+      },
+      {
+        "local": "7",
+        "global": "896",
+        "name": "VCSndMax"
+      },
+      {
+        "local": "8",
+        "global": "897",
+        "name": "NUMVcHit"
+      },
+      {
+        "local": "9",
+        "global": "377",
+        "name": "bInKlio"
+      },
+      {
+        "local": "10",
+        "global": "898",
+        "name": "voEph1"
+      },
+      {
+        "local": "11",
+        "global": "899",
+        "name": "voEph2"
+      },
+      {
+        "local": "12",
+        "global": "900",
+        "name": "voEph3"
+      },
+      {
+        "local": "13",
+        "global": "901",
+        "name": "numVCGhst"
+      },
+      {
+        "local": "14",
+        "global": "902",
+        "name": "vcGhstLev"
+      },
+      {
+        "local": "15",
+        "global": "8",
+        "name": "lastNode"
+      },
+      {
+        "local": "16",
+        "global": "10",
+        "name": "reLoad"
+      },
+      {
+        "local": "17",
+        "global": "643",
+        "name": "EphHitTme"
+      },
+      {
+        "local": "18",
+        "global": "646",
+        "name": "EphHitTyp"
+      },
+      {
+        "local": "19",
+        "global": "648",
+        "name": "EphHitLoc"
+      },
+      {
+        "local": "20",
+        "global": "903",
+        "name": "vcghstDne"
+      },
+      {
+        "local": "21",
+        "global": "904",
+        "name": "VcGhstTme"
+      },
+      {
+        "local": "22",
+        "global": "905",
+        "name": "bVCGhstOn"
+      },
+      {
+        "local": "23",
+        "global": "906",
+        "name": "bvcGhst1"
+      },
+      {
+        "local": "24",
+        "global": "907",
+        "name": "bvcGhst2"
+      },
+      {
+        "local": "25",
+        "global": "908",
+        "name": "bvcGhst3"
+      },
+      {
+        "local": "26",
+        "global": "909",
+        "name": "vcGhstId"
+      },
+      {
+        "local": "27",
+        "global": "910",
+        "name": "vcGhstLoc"
+      },
+      {
+        "local": "28",
+        "global": "911",
+        "name": "thisNode"
+      },
+      {
+        "local": "29",
+        "global": "912",
+        "name": "bVCShk1"
+      },
+      {
+        "local": "30",
+        "global": "267",
+        "name": "bPostVr"
+      },
+      {
+        "local": "31",
+        "global": "913",
+        "name": "bVCHerd"
+      },
+      {
+        "local": "32",
+        "global": "914",
+        "name": "EphHitTm2"
+      },
+      {
+        "local": "33",
+        "global": "467",
+        "name": "letterwin"
+      },
+      {
+        "local": "34",
+        "global": "915",
+        "name": "bVCEph1"
+      },
+      {
+        "local": "35",
+        "global": "916",
+        "name": "bVCEph2"
+      },
+      {
+        "local": "36",
+        "global": "917",
+        "name": "bVCEph3"
+      },
+      {
+        "local": "37",
+        "global": "918",
+        "name": "bVCPaul"
+      },
+      {
+        "local": "38",
+        "global": "919",
+        "name": "bVCStrb1"
+      },
+      {
+        "local": "39",
+        "global": "920",
+        "name": "bVCStrab1"
+      },
+      {
+        "local": "40",
+        "global": "921",
+        "name": "bVCAel"
+      },
+      {
+        "local": "41",
+        "global": "922",
+        "name": "bVCStrb2"
+      },
+      {
+        "local": "42",
+        "global": "923",
+        "name": "bFrstVC4"
+      },
+      {
+        "local": "43",
+        "global": "924",
+        "name": "bGdTomb"
+      },
+      {
+        "local": "44",
+        "global": "468",
+        "name": "bseentmb"
+      },
+      {
+        "local": "45",
+        "global": "469",
+        "name": "bmidvc"
+      },
+      {
+        "local": "46",
+        "global": "367",
+        "name": "bEphSar"
+      },
+      {
+        "local": "47",
+        "global": "629",
+        "name": "bVCDone"
+      }
+    ],
+    "VCDISC": [
+      {
+        "local": "0",
+        "global": "467",
+        "name": "letterwin"
+      },
+      {
+        "local": "1",
+        "global": "924",
+        "name": "bGdTomb"
+      },
+      {
+        "local": "2",
+        "global": "868",
+        "name": "zodWin"
+      },
+      {
+        "local": "3",
+        "global": "10",
+        "name": "reLoad"
+      }
+    ],
+    "VH": [
+      {
+        "local": "0",
+        "global": "8",
+        "name": "lastNode"
+      },
+      {
+        "local": "1",
+        "global": "925",
+        "name": "verstme"
+      },
+      {
+        "local": "2",
+        "global": "926",
+        "name": "verstme1"
+      },
+      {
+        "local": "3",
+        "global": "927",
+        "name": "GreenOn"
+      },
+      {
+        "local": "4",
+        "global": "928",
+        "name": "GreenOff"
+      },
+      {
+        "local": "5",
+        "global": "929",
+        "name": "veHoleTme"
+      },
+      {
+        "local": "6",
+        "global": "930",
+        "name": "veMazeTme"
+      },
+      {
+        "local": "7",
+        "global": "931",
+        "name": "veDeskTme"
+      },
+      {
+        "local": "8",
+        "global": "932",
+        "name": "VEHitRng"
+      },
+      {
+        "local": "9",
+        "global": "933",
+        "name": "VEHitMin"
+      },
+      {
+        "local": "10",
+        "global": "934",
+        "name": "VENumHit"
+      },
+      {
+        "local": "11",
+        "global": "533",
+        "name": "VBSndTme"
+      },
+      {
+        "local": "12",
+        "global": "534",
+        "name": "VBSndMin"
+      },
+      {
+        "local": "13",
+        "global": "535",
+        "name": "VBSndMax"
+      },
+      {
+        "local": "14",
+        "global": "935",
+        "name": "veTopTme"
+      },
+      {
+        "local": "15",
+        "global": "936",
+        "name": "veKlioSnd"
+      },
+      {
+        "local": "16",
+        "global": "937",
+        "name": "bStrtOmp"
+      },
+      {
+        "local": "17",
+        "global": "938",
+        "name": "veCorrTme"
+      },
+      {
+        "local": "18",
+        "global": "377",
+        "name": "bInKlio"
+      },
+      {
+        "local": "19",
+        "global": "939",
+        "name": "VEGlowMin"
+      },
+      {
+        "local": "20",
+        "global": "940",
+        "name": "veGlowRng"
+      },
+      {
+        "local": "21",
+        "global": "941",
+        "name": "veGlwNum"
+      },
+      {
+        "local": "22",
+        "global": "942",
+        "name": "veIntTme"
+      },
+      {
+        "local": "23",
+        "global": "943",
+        "name": "veMalTme"
+      },
+      {
+        "local": "24",
+        "global": "944",
+        "name": "discMode"
+      },
+      {
+        "local": "25",
+        "global": "945",
+        "name": "voJust1"
+      },
+      {
+        "local": "26",
+        "global": "946",
+        "name": "voMehm1"
+      },
+      {
+        "local": "27",
+        "global": "947",
+        "name": "voFall2"
+      },
+      {
+        "local": "28",
+        "global": "948",
+        "name": "voFall3"
+      },
+      {
+        "local": "29",
+        "global": "949",
+        "name": "voFall1"
+      },
+      {
+        "local": "30",
+        "global": "950",
+        "name": "voBishop"
+      },
+      {
+        "local": "31",
+        "global": "951",
+        "name": "voAngel"
+      },
+      {
+        "local": "32",
+        "global": "952",
+        "name": "VHDisc"
+      },
+      {
+        "local": "33",
+        "global": "953",
+        "name": "bHveDiad"
+      },
+      {
+        "local": "34",
+        "global": "954",
+        "name": "svhhint"
+      },
+      {
+        "local": "35",
+        "global": "886",
+        "name": "vbHitType"
+      },
+      {
+        "local": "36",
+        "global": "887",
+        "name": "numVBHit"
+      },
+      {
+        "local": "37",
+        "global": "545",
+        "name": "vbSndNdl"
+      },
+      {
+        "local": "38",
+        "global": "10",
+        "name": "reLoad"
+      },
+      {
+        "local": "39",
+        "global": "474",
+        "name": "bompwin"
+      },
+      {
+        "local": "40",
+        "global": "955",
+        "name": "bOmpWrng"
+      },
+      {
+        "local": "41",
+        "global": "956",
+        "name": "bOmpPlc"
+      },
+      {
+        "local": "42",
+        "global": "957",
+        "name": "bNewOmp"
+      },
+      {
+        "local": "43",
+        "global": "958",
+        "name": "bVOJust1"
+      },
+      {
+        "local": "44",
+        "global": "959",
+        "name": "bVOFall1"
+      },
+      {
+        "local": "45",
+        "global": "960",
+        "name": "bVOFall3"
+      },
+      {
+        "local": "46",
+        "global": "961",
+        "name": "bVOMehm1"
+      },
+      {
+        "local": "47",
+        "global": "962",
+        "name": "bVHAngel"
+      },
+      {
+        "local": "48",
+        "global": "963",
+        "name": "bVOFall2"
+      },
+      {
+        "local": "49",
+        "global": "964",
+        "name": "bDiaLoop"
+      },
+      {
+        "local": "50",
+        "global": "473",
+        "name": "bmidomp"
+      },
+      {
+        "local": "51",
+        "global": "475",
+        "name": "bstrtend"
+      },
+      {
+        "local": "52",
+        "global": "20",
+        "name": "temp"
+      },
+      {
+        "local": "53",
+        "global": "965",
+        "name": "bOmpLoc5"
+      },
+      {
+        "local": "54",
+        "global": "966",
+        "name": "bOmpLoc1"
+      },
+      {
+        "local": "55",
+        "global": "967",
+        "name": "bOmpLoc2"
+      },
+      {
+        "local": "56",
+        "global": "968",
+        "name": "bOmpLoc3"
+      },
+      {
+        "local": "57",
+        "global": "969",
+        "name": "bOmpLoc4"
+      },
+      {
+        "local": "58",
+        "global": "970",
+        "name": "bVoBishp"
+      },
+      {
+        "local": "59",
+        "global": "971",
+        "name": "VEHitTme"
+      },
+      {
+        "local": "60",
+        "global": "972",
+        "name": "VELocTyp"
+      },
+      {
+        "local": "61",
+        "global": "973",
+        "name": "VENumLoc"
+      },
+      {
+        "local": "62",
+        "global": "974",
+        "name": "VEHitTyp"
+      },
+      {
+        "local": "63",
+        "global": "975",
+        "name": "VEHitLoc"
+      },
+      {
+        "local": "64",
+        "global": "976",
+        "name": "HitLoc1"
+      },
+      {
+        "local": "65",
+        "global": "977",
+        "name": "HitLoc2"
+      },
+      {
+        "local": "66",
+        "global": "978",
+        "name": "HitLoc3"
+      },
+      {
+        "local": "67",
+        "global": "979",
+        "name": "HitLoc4"
+      },
+      {
+        "local": "68",
+        "global": "980",
+        "name": "HitLoc5"
+      },
+      {
+        "local": "69",
+        "global": "476",
+        "name": "bfndhole"
+      },
+      {
+        "local": "70",
+        "global": "981",
+        "name": "bFrstChnc"
+      },
+      {
+        "local": "71",
+        "global": "477",
+        "name": "bmidend"
+      },
+      {
+        "local": "72",
+        "global": "982",
+        "name": "veGlowTme"
+      },
+      {
+        "local": "73",
+        "global": "983",
+        "name": "veGlwTyp"
+      },
+      {
+        "local": "74",
+        "global": "984",
+        "name": "vrNoTwst"
+      },
+      {
+        "local": "75",
+        "global": "985",
+        "name": "KnotOp"
+      },
+      {
+        "local": "76",
+        "global": "986",
+        "name": "KlioOp"
+      },
+      {
+        "local": "77",
+        "global": "987",
+        "name": "HerdOp"
+      },
+      {
+        "local": "78",
+        "global": "988",
+        "name": "CorrOp"
+      },
+      {
+        "local": "79",
+        "global": "989",
+        "name": "bHaveEvid"
+      },
+      {
+        "local": "80",
+        "global": "631",
+        "name": "bPulitzer"
+      },
+      {
+        "local": "81",
+        "global": "632",
+        "name": "bNoJail"
+      }
+    ],
+    "VHDISC": [
+      {
+        "local": "0",
+        "global": "474",
+        "name": "bompwin"
+      },
+      {
+        "local": "1",
+        "global": "953",
+        "name": "bHveDiad"
+      },
+      {
+        "local": "2",
+        "global": "956",
+        "name": "bOmpPlc"
+      },
+      {
+        "local": "3",
+        "global": "8",
+        "name": "lastNode"
+      },
+      {
+        "local": "4",
+        "global": "10",
+        "name": "reLoad"
+      },
+      {
+        "local": "5",
+        "global": "20",
+        "name": "temp"
+      },
+      {
+        "local": "6",
+        "global": "944",
+        "name": "discMode"
+      }
+    ],
+    "VOICE": [
+      {
+        "local": "0",
+        "global": "263",
+        "name": "vt0SndRng"
+      },
+      {
+        "local": "1",
+        "global": "264",
+        "name": "vt0SndMin"
+      },
+      {
+        "local": "2",
+        "global": "265",
+        "name": "vt0SndNum"
+      },
+      {
+        "local": "3",
+        "global": "990",
+        "name": "SulVoTme"
+      },
+      {
+        "local": "4",
+        "global": "449",
+        "name": "voicewin"
+      },
+      {
+        "local": "5",
+        "global": "991",
+        "name": "bVtWatoff"
+      },
+      {
+        "local": "6",
+        "global": "448",
+        "name": "midvoice"
+      },
+      {
+        "local": "7",
+        "global": "267",
+        "name": "bPostVr"
+      },
+      {
+        "local": "8",
+        "global": "268",
+        "name": "bSetFlow8"
+      },
+      {
+        "local": "9",
+        "global": "74",
+        "name": "flowChk"
+      },
+      {
+        "local": "10",
+        "global": "992",
+        "name": "BeyaFace"
+      },
+      {
+        "local": "11",
+        "global": "993",
+        "name": "RoxeFace"
+      },
+      {
+        "local": "12",
+        "global": "994",
+        "name": "SultFace"
+      },
+      {
+        "local": "13",
+        "global": "995",
+        "name": "IbraFace"
+      },
+      {
+        "local": "14",
+        "global": "996",
+        "name": "GulbFace"
+      },
+      {
+        "local": "15",
+        "global": "997",
+        "name": "faces"
+      },
+      {
+        "local": "16",
+        "global": "998",
+        "name": "Mix1On"
+      },
+      {
+        "local": "17",
+        "global": "999",
+        "name": "Mix2on"
+      },
+      {
+        "local": "18",
+        "global": "1000",
+        "name": "BeyaOn"
+      },
+      {
+        "local": "19",
+        "global": "1001",
+        "name": "RoxeOn"
+      },
+      {
+        "local": "20",
+        "global": "1002",
+        "name": "IbraOn"
+      },
+      {
+        "local": "21",
+        "global": "1003",
+        "name": "GulbOn"
+      },
+      {
+        "local": "22",
+        "global": "1004",
+        "name": "SultOn"
+      },
+      {
+        "local": "23",
+        "global": "21",
+        "name": "temp2"
+      },
+      {
+        "local": "24",
+        "global": "20",
+        "name": "temp"
+      },
+      {
+        "local": "25",
+        "global": "1005",
+        "name": "inProcess"
+      },
+      {
+        "local": "26",
+        "global": "1006",
+        "name": "IbraFing"
+      },
+      {
+        "local": "27",
+        "global": "1007",
+        "name": "beyaFing"
+      },
+      {
+        "local": "28",
+        "global": "1008",
+        "name": "RoxeFing"
+      },
+      {
+        "local": "29",
+        "global": "1009",
+        "name": "GulbFing"
+      },
+      {
+        "local": "30",
+        "global": "1010",
+        "name": "SultFing"
+      },
+      {
+        "local": "31",
+        "global": "8",
+        "name": "lastNode"
+      },
+      {
+        "local": "32",
+        "global": "450",
+        "name": "Bhveseal"
+      },
+      {
+        "local": "33",
+        "global": "283",
+        "name": "vtSndTme"
+      },
+      {
+        "local": "34",
+        "global": "284",
+        "name": "vt0SndTyp"
+      }
+    ],
+    "VT": [
+      {
+        "local": "0",
+        "global": "263",
+        "name": "vt0SndRng"
+      },
+      {
+        "local": "1",
+        "global": "264",
+        "name": "vt0SndMin"
+      },
+      {
+        "local": "2",
+        "global": "1011",
+        "name": "VTDisc"
+      },
+      {
+        "local": "3",
+        "global": "265",
+        "name": "vt0SndNum"
+      },
+      {
+        "local": "4",
+        "global": "1012",
+        "name": "VTCrkRng"
+      },
+      {
+        "local": "5",
+        "global": "1013",
+        "name": "VTCrkMin"
+      },
+      {
+        "local": "6",
+        "global": "1014",
+        "name": "VTNumCrk"
+      },
+      {
+        "local": "7",
+        "global": "377",
+        "name": "bInKlio"
+      },
+      {
+        "local": "8",
+        "global": "8",
+        "name": "lastNode"
+      },
+      {
+        "local": "9",
+        "global": "1015",
+        "name": "bVTFritz"
+      },
+      {
+        "local": "10",
+        "global": "1016",
+        "name": "bVTNoFrtz"
+      },
+      {
+        "local": "11",
+        "global": "283",
+        "name": "vtSndTme"
+      },
+      {
+        "local": "12",
+        "global": "284",
+        "name": "vt0SndTyp"
+      },
+      {
+        "local": "13",
+        "global": "10",
+        "name": "reLoad"
+      },
+      {
+        "local": "14",
+        "global": "1017",
+        "name": "bVTIIns1"
+      },
+      {
+        "local": "15",
+        "global": "1018",
+        "name": "bVTIIns2"
+      },
+      {
+        "local": "16",
+        "global": "1019",
+        "name": "bVTIIns3"
+      },
+      {
+        "local": "17",
+        "global": "1020",
+        "name": "bVTIIns4"
+      },
+      {
+        "local": "18",
+        "global": "1021",
+        "name": "bVTIThrn"
+      },
+      {
+        "local": "19",
+        "global": "446",
+        "name": "starwin"
+      },
+      {
+        "local": "20",
+        "global": "362",
+        "name": "bOttPan"
+      },
+      {
+        "local": "21",
+        "global": "364",
+        "name": "bOttTil"
+      },
+      {
+        "local": "22",
+        "global": "447",
+        "name": "VTLopen"
+      },
+      {
+        "local": "23",
+        "global": "267",
+        "name": "bPostVr"
+      },
+      {
+        "local": "24",
+        "global": "453",
+        "name": "bmoron1"
+      },
+      {
+        "local": "25",
+        "global": "268",
+        "name": "bSetFlow8"
+      },
+      {
+        "local": "26",
+        "global": "74",
+        "name": "flowChk"
+      },
+      {
+        "local": "27",
+        "global": "277",
+        "name": "bHveStar"
+      },
+      {
+        "local": "28",
+        "global": "1022",
+        "name": "bVTbcq1"
+      },
+      {
+        "local": "29",
+        "global": "1023",
+        "name": "bIbrRag"
+      },
+      {
+        "local": "30",
+        "global": "1024",
+        "name": "bRoxPom"
+      },
+      {
+        "local": "31",
+        "global": "1025",
+        "name": "bSulPom"
+      },
+      {
+        "local": "32",
+        "global": "1026",
+        "name": "bSulFra"
+      },
+      {
+        "local": "33",
+        "global": "1027",
+        "name": "bBusb"
+      },
+      {
+        "local": "34",
+        "global": "1028",
+        "name": "bBsb2"
+      },
+      {
+        "local": "35",
+        "global": "730",
+        "name": "bVTMzDr"
+      },
+      {
+        "local": "36",
+        "global": "731",
+        "name": "bVTMidMz"
+      },
+      {
+        "local": "37",
+        "global": "991",
+        "name": "bVtWatoff"
+      },
+      {
+        "local": "38",
+        "global": "1029",
+        "name": "VTFreLoc"
+      },
+      {
+        "local": "39",
+        "global": "449",
+        "name": "voicewin"
+      },
+      {
+        "local": "40",
+        "global": "1030",
+        "name": "VTCrckl"
+      },
+      {
+        "local": "41",
+        "global": "1031",
+        "name": "vtTypCrk"
+      },
+      {
+        "local": "42",
+        "global": "1032",
+        "name": "bVTBcq5"
+      },
+      {
+        "local": "43",
+        "global": "1033",
+        "name": "bVtFlWin"
+      },
+      {
+        "local": "44",
+        "global": "1034",
+        "name": "bVTVase"
+      },
+      {
+        "local": "45",
+        "global": "282",
+        "name": "bHveGlass"
+      },
+      {
+        "local": "46",
+        "global": "1035",
+        "name": "bVTlLevr"
+      },
+      {
+        "local": "47",
+        "global": "280",
+        "name": "midFlwr1"
+      },
+      {
+        "local": "48",
+        "global": "451",
+        "name": "midflwr2"
+      },
+      {
+        "local": "49",
+        "global": "1036",
+        "name": "bvtsdr"
+      },
+      {
+        "local": "50",
+        "global": "1037",
+        "name": "bVTLVrse1"
+      },
+      {
+        "local": "51",
+        "global": "1038",
+        "name": "bVTLVrse2"
+      },
+      {
+        "local": "52",
+        "global": "1039",
+        "name": "bVTLVrse3"
+      },
+      {
+        "local": "53",
+        "global": "1040",
+        "name": "bFernm1"
+      },
+      {
+        "local": "54",
+        "global": "1041",
+        "name": "bFernm2"
+      },
+      {
+        "local": "55",
+        "global": "1042",
+        "name": "bVTLVrse5"
+      },
+      {
+        "local": "56",
+        "global": "1043",
+        "name": "bVtWaxDne"
+      },
+      {
+        "local": "57",
+        "global": "1044",
+        "name": "bVtWaxPor"
+      },
+      {
+        "local": "58",
+        "global": "450",
+        "name": "Bhveseal"
+      },
+      {
+        "local": "59",
+        "global": "281",
+        "name": "midClock"
+      },
+      {
+        "local": "60",
+        "global": "1045",
+        "name": "bKTTreas"
+      },
+      {
+        "local": "61",
+        "global": "452",
+        "name": "locktreas"
+      },
+      {
+        "local": "62",
+        "global": "1046",
+        "name": "bVTTChst"
+      },
+      {
+        "local": "63",
+        "global": "1047",
+        "name": "bVTTKey"
+      },
+      {
+        "local": "64",
+        "global": "20",
+        "name": "temp"
+      },
+      {
+        "local": "65",
+        "global": "97",
+        "name": "bHomerTme"
+      },
+      {
+        "local": "66",
+        "global": "96",
+        "name": "bHomerCal"
+      }
+    ],
+    "VTDISC": [
+      {
+        "local": "0",
+        "global": "1048",
+        "name": "bDiscMode"
+      },
+      {
+        "local": "1",
+        "global": "1033",
+        "name": "bVtFlWin"
+      },
+      {
+        "local": "2",
+        "global": "730",
+        "name": "bVTMzDr"
+      },
+      {
+        "local": "3",
+        "global": "991",
+        "name": "bVtWatoff"
+      },
+      {
+        "local": "4",
+        "global": "992",
+        "name": "BeyaFace"
+      },
+      {
+        "local": "5",
+        "global": "993",
+        "name": "RoxeFace"
+      },
+      {
+        "local": "6",
+        "global": "994",
+        "name": "SultFace"
+      },
+      {
+        "local": "7",
+        "global": "995",
+        "name": "IbraFace"
+      },
+      {
+        "local": "8",
+        "global": "996",
+        "name": "GulbFace"
+      },
+      {
+        "local": "9",
+        "global": "446",
+        "name": "starwin"
+      },
+      {
+        "local": "10",
+        "global": "1035",
+        "name": "bVTlLevr"
+      },
+      {
+        "local": "11",
+        "global": "449",
+        "name": "voicewin"
+      },
+      {
+        "local": "12",
+        "global": "1043",
+        "name": "bVtWaxDne"
+      },
+      {
+        "local": "13",
+        "global": "266",
+        "name": "ClockWin"
+      },
+      {
+        "local": "14",
+        "global": "10",
+        "name": "reLoad"
+      }
+    ]
+  },
+  "traces": [
+    {
+      "argv": [
+        "port/byzantine-cc",
+        "port/output/cc_all/EA",
+        "--trace-new-game",
+        "602",
+        "port/output/cb_all/EA",
+        "analysis/rea/engine_sample/copy2hd/engine"
+      ],
+      "stdout": "state_origin=new_game_zero_pool startup_script_executed=false\nsteps=22 stopped_at=317 unsupported_opcode=0xb9\nresource_refresh_requests=1 close_existing_resources=true\nslot=1 x=1471 y=512 width=225 height=66\nslot=2 x=627 y=215 width=244 height=448\nslot=3 x=1659 y=258 width=124 height=285\nslot=4 x=2422 y=496 width=74 height=52\nslot=5 x=91 y=474 width=73 height=61\nslot=6 x=2033 y=396 width=134 height=139\nslot=7 x=1164 y=290 width=156 height=369\n"
+    },
+    {
+      "argv": [
+        "port/byzantine-cc",
+        "port/output/cc_all/EA",
+        "--trace-new-game",
+        "254",
+        "port/output/cb_all/EA",
+        "analysis/rea/engine_sample/copy2hd/engine"
+      ],
+      "stdout": "state_origin=new_game_zero_pool startup_script_executed=false\nsteps=47 stopped_at=2212 unsupported_opcode=0xba\nslot=153 x=1915 y=150 width=300 height=403\nslot=154 x=972 y=281 width=192 height=333\n"
+    },
+    {
+      "argv": [
+        "port/byzantine-cc",
+        "port/output/cc_all/EA",
+        "--trace",
+        "602",
+        "port/output/cb_all/EA"
+      ],
+      "stdout": "steps=13 stopped_at=312 unresolved_variable=5\nresource_refresh_requests=1 close_existing_resources=true\nslot=1 x=1471 y=512 width=225 height=66\nslot=2 x=627 y=215 width=244 height=448\nslot=3 x=1659 y=258 width=124 height=285\nslot=4 x=2422 y=496 width=74 height=52\nslot=5 x=91 y=474 width=73 height=61\nslot=6 x=2033 y=396 width=134 height=139\nslot=7 x=1164 y=290 width=156 height=369\n"
+    }
+  ]
+}

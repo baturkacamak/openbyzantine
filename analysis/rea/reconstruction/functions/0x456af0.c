@@ -1,0 +1,51 @@
+// Reconstructed pseudocode (decompiler output, not original source)
+// address: 0x456af0
+// name: FID_conflict:_ungetc
+// ranges: 0x456af0-0x456b77
+// calls: -
+
+/* Library Function - Multiple Matches With Different Base Names
+    __ungetc_lk
+    _ungetc
+   
+   Library: Visual Studio 1998 Release */
+
+int __cdecl FID_conflict__ungetc(int _Ch,FILE *_File)
+
+{
+  char *pcVar1;
+  uint uVar2;
+  
+  if (_Ch != -1) {
+    uVar2 = _File->_flag;
+    if (((uVar2 & 1) != 0) || (((uVar2 & 0x80) != 0 && ((uVar2 & 2) == 0)))) {
+      if (_File->_base == (char *)0x0) {
+        __getbuf(_File);
+      }
+      if (_File->_base == _File->_ptr) {
+        if (_File->_cnt != 0) {
+          return -1;
+        }
+        _File->_ptr = _File->_ptr + 1;
+      }
+      pcVar1 = _File->_ptr;
+      if ((_File->_flag & 0x40) == 0) {
+        _File->_ptr = pcVar1 + -1;
+        pcVar1[-1] = (char)_Ch;
+      }
+      else {
+        _File->_ptr = pcVar1 + -1;
+        if (pcVar1[-1] != (char)_Ch) {
+          _File->_ptr = pcVar1;
+          return -1;
+        }
+      }
+      _File->_cnt = _File->_cnt + 1;
+      uVar2 = _File->_flag & 0xffffffef;
+      _File->_flag = uVar2;
+      _File->_flag = uVar2 | 1;
+      return _Ch & 0xff;
+    }
+  }
+  return -1;
+}

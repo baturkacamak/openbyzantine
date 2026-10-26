@@ -1,0 +1,31 @@
+// Reconstructed pseudocode (decompiler output, not original source)
+// address: 0x457700
+// name: findenv
+// ranges: 0x457700-0x45775b
+// calls: -
+
+/* Library Function - Single Match
+    _findenv
+   
+   Library: Visual Studio 1998 Release */
+
+int __cdecl findenv(uchar *param_1,size_t param_2)
+
+{
+  int iVar1;
+  int *piVar2;
+  
+  iVar1 = *DAT_00462c9c;
+  piVar2 = DAT_00462c9c;
+  while( true ) {
+    if (iVar1 == 0) {
+      return -((int)piVar2 - (int)DAT_00462c9c >> 2);
+    }
+    iVar1 = __mbsnbicoll(param_1,(uchar *)*piVar2,param_2);
+    if ((iVar1 == 0) &&
+       ((*(char *)(*piVar2 + param_2) == '=' || (*(char *)(*piVar2 + param_2) == '\0')))) break;
+    piVar2 = piVar2 + 1;
+    iVar1 = *piVar2;
+  }
+  return (int)piVar2 - (int)DAT_00462c9c >> 2;
+}

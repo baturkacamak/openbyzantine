@@ -1,0 +1,1469 @@
+{
+  "before_counts_all_labels": {
+    "0x73": 25,
+    "0xb1": 134,
+    "return": 2092,
+    "0x85": 411,
+    "0xbd": 70,
+    "0xb2": 44,
+    "0x64": 497,
+    "unresolved_variable": 1563,
+    "0xc4": 237,
+    "0x95": 53,
+    "0xb0": 139,
+    "0x8b": 39,
+    "0xab": 202,
+    "0xc0": 72,
+    "0x98": 58,
+    "0x84": 141,
+    "0x96": 32,
+    "0x99": 38,
+    "0xbc": 233,
+    "0xbf": 63,
+    "0x7d": 84,
+    "0x6c": 193,
+    "0xc1": 145,
+    "0xcb": 9,
+    "0xba": 324,
+    "0x80": 6,
+    "0xcc": 153,
+    "0x70": 15,
+    "0xb4": 16,
+    "0xd2": 3,
+    "0xc6": 14,
+    "0xc7": 7,
+    "0x6a": 24,
+    "0xd4": 3,
+    "0xc2": 10,
+    "0xb3": 3,
+    "0x8d": 8,
+    "0xcd": 268,
+    "0xa2": 2,
+    "0x86": 2,
+    "0x8a": 23,
+    "0x91": 33,
+    "0xb6": 70,
+    "0x9f": 1,
+    "0xd0": 6,
+    "0xb9": 9,
+    "0x97": 27,
+    "0xd3": 1,
+    "0xbb": 3,
+    "0xd1": 58,
+    "0xc8": 9,
+    "0xbe": 5,
+    "0xcf": 5,
+    "0xa1": 5,
+    "0xb5": 5,
+    "0x7f": 1
+  },
+  "retested_entry_points": 163,
+  "after_counts_retested": {
+    "unresolved_variable": 163
+  },
+  "entries": [
+    {
+      "scene": "EXAMINE",
+      "label": 1102,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=1349 unresolved_variable=36",
+      "error": ""
+    },
+    {
+      "scene": "EXAMINE",
+      "label": 1113,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=1363 unresolved_variable=36",
+      "error": ""
+    },
+    {
+      "scene": "EXAMINE",
+      "label": 1179,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=1462 unresolved_variable=36",
+      "error": ""
+    },
+    {
+      "scene": "EXAMINE",
+      "label": 1182,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=1466 unresolved_variable=36",
+      "error": ""
+    },
+    {
+      "scene": "EXAMINE",
+      "label": 1189,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=1475 unresolved_variable=36",
+      "error": ""
+    },
+    {
+      "scene": "EXAMINE",
+      "label": 1322,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=4 stopped_at=1738 unresolved_variable=36\nresource_refresh_requests=1 close_existing_resources=false",
+      "error": ""
+    },
+    {
+      "scene": "EXAMINE",
+      "label": 1347,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=4 stopped_at=1705 unresolved_variable=36\nresource_refresh_requests=1 close_existing_resources=false",
+      "error": ""
+    },
+    {
+      "scene": "EXAMINE",
+      "label": 1350,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=3 stopped_at=1705 unresolved_variable=36\nresource_refresh_requests=1 close_existing_resources=false",
+      "error": ""
+    },
+    {
+      "scene": "EXAMINE",
+      "label": 1356,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=1705 unresolved_variable=36",
+      "error": ""
+    },
+    {
+      "scene": "EXAMINE",
+      "label": 1376,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=3 stopped_at=1738 unresolved_variable=36\nresource_refresh_requests=1 close_existing_resources=false",
+      "error": ""
+    },
+    {
+      "scene": "EXAMINE",
+      "label": 1382,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=1738 unresolved_variable=36",
+      "error": ""
+    },
+    {
+      "scene": "EXAMINE",
+      "label": 1903,
+      "before": "0x96",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=2373 unresolved_variable=51",
+      "error": ""
+    },
+    {
+      "scene": "EXAMINE",
+      "label": 1919,
+      "before": "0x96",
+      "after": "unresolved_variable",
+      "trace": "steps=2 stopped_at=2373 unresolved_variable=51",
+      "error": ""
+    },
+    {
+      "scene": "EXAMINE",
+      "label": 1953,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=2441 unresolved_variable=61",
+      "error": ""
+    },
+    {
+      "scene": "SM",
+      "label": 144,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=4 stopped_at=170 unresolved_variable=24\nresource_refresh_requests=1 close_existing_resources=false",
+      "error": ""
+    },
+    {
+      "scene": "SM",
+      "label": 154,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=3 stopped_at=170 unresolved_variable=24\nresource_refresh_requests=1 close_existing_resources=false",
+      "error": ""
+    },
+    {
+      "scene": "SM",
+      "label": 165,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=170 unresolved_variable=24",
+      "error": ""
+    },
+    {
+      "scene": "SM",
+      "label": 299,
+      "before": "0x96",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=344 unresolved_variable=24",
+      "error": ""
+    },
+    {
+      "scene": "SM",
+      "label": 357,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=12 stopped_at=170 unresolved_variable=24\nresource_refresh_requests=2 close_existing_resources=true",
+      "error": ""
+    },
+    {
+      "scene": "SM",
+      "label": 360,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=12 stopped_at=170 unresolved_variable=24\nresource_refresh_requests=2 close_existing_resources=true",
+      "error": ""
+    },
+    {
+      "scene": "SM",
+      "label": 405,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=10 stopped_at=170 unresolved_variable=24\nresource_refresh_requests=2 close_existing_resources=true",
+      "error": ""
+    },
+    {
+      "scene": "SM",
+      "label": 498,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=10 stopped_at=170 unresolved_variable=24\nresource_refresh_requests=2 close_existing_resources=true",
+      "error": ""
+    },
+    {
+      "scene": "SM",
+      "label": 539,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=4 stopped_at=674 unresolved_variable=24\nslot=17 x=2332 y=267 width=164 height=173\nslot=18 x=0 y=267 width=91 height=173\nslot=19 x=428 y=268 width=177 height=167\nslot=20 x=830 y=359 width=125 height=67\nslot=21 x=1853 y=398 width=99 height=59",
+      "error": ""
+    },
+    {
+      "scene": "SM",
+      "label": 543,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=3 stopped_at=674 unresolved_variable=24\nslot=17 x=2332 y=267 width=164 height=173\nslot=18 x=0 y=267 width=91 height=173\nslot=19 x=428 y=268 width=177 height=167\nslot=20 x=830 y=359 width=125 height=67\nslot=21 x=1853 y=398 width=99 height=59",
+      "error": ""
+    },
+    {
+      "scene": "SM",
+      "label": 562,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=674 unresolved_variable=24",
+      "error": ""
+    },
+    {
+      "scene": "SM",
+      "label": 577,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=11 stopped_at=850 unresolved_variable=24\nresource_refresh_requests=1 close_existing_resources=true\nslot=36 x=485 y=313 width=276 height=143\nslot=37 x=115 y=239 width=137 height=276\nslot=38 x=2080 y=258 width=43 height=96\nslot=39 x=1191 y=290 width=118 height=187\nslot=40 x=2079 y=392 width=58 height=109\nslot=41 x=1749 y=386 width=79 height=100",
+      "error": ""
+    },
+    {
+      "scene": "SM",
+      "label": 579,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=11 stopped_at=1322 unresolved_variable=24\nresource_refresh_requests=1 close_existing_resources=true\nslot=87 x=215 y=342 width=224 height=101\nslot=88 x=555 y=325 width=153 height=125\nslot=89 x=1698 y=365 width=64 height=115",
+      "error": ""
+    },
+    {
+      "scene": "SM",
+      "label": 651,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=10 stopped_at=674 unresolved_variable=24\nresource_refresh_requests=1 close_existing_resources=true\nslot=17 x=2332 y=267 width=164 height=173\nslot=18 x=0 y=267 width=91 height=173\nslot=19 x=428 y=268 width=177 height=167\nslot=20 x=830 y=359 width=125 height=67\nslot=21 x=1853 y=398 width=99 height=59",
+      "error": ""
+    },
+    {
+      "scene": "SM",
+      "label": 658,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=10 stopped_at=674 unresolved_variable=24\nresource_refresh_requests=1 close_existing_resources=true\nslot=17 x=2332 y=267 width=164 height=173\nslot=18 x=0 y=267 width=91 height=173\nslot=19 x=428 y=268 width=177 height=167\nslot=20 x=830 y=359 width=125 height=67\nslot=21 x=1853 y=398 width=99 height=59",
+      "error": ""
+    },
+    {
+      "scene": "SM",
+      "label": 660,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=12 stopped_at=170 unresolved_variable=24\nresource_refresh_requests=2 close_existing_resources=true",
+      "error": ""
+    },
+    {
+      "scene": "SM",
+      "label": 686,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=3 stopped_at=850 unresolved_variable=24\nslot=36 x=485 y=313 width=276 height=143\nslot=37 x=115 y=239 width=137 height=276\nslot=38 x=2080 y=258 width=43 height=96\nslot=39 x=1191 y=290 width=118 height=187\nslot=40 x=2079 y=392 width=58 height=109\nslot=41 x=1749 y=386 width=79 height=100",
+      "error": ""
+    },
+    {
+      "scene": "SM",
+      "label": 696,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=850 unresolved_variable=24",
+      "error": ""
+    },
+    {
+      "scene": "SM",
+      "label": 705,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=11 stopped_at=674 unresolved_variable=24\nresource_refresh_requests=1 close_existing_resources=true\nslot=17 x=2332 y=267 width=164 height=173\nslot=18 x=0 y=267 width=91 height=173\nslot=19 x=428 y=268 width=177 height=167\nslot=20 x=830 y=359 width=125 height=67\nslot=21 x=1853 y=398 width=99 height=59",
+      "error": ""
+    },
+    {
+      "scene": "SM",
+      "label": 707,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=11 stopped_at=1322 unresolved_variable=24\nresource_refresh_requests=1 close_existing_resources=true\nslot=87 x=215 y=342 width=224 height=101\nslot=88 x=555 y=325 width=153 height=125\nslot=89 x=1698 y=365 width=64 height=115",
+      "error": ""
+    },
+    {
+      "scene": "SM",
+      "label": 724,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=10 stopped_at=850 unresolved_variable=24\nresource_refresh_requests=1 close_existing_resources=true\nslot=36 x=485 y=313 width=276 height=143\nslot=37 x=115 y=239 width=137 height=276\nslot=38 x=2080 y=258 width=43 height=96\nslot=39 x=1191 y=290 width=118 height=187\nslot=40 x=2079 y=392 width=58 height=109\nslot=41 x=1749 y=386 width=79 height=100",
+      "error": ""
+    },
+    {
+      "scene": "SM",
+      "label": 959,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=10 stopped_at=850 unresolved_variable=24\nresource_refresh_requests=1 close_existing_resources=true\nslot=36 x=485 y=313 width=276 height=143\nslot=37 x=115 y=239 width=137 height=276\nslot=38 x=2080 y=258 width=43 height=96\nslot=39 x=1191 y=290 width=118 height=187\nslot=40 x=2079 y=392 width=58 height=109\nslot=41 x=1749 y=386 width=79 height=100",
+      "error": ""
+    },
+    {
+      "scene": "SM",
+      "label": 966,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=10 stopped_at=850 unresolved_variable=24\nresource_refresh_requests=1 close_existing_resources=true\nslot=36 x=485 y=313 width=276 height=143\nslot=37 x=115 y=239 width=137 height=276\nslot=38 x=2080 y=258 width=43 height=96\nslot=39 x=1191 y=290 width=118 height=187\nslot=40 x=2079 y=392 width=58 height=109\nslot=41 x=1749 y=386 width=79 height=100",
+      "error": ""
+    },
+    {
+      "scene": "SM",
+      "label": 990,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=10 stopped_at=850 unresolved_variable=24\nresource_refresh_requests=1 close_existing_resources=true\nslot=36 x=485 y=313 width=276 height=143\nslot=37 x=115 y=239 width=137 height=276\nslot=38 x=2080 y=258 width=43 height=96\nslot=39 x=1191 y=290 width=118 height=187\nslot=40 x=2079 y=392 width=58 height=109\nslot=41 x=1749 y=386 width=79 height=100",
+      "error": ""
+    },
+    {
+      "scene": "SM",
+      "label": 1033,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=10 stopped_at=850 unresolved_variable=24\nresource_refresh_requests=1 close_existing_resources=true\nslot=36 x=485 y=313 width=276 height=143\nslot=37 x=115 y=239 width=137 height=276\nslot=38 x=2080 y=258 width=43 height=96\nslot=39 x=1191 y=290 width=118 height=187\nslot=40 x=2079 y=392 width=58 height=109\nslot=41 x=1749 y=386 width=79 height=100",
+      "error": ""
+    },
+    {
+      "scene": "SM",
+      "label": 1035,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=3 stopped_at=1322 unresolved_variable=24\nslot=87 x=215 y=342 width=224 height=101\nslot=88 x=555 y=325 width=153 height=125\nslot=89 x=1698 y=365 width=64 height=115",
+      "error": ""
+    },
+    {
+      "scene": "SM",
+      "label": 1049,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=1322 unresolved_variable=24",
+      "error": ""
+    },
+    {
+      "scene": "SM",
+      "label": 1064,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=11 stopped_at=674 unresolved_variable=24\nresource_refresh_requests=1 close_existing_resources=true\nslot=17 x=2332 y=267 width=164 height=173\nslot=18 x=0 y=267 width=91 height=173\nslot=19 x=428 y=268 width=177 height=167\nslot=20 x=830 y=359 width=125 height=67\nslot=21 x=1853 y=398 width=99 height=59",
+      "error": ""
+    },
+    {
+      "scene": "SM",
+      "label": 1066,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=11 stopped_at=850 unresolved_variable=24\nresource_refresh_requests=1 close_existing_resources=true\nslot=36 x=485 y=313 width=276 height=143\nslot=37 x=115 y=239 width=137 height=276\nslot=38 x=2080 y=258 width=43 height=96\nslot=39 x=1191 y=290 width=118 height=187\nslot=40 x=2079 y=392 width=58 height=109\nslot=41 x=1749 y=386 width=79 height=100",
+      "error": ""
+    },
+    {
+      "scene": "SM",
+      "label": 1090,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=10 stopped_at=1322 unresolved_variable=24\nresource_refresh_requests=1 close_existing_resources=true\nslot=87 x=215 y=342 width=224 height=101\nslot=88 x=555 y=325 width=153 height=125\nslot=89 x=1698 y=365 width=64 height=115",
+      "error": ""
+    },
+    {
+      "scene": "SM",
+      "label": 1167,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=3 stopped_at=1485 unresolved_variable=24\nslot=93 x=1116 y=467 width=180 height=264",
+      "error": ""
+    },
+    {
+      "scene": "SM",
+      "label": 1172,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=1485 unresolved_variable=24",
+      "error": ""
+    },
+    {
+      "scene": "SM",
+      "label": 1200,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=10 stopped_at=1485 unresolved_variable=24\nresource_refresh_requests=1 close_existing_resources=true\nslot=93 x=1116 y=467 width=180 height=264",
+      "error": ""
+    },
+    {
+      "scene": "SP",
+      "label": 17,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=2 stopped_at=34 unresolved_variable=7",
+      "error": ""
+    },
+    {
+      "scene": "SP",
+      "label": 30,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=34 unresolved_variable=7",
+      "error": ""
+    },
+    {
+      "scene": "SP",
+      "label": 117,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=9 stopped_at=34 unresolved_variable=7\nresource_refresh_requests=1 close_existing_resources=true",
+      "error": ""
+    },
+    {
+      "scene": "SP",
+      "label": 124,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=7 stopped_at=34 unresolved_variable=7\nresource_refresh_requests=1 close_existing_resources=true",
+      "error": ""
+    },
+    {
+      "scene": "AS",
+      "label": 38,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=2 stopped_at=136 unresolved_variable=14",
+      "error": ""
+    },
+    {
+      "scene": "AS",
+      "label": 111,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=136 unresolved_variable=14",
+      "error": ""
+    },
+    {
+      "scene": "HSTMED",
+      "label": 210,
+      "before": "0xa2",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=218 unresolved_variable=14",
+      "error": ""
+    },
+    {
+      "scene": "HSTMED",
+      "label": 1075,
+      "before": "0x9f",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=1288 unresolved_variable=14",
+      "error": ""
+    },
+    {
+      "scene": "HSTMED",
+      "label": 1101,
+      "before": "0xa2",
+      "after": "unresolved_variable",
+      "trace": "steps=7 stopped_at=1320 unresolved_variable=14\nresource_refresh_requests=1 close_existing_resources=true",
+      "error": ""
+    },
+    {
+      "scene": "HSLOWER",
+      "label": 204,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=2 stopped_at=292 unresolved_variable=21",
+      "error": ""
+    },
+    {
+      "scene": "HSLOWER",
+      "label": 273,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=292 unresolved_variable=21",
+      "error": ""
+    },
+    {
+      "scene": "HSLOWER",
+      "label": 328,
+      "before": "0x97",
+      "after": "unresolved_variable",
+      "trace": "steps=11 stopped_at=413 unresolved_variable=21\nresource_refresh_requests=1 close_existing_resources=true\nslot=11 x=539 y=320 width=100 height=100",
+      "error": ""
+    },
+    {
+      "scene": "HSLOWER",
+      "label": 357,
+      "before": "0x97",
+      "after": "unresolved_variable",
+      "trace": "steps=3 stopped_at=413 unresolved_variable=21\nslot=11 x=539 y=320 width=100 height=100",
+      "error": ""
+    },
+    {
+      "scene": "HSLOWER",
+      "label": 364,
+      "before": "0x97",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=413 unresolved_variable=21",
+      "error": ""
+    },
+    {
+      "scene": "HSLOWER",
+      "label": 754,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=940 unresolved_variable=21",
+      "error": ""
+    },
+    {
+      "scene": "HSLOWER",
+      "label": 1155,
+      "before": "0x96",
+      "after": "unresolved_variable",
+      "trace": "steps=10 stopped_at=1640 unresolved_variable=21\nresource_refresh_requests=1 close_existing_resources=true",
+      "error": ""
+    },
+    {
+      "scene": "HSLOWER",
+      "label": 1262,
+      "before": "0x96",
+      "after": "unresolved_variable",
+      "trace": "steps=2 stopped_at=1640 unresolved_variable=21",
+      "error": ""
+    },
+    {
+      "scene": "HSLOWER",
+      "label": 1268,
+      "before": "0x96",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=1640 unresolved_variable=21",
+      "error": ""
+    },
+    {
+      "scene": "HSLOWER",
+      "label": 1298,
+      "before": "0x96",
+      "after": "unresolved_variable",
+      "trace": "steps=4 stopped_at=1640 unresolved_variable=21",
+      "error": ""
+    },
+    {
+      "scene": "AL",
+      "label": 228,
+      "before": "0x97",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=273 unresolved_variable=4",
+      "error": ""
+    },
+    {
+      "scene": "BB",
+      "label": 55,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=2 stopped_at=157 unresolved_variable=28",
+      "error": ""
+    },
+    {
+      "scene": "BB",
+      "label": 138,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=157 unresolved_variable=28",
+      "error": ""
+    },
+    {
+      "scene": "BB",
+      "label": 381,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=9 stopped_at=157 unresolved_variable=28\nresource_refresh_requests=1 close_existing_resources=true",
+      "error": ""
+    },
+    {
+      "scene": "BB",
+      "label": 417,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=9 stopped_at=157 unresolved_variable=28\nresource_refresh_requests=1 close_existing_resources=true",
+      "error": ""
+    },
+    {
+      "scene": "BB",
+      "label": 496,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=10 stopped_at=157 unresolved_variable=28\nresource_refresh_requests=2 close_existing_resources=true",
+      "error": ""
+    },
+    {
+      "scene": "VH",
+      "label": 810,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=984 unresolved_variable=41",
+      "error": ""
+    },
+    {
+      "scene": "MORRIS",
+      "label": 819,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=3 stopped_at=2849 unresolved_variable=57",
+      "error": ""
+    },
+    {
+      "scene": "MORRIS",
+      "label": 2316,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=2 stopped_at=2849 unresolved_variable=57",
+      "error": ""
+    },
+    {
+      "scene": "MORRIS",
+      "label": 2322,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=2849 unresolved_variable=57",
+      "error": ""
+    },
+    {
+      "scene": "MORRIS",
+      "label": 2324,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=2852 unresolved_variable=57",
+      "error": ""
+    },
+    {
+      "scene": "MORRIS",
+      "label": 2326,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=2855 unresolved_variable=57",
+      "error": ""
+    },
+    {
+      "scene": "AM",
+      "label": 233,
+      "before": "0x97",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=242 unresolved_variable=54",
+      "error": ""
+    },
+    {
+      "scene": "AM",
+      "label": 1048,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=9 stopped_at=1640 unresolved_variable=52\nresource_refresh_requests=1 close_existing_resources=true",
+      "error": ""
+    },
+    {
+      "scene": "AM",
+      "label": 1312,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=1640 unresolved_variable=52",
+      "error": ""
+    },
+    {
+      "scene": "AM",
+      "label": 1440,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=1801 unresolved_variable=52",
+      "error": ""
+    },
+    {
+      "scene": "MR",
+      "label": 78,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=3 stopped_at=566 unresolved_variable=2\nresource_refresh_requests=1 close_existing_resources=false",
+      "error": ""
+    },
+    {
+      "scene": "MR",
+      "label": 143,
+      "before": "0x96",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=165 unresolved_variable=2",
+      "error": ""
+    },
+    {
+      "scene": "MR",
+      "label": 314,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=387 unresolved_variable=2",
+      "error": ""
+    },
+    {
+      "scene": "MR",
+      "label": 448,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=566 unresolved_variable=2",
+      "error": ""
+    },
+    {
+      "scene": "VOICE",
+      "label": 176,
+      "before": "0x97",
+      "after": "unresolved_variable",
+      "trace": "steps=2 stopped_at=210 unresolved_variable=15",
+      "error": ""
+    },
+    {
+      "scene": "VOICE",
+      "label": 179,
+      "before": "0x97",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=210 unresolved_variable=15",
+      "error": ""
+    },
+    {
+      "scene": "VOICE",
+      "label": 274,
+      "before": "0x97",
+      "after": "unresolved_variable",
+      "trace": "steps=3 stopped_at=210 unresolved_variable=15",
+      "error": ""
+    },
+    {
+      "scene": "VOICE",
+      "label": 288,
+      "before": "0x97",
+      "after": "unresolved_variable",
+      "trace": "steps=3 stopped_at=210 unresolved_variable=15",
+      "error": ""
+    },
+    {
+      "scene": "VOICE",
+      "label": 304,
+      "before": "0x97",
+      "after": "unresolved_variable",
+      "trace": "steps=2 stopped_at=210 unresolved_variable=15",
+      "error": ""
+    },
+    {
+      "scene": "VOICE",
+      "label": 320,
+      "before": "0x97",
+      "after": "unresolved_variable",
+      "trace": "steps=2 stopped_at=210 unresolved_variable=15",
+      "error": ""
+    },
+    {
+      "scene": "VOICE",
+      "label": 334,
+      "before": "0x97",
+      "after": "unresolved_variable",
+      "trace": "steps=2 stopped_at=210 unresolved_variable=15",
+      "error": ""
+    },
+    {
+      "scene": "EA",
+      "label": 254,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=2 stopped_at=285 unresolved_variable=26",
+      "error": ""
+    },
+    {
+      "scene": "EA",
+      "label": 281,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=285 unresolved_variable=26",
+      "error": ""
+    },
+    {
+      "scene": "EA",
+      "label": 428,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=469 unresolved_variable=26",
+      "error": ""
+    },
+    {
+      "scene": "EA",
+      "label": 464,
+      "before": "0xa1",
+      "after": "unresolved_variable",
+      "trace": "steps=8 stopped_at=519 unresolved_variable=26\nresource_refresh_requests=1 close_existing_resources=true",
+      "error": ""
+    },
+    {
+      "scene": "EA",
+      "label": 670,
+      "before": "0xa1",
+      "after": "unresolved_variable",
+      "trace": "steps=8 stopped_at=802 unresolved_variable=26\nresource_refresh_requests=1 close_existing_resources=true",
+      "error": ""
+    },
+    {
+      "scene": "EA",
+      "label": 1325,
+      "before": "0xa1",
+      "after": "unresolved_variable",
+      "trace": "steps=7 stopped_at=1658 unresolved_variable=26\nresource_refresh_requests=1 close_existing_resources=true",
+      "error": ""
+    },
+    {
+      "scene": "EA",
+      "label": 1455,
+      "before": "0x96",
+      "after": "unresolved_variable",
+      "trace": "steps=11 stopped_at=1835 unresolved_variable=26\nresource_refresh_requests=2 close_existing_resources=true\nslot=69 x=539 y=320 width=100 height=100",
+      "error": ""
+    },
+    {
+      "scene": "EA",
+      "label": 1457,
+      "before": "0x96",
+      "after": "unresolved_variable",
+      "trace": "steps=4 stopped_at=1835 unresolved_variable=26\nresource_refresh_requests=1 close_existing_resources=false\nslot=69 x=539 y=320 width=100 height=100",
+      "error": ""
+    },
+    {
+      "scene": "EA",
+      "label": 1462,
+      "before": "0x96",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=1835 unresolved_variable=26",
+      "error": ""
+    },
+    {
+      "scene": "EA",
+      "label": 1495,
+      "before": "0xa1",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=1877 unresolved_variable=26",
+      "error": ""
+    },
+    {
+      "scene": "EA",
+      "label": 1501,
+      "before": "0xa1",
+      "after": "unresolved_variable",
+      "trace": "steps=2 stopped_at=1877 unresolved_variable=26",
+      "error": ""
+    },
+    {
+      "scene": "EA",
+      "label": 1539,
+      "before": "0x96",
+      "after": "unresolved_variable",
+      "trace": "steps=11 stopped_at=1835 unresolved_variable=26\nresource_refresh_requests=2 close_existing_resources=true\nslot=69 x=539 y=320 width=100 height=100",
+      "error": ""
+    },
+    {
+      "scene": "EA",
+      "label": 1719,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=2165 unresolved_variable=26",
+      "error": ""
+    },
+    {
+      "scene": "EA",
+      "label": 1731,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=2181 unresolved_variable=26",
+      "error": ""
+    },
+    {
+      "scene": "EA",
+      "label": 1742,
+      "before": "0x96",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=2196 unresolved_variable=26",
+      "error": ""
+    },
+    {
+      "scene": "STAR",
+      "label": 959,
+      "before": "0x96",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=1118 unresolved_variable=20",
+      "error": ""
+    },
+    {
+      "scene": "STAR",
+      "label": 960,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=1120 unresolved_variable=20",
+      "error": ""
+    },
+    {
+      "scene": "STAR",
+      "label": 970,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=1133 unresolved_variable=20",
+      "error": ""
+    },
+    {
+      "scene": "STAR",
+      "label": 1041,
+      "before": "0x96",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=1219 unresolved_variable=20",
+      "error": ""
+    },
+    {
+      "scene": "STAR",
+      "label": 1042,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=1221 unresolved_variable=20",
+      "error": ""
+    },
+    {
+      "scene": "STAR",
+      "label": 1052,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=1234 unresolved_variable=20",
+      "error": ""
+    },
+    {
+      "scene": "STAR",
+      "label": 1123,
+      "before": "0x96",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=1320 unresolved_variable=20",
+      "error": ""
+    },
+    {
+      "scene": "STAR",
+      "label": 1124,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=1322 unresolved_variable=20",
+      "error": ""
+    },
+    {
+      "scene": "STAR",
+      "label": 1134,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=1335 unresolved_variable=20",
+      "error": ""
+    },
+    {
+      "scene": "STAR",
+      "label": 1145,
+      "before": "0x96",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=1349 unresolved_variable=20",
+      "error": ""
+    },
+    {
+      "scene": "STAR",
+      "label": 1146,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=1351 unresolved_variable=20",
+      "error": ""
+    },
+    {
+      "scene": "STAR",
+      "label": 1156,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=1364 unresolved_variable=20",
+      "error": ""
+    },
+    {
+      "scene": "STAR",
+      "label": 1629,
+      "before": "0x96",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=1957 unresolved_variable=20",
+      "error": ""
+    },
+    {
+      "scene": "STAR",
+      "label": 1630,
+      "before": "0x96",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=1959 unresolved_variable=20",
+      "error": ""
+    },
+    {
+      "scene": "STAR",
+      "label": 1639,
+      "before": "0x96",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=1971 unresolved_variable=20",
+      "error": ""
+    },
+    {
+      "scene": "STAR",
+      "label": 1738,
+      "before": "0x96",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=2088 unresolved_variable=20",
+      "error": ""
+    },
+    {
+      "scene": "STAR",
+      "label": 1739,
+      "before": "0x96",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=2090 unresolved_variable=20",
+      "error": ""
+    },
+    {
+      "scene": "STAR",
+      "label": 1748,
+      "before": "0x96",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=2102 unresolved_variable=20",
+      "error": ""
+    },
+    {
+      "scene": "STAR",
+      "label": 1846,
+      "before": "0x96",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=2216 unresolved_variable=20",
+      "error": ""
+    },
+    {
+      "scene": "STAR",
+      "label": 1847,
+      "before": "0x96",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=2218 unresolved_variable=20",
+      "error": ""
+    },
+    {
+      "scene": "STAR",
+      "label": 1856,
+      "before": "0x96",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=2230 unresolved_variable=20",
+      "error": ""
+    },
+    {
+      "scene": "STAR",
+      "label": 1872,
+      "before": "0x96",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=2250 unresolved_variable=20",
+      "error": ""
+    },
+    {
+      "scene": "STAR",
+      "label": 1873,
+      "before": "0x96",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=2252 unresolved_variable=20",
+      "error": ""
+    },
+    {
+      "scene": "STAR",
+      "label": 1882,
+      "before": "0x96",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=2264 unresolved_variable=20",
+      "error": ""
+    },
+    {
+      "scene": "HL",
+      "label": 47,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=3 stopped_at=127 unresolved_variable=18",
+      "error": ""
+    },
+    {
+      "scene": "HL",
+      "label": 62,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=2 stopped_at=127 unresolved_variable=18",
+      "error": ""
+    },
+    {
+      "scene": "HL",
+      "label": 108,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=127 unresolved_variable=18",
+      "error": ""
+    },
+    {
+      "scene": "HL",
+      "label": 164,
+      "before": "0x97",
+      "after": "unresolved_variable",
+      "trace": "steps=11 stopped_at=289 unresolved_variable=18\nresource_refresh_requests=1 close_existing_resources=true\nslot=12 x=539 y=320 width=100 height=100",
+      "error": ""
+    },
+    {
+      "scene": "HL",
+      "label": 182,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=9 stopped_at=127 unresolved_variable=18\nresource_refresh_requests=1 close_existing_resources=true",
+      "error": ""
+    },
+    {
+      "scene": "HL",
+      "label": 194,
+      "before": "0x97",
+      "after": "unresolved_variable",
+      "trace": "steps=3 stopped_at=289 unresolved_variable=18\nslot=12 x=539 y=320 width=100 height=100",
+      "error": ""
+    },
+    {
+      "scene": "HL",
+      "label": 216,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=275 unresolved_variable=18",
+      "error": ""
+    },
+    {
+      "scene": "HL",
+      "label": 221,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=282 unresolved_variable=18",
+      "error": ""
+    },
+    {
+      "scene": "HL",
+      "label": 226,
+      "before": "0x97",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=289 unresolved_variable=18",
+      "error": ""
+    },
+    {
+      "scene": "HL",
+      "label": 260,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=9 stopped_at=127 unresolved_variable=18\nresource_refresh_requests=1 close_existing_resources=true",
+      "error": ""
+    },
+    {
+      "scene": "HL",
+      "label": 267,
+      "before": "0x97",
+      "after": "unresolved_variable",
+      "trace": "steps=10 stopped_at=289 unresolved_variable=18\nresource_refresh_requests=1 close_existing_resources=true\nslot=12 x=539 y=320 width=100 height=100",
+      "error": ""
+    },
+    {
+      "scene": "HL",
+      "label": 274,
+      "before": "0x97",
+      "after": "unresolved_variable",
+      "trace": "steps=10 stopped_at=289 unresolved_variable=18\nresource_refresh_requests=1 close_existing_resources=true\nslot=12 x=539 y=320 width=100 height=100",
+      "error": ""
+    },
+    {
+      "scene": "HL",
+      "label": 326,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=418 unresolved_variable=18",
+      "error": ""
+    },
+    {
+      "scene": "TK",
+      "label": 13,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=4 stopped_at=42 unresolved_variable=0\nresource_refresh_requests=1 close_existing_resources=false",
+      "error": ""
+    },
+    {
+      "scene": "TK",
+      "label": 16,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=3 stopped_at=42 unresolved_variable=0\nresource_refresh_requests=1 close_existing_resources=false",
+      "error": ""
+    },
+    {
+      "scene": "TK",
+      "label": 36,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=42 unresolved_variable=0",
+      "error": ""
+    },
+    {
+      "scene": "TK",
+      "label": 75,
+      "before": "0x99",
+      "after": "unresolved_variable",
+      "trace": "steps=10 stopped_at=42 unresolved_variable=0\nresource_refresh_requests=2 close_existing_resources=true",
+      "error": ""
+    },
+    {
+      "scene": "CLOCK",
+      "label": 439,
+      "before": "0x96",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=544 unresolved_variable=14",
+      "error": ""
+    },
+    {
+      "scene": "CLOCK",
+      "label": 450,
+      "before": "0x96",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=558 unresolved_variable=14",
+      "error": ""
+    },
+    {
+      "scene": "GC",
+      "label": 332,
+      "before": "0x97",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=390 unresolved_variable=13",
+      "error": ""
+    },
+    {
+      "scene": "BC",
+      "label": 170,
+      "before": "0x98",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=182 unresolved_variable=30",
+      "error": ""
+    },
+    {
+      "scene": "BC",
+      "label": 199,
+      "before": "0x97",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=222 unresolved_variable=35",
+      "error": ""
+    },
+    {
+      "scene": "BC",
+      "label": 327,
+      "before": "0x96",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=389 unresolved_variable=30",
+      "error": ""
+    },
+    {
+      "scene": "BC",
+      "label": 469,
+      "before": "0x97",
+      "after": "unresolved_variable",
+      "trace": "steps=11 stopped_at=611 unresolved_variable=30\nresource_refresh_requests=1 close_existing_resources=true\nslot=12 x=236 y=176 width=41 height=61\nslot=18 x=539 y=320 width=100 height=100",
+      "error": ""
+    },
+    {
+      "scene": "BC",
+      "label": 482,
+      "before": "0x97",
+      "after": "unresolved_variable",
+      "trace": "steps=10 stopped_at=611 unresolved_variable=30\nresource_refresh_requests=1 close_existing_resources=true\nslot=12 x=236 y=176 width=41 height=61\nslot=18 x=539 y=320 width=100 height=100",
+      "error": ""
+    },
+    {
+      "scene": "BC",
+      "label": 484,
+      "before": "0x97",
+      "after": "unresolved_variable",
+      "trace": "steps=4 stopped_at=611 unresolved_variable=30\nslot=12 x=236 y=176 width=41 height=61\nslot=18 x=539 y=320 width=100 height=100",
+      "error": ""
+    },
+    {
+      "scene": "BC",
+      "label": 485,
+      "before": "0x97",
+      "after": "unresolved_variable",
+      "trace": "steps=4 stopped_at=611 unresolved_variable=30\nslot=12 x=236 y=176 width=41 height=61\nslot=18 x=539 y=320 width=100 height=100",
+      "error": ""
+    },
+    {
+      "scene": "BC",
+      "label": 491,
+      "before": "0x97",
+      "after": "unresolved_variable",
+      "trace": "steps=3 stopped_at=611 unresolved_variable=30\nslot=12 x=236 y=176 width=41 height=61\nslot=18 x=539 y=320 width=100 height=100",
+      "error": ""
+    },
+    {
+      "scene": "BC",
+      "label": 495,
+      "before": "0x97",
+      "after": "unresolved_variable",
+      "trace": "steps=1 stopped_at=611 unresolved_variable=30",
+      "error": ""
+    },
+    {
+      "scene": "BC",
+      "label": 524,
+      "before": "0x97",
+      "after": "unresolved_variable",
+      "trace": "steps=5 stopped_at=611 unresolved_variable=30\nslot=12 x=236 y=176 width=41 height=61\nslot=18 x=539 y=320 width=100 height=100",
+      "error": ""
+    },
+    {
+      "scene": "BC",
+      "label": 554,
+      "before": "0x97",
+      "after": "unresolved_variable",
+      "trace": "steps=10 stopped_at=611 unresolved_variable=30\nresource_refresh_requests=1 close_existing_resources=true\nslot=12 x=236 y=176 width=41 height=61\nslot=18 x=539 y=320 width=100 height=100",
+      "error": ""
+    }
+  ],
+  "scope": "Fresh SceneState per original label; retested only entries previously blocked first by one of the eight ordered comparison opcodes. Static-data interpreter coverage, not original-game runtime.",
+  "sha256": {
+    "analysis/rea/BETRAYAL.EXE": "3b6191fd1c7c590ec3e04298f23742a94366eb1805011ed4ca3add8ad5963226",
+    "analysis/rea/pseudocode/functions/0x42db22.c": "8df50fc5339a585b431bd3f8bdaea0cf93e60129fc942669de9059dd3fb130a3",
+    "analysis/rea/pseudocode/functions/0x431a36.c": "6df5593f6a2f03655a1ece926508e7c7e0052556f4f1cbd1787e415a269a9fe7",
+    "analysis/rea/pseudocode/functions/0x4319b3.c": "3a0123fdf0e30966f0babb4a4944bd08e2a6912aaacfd64251b1890bb7c70ba8",
+    "port/src/cc.cpp": "9b9ec7c7d272ed7e4c8cc5eb4939f1b8962d8819f3af98258b16c478642460dd",
+    "port/tests/scene_state.cpp": "f80752d1c112e92e1ff802043e6d1032321a6f5ca7c279e5022b1ae494e43539"
+  },
+  "scene_data_sha256": {
+    "port/output/cc_all/AL": "53da6c8b8490cc3ce130e965a4df48906276a7b6cd993c14c5dd0a71499afda9",
+    "port/output/cc_all/AM": "9b343c389093151558357441de3f9caa7a825a9964ed734ad6b256dc4efe9fd7",
+    "port/output/cc_all/AS": "9cd1cb997349f06e162abfaf4b9cf88255cfbdb43c1fe4b3a713e081dbad8097",
+    "port/output/cc_all/BB": "4efaa8c081eb846f2f0689acf9a072791342e1e255fab245e84c93f08e39e85a",
+    "port/output/cc_all/BC": "7178d0136ee107ab335a9ecc1058161aabb8ce738d3b712cd4a7f2e8d8a8060a",
+    "port/output/cc_all/CLOCK": "e9966656c82f413cb3fb1461be3cc2bc6ef89f4ba4de98d2712efe1dd274c4b4",
+    "port/output/cc_all/EA": "66264c55c1ac206e0d3a784f148387bd5980162c32f473ef7164a1cf42ca0b89",
+    "port/output/cc_all/EXAMINE": "c2fe479524bd264d5f5941d8efcd1a781647205a0b89ef44bc8bdb9e9ea13a08",
+    "port/output/cc_all/EXAMVB": "8751b43523b1cf8414423ae6e4b00cd42a58db057192ab63c660d5ab1551af6a",
+    "port/output/cc_all/EXAMVC": "e3c849d8dfb3b7259caa5a303902198d11fb60202e8c92eb9e95fe3f5383e60f",
+    "port/output/cc_all/EXAMVH": "1b97182c5b760d7bdcf7a09e4d6858137798ca57efe45cfaa07480e90472efc6",
+    "port/output/cc_all/EXAMVT": "6088d04c97b5c489d5fe2c53190e55a3d473ea038c9cc9bc482822955c3e3a64",
+    "port/output/cc_all/FT": "bc9d2abd61f8008b8f4ae3c2c3aea777832020446cd159331c65f3b7d6710e1a",
+    "port/output/cc_all/GC": "0d841c53781f18fc9d9c37c7a02000434a7b80e4a3af41e6705af2171a13cf86",
+    "port/output/cc_all/GT": "7753f6da11b038989fdb5cc0fc9f3223003a2156de745a7aef8d502c98ca58ab",
+    "port/output/cc_all/HINTS": "b0a0b3f46a58eaa1a8749961c1ad27e3af1999238dc887ba81512193e66e2c61",
+    "port/output/cc_all/HL": "b57e982cd6f3ea69dd47eaca4d932acbc9cb285720a75e0b170c8c9951171e31",
+    "port/output/cc_all/HSLOWER": "83b33865b44bc83523a9427853ce32f05de29e80bc6c02201f5581b5971b7718",
+    "port/output/cc_all/HSTMED": "48f776e86de41bd424006bdae886fc6e6604317a35d7b1dbb41ba8071b2d2d22",
+    "port/output/cc_all/HSUPPER": "77fea563c9aec73d10af2e34d05b80a48842d7499afca8b03d2ba33177975e04",
+    "port/output/cc_all/IU": "e43988f7b93c561d6cb8ec08c54a3d25d5256118cf8da53aa510e7c078559282",
+    "port/output/cc_all/IUEND": "274c554e388bf3cc8ad4aa7e714e7ac07baeb4c21703201e11464eef7fa9912e",
+    "port/output/cc_all/IUOVER": "cb7ba7adf5f1023677322a6efc589d000fdce71607f45124fd863c6574372e49",
+    "port/output/cc_all/LINTEL": "1d0a2b1f8f025e44dbaf5c5f6a862441acc11fcdad6fd74442eaf819357f10b5",
+    "port/output/cc_all/MAP": "ba1c40dfc4c9053b612d17faa8fa1d2ec02b74e9a66c9624701112d41c7cf2eb",
+    "port/output/cc_all/MORRIS": "d0b7d7d565636ecb64f3a75e33206b44d7d7e786ff503678f805946e66d9d67c",
+    "port/output/cc_all/MR": "3d290fe95450bff289a5a6760e462ef26ad4f64160f6193850288f22825249df",
+    "port/output/cc_all/MZ2": "ea4ac41ccfbd8d5ed34dc03b2038005eefa8581e1421c88758dc2b5be15e5393",
+    "port/output/cc_all/NB": "619fcba4f6b17eb0083500cd8befc6a9a33d3fc7bb317a36084aa3dccee4d985",
+    "port/output/cc_all/SM": "fb5035325fe6a0fd54a6f9d96f4f56fdb28c55bf471fbb6d3398b8a702f11d88",
+    "port/output/cc_all/SP": "c48e694134fc7b110f5928139e45b3d6c25b05c47102224cb2e003a341bc41cb",
+    "port/output/cc_all/STAR": "cb2971a32f42d44f06574591bebedf98393f669d453de1d414e5c437f8689992",
+    "port/output/cc_all/START": "43951a038cf8c04f6987b143f2ac9cc397730d8d95ded0374fd2ab8a2e24ed7d",
+    "port/output/cc_all/TK": "467ec5e0f0adcd64d9eb023bd3066150b1bbcf76b17832a5dd85d55de8ce9c46",
+    "port/output/cc_all/VA": "e10b08430ae6b2efb95d3cce4a5cfbf32ac415d09c550a6281360e40b0478791",
+    "port/output/cc_all/VB": "d6e0ec5df9a4ff6963f6fd0943819f3731c5dc7ca4077e170c4fe8ff33240888",
+    "port/output/cc_all/VBDISC": "6e65b6d84b157ec16a59882d3ae8829d2c5b1ab4a089068180ca08e5833543f2",
+    "port/output/cc_all/VC": "8a02909976eddc9e96a2fe4132693e36442b787043af4a510681792d28253e30",
+    "port/output/cc_all/VCDISC": "dadda0a161333b8cb49b671b5b3d64a62eb38603b33c1e4221a648fe28ea2add",
+    "port/output/cc_all/VH": "0d9ab127415be2acb849c0b49671a5e53349fa76e93f269534f77d4f76264463",
+    "port/output/cc_all/VHDISC": "975255e5bda8d152a08f09fc07373b15af358c22645ffb6cce022268f26790e6",
+    "port/output/cc_all/VOICE": "170f5fe9dd7bdcb082805f283d798e7be6c9a42d5d7bc53716ffa04a27128a3d",
+    "port/output/cc_all/VT": "911795dea5edffdafc7a9c3b42934dcdd6cab44b611ed2e842437473e8721d94",
+    "port/output/cc_all/VTDISC": "b5d45e321d74e42dec5c2b33e24b65341ae7e1d41491a0e0ddb2cafb48f6e88a",
+    "port/output/cb_all/AL": "67b586fba88eca8656299938c1faed26ec8cc2c076b90505c242f180bf0102f7",
+    "port/output/cb_all/AM": "e7618ee6dd4cacc16d3c9be58eaae6d9ce693bda97675f334d73a19a52fe5142",
+    "port/output/cb_all/AS": "807cf8990cb4e7e1f892d5cbbf5ab9d3441dbfce3d02e65b7aee670f035cb1c1",
+    "port/output/cb_all/BB": "04bf7d9d7366289a0c5e86aea15fa735dbeb9355e754c4d4ae959234b4d9ad03",
+    "port/output/cb_all/BC": "4c2bc849e33d4ebe0121978babfc8a8ed6fc2ce02cd25796507d1afc5087be80",
+    "port/output/cb_all/CLOCK": "0499e7aa511c46409bb1a10d0dd4b3517052da7189af0a0d5256882d979a3146",
+    "port/output/cb_all/EA": "9f04c769d7aca83a64b0f6d062a3b732e3c5f0284c3041533a5683472185e419",
+    "port/output/cb_all/EXAMINE": "8e5f2dbd1ad4ec403f6681a27254d9eaffc938d370bfaa6c7041f9bbd67d3f19",
+    "port/output/cb_all/EXAMVB": "0ee379db10755f0c3c7684546232caf219ba62845fc2ad6e6c959bee3e7e6ae1",
+    "port/output/cb_all/EXAMVC": "150ae1e57e1c6890511aa34384661a1f3adc471718a7bcfadcfd32e26e480ddf",
+    "port/output/cb_all/EXAMVH": "9565a0921db28b9da4020cfd1e59dc31a9a189ac6b3b4df04faab871cf0a5abe",
+    "port/output/cb_all/EXAMVT": "c8a8787f172e2f89d4a9d66733e9c0d0a3d4a946daba1fcba21edbd9a613595c",
+    "port/output/cb_all/FT": "cf9753b1e49864973dbc62907acc34a0b069f2ed415bfd64afc9fc0cf7547069",
+    "port/output/cb_all/GC": "7418f15a24d094f04e20139c6346b289e60f50f7c923e6073b63c9282e939ef4",
+    "port/output/cb_all/GT": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "port/output/cb_all/HINTS": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "port/output/cb_all/HL": "4433fc008877e48047b3ea5fdba76980841ecb0663abe283fddbe16b8f108ef6",
+    "port/output/cb_all/HSLOWER": "1d315a67686ec3a7e617f67ead690c5512251b395eefdb03aa6ff0865f953496",
+    "port/output/cb_all/HSTMED": "2cd56e580ed9809469436fdc756e717376c4c373bf66c7e3d0d4c370c7b5eae8",
+    "port/output/cb_all/HSUPPER": "7c2936e9710244249f5f5d9edb146ee5f7a317c202cc4b238279943dfe2d47f6",
+    "port/output/cb_all/IU": "b2d67dda2b52542851b3134768f6ce3e6e28a42402b1c63acb8c2015c28a4eed",
+    "port/output/cb_all/IUEND": "39429b4626a48f6d6e9c577670bf2e290051389ea7e29436662255873804eed1",
+    "port/output/cb_all/IUOVER": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "port/output/cb_all/LINTEL": "a7e1212eb8022b65161313087b635a9cae00425eb47c436eb48e85cd9b2e6599",
+    "port/output/cb_all/MAP": "d4ceb4b1a8c31bd021d0f2958c59a022cab4c60d8926d04a8bd0b45f9b2ae6d1",
+    "port/output/cb_all/MORRIS": "8a1ead707cdfe70f2fff2ed3c55d143c43d31248c57d214bd23f65ede4df172b",
+    "port/output/cb_all/MR": "aa5df246b7723782dd83abde6415fbd414910938b4aeb04ea141d22574f15560",
+    "port/output/cb_all/MZ2": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "port/output/cb_all/NB": "c8e144b9bdc9e047acc542295c55bb1cb426ff754e692054f21c895ca2f53ec4",
+    "port/output/cb_all/SM": "5a7f429a3705d38bfee52d46bfc8ba874da71fcc70d1d9a5b665505aa3f7cb49",
+    "port/output/cb_all/SP": "3ce8867f3ef4521bf754467c837853c61ea9bd66b188e0267984733ccbb1e553",
+    "port/output/cb_all/STAR": "6a90e89f408adb7c24e71be47f17476060f8bc09db33d0ffd27e79c12b2a2e85",
+    "port/output/cb_all/START": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "port/output/cb_all/TK": "cf60c59cca506bd52d03bb8c0ed49d568e61eb9485171946081916743d168c81",
+    "port/output/cb_all/VA": "53a8798d136e758dda29786055b7f79d36e420385ca158a9f80570c5da3fdfb7",
+    "port/output/cb_all/VB": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "port/output/cb_all/VBDISC": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "port/output/cb_all/VC": "866685a0967693e8a79ff3d6865bab65355e90ae79f175816cee1a614a098a77",
+    "port/output/cb_all/VCDISC": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "port/output/cb_all/VH": "df89c736a7e07c088fd6eb157fb6453769de305b39692e51b659720c5454ab46",
+    "port/output/cb_all/VHDISC": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "port/output/cb_all/VOICE": "b1af697fdc04aefde8834e16f24e4ee922e929317fbd3c16cf9f1a22234178e1",
+    "port/output/cb_all/VT": "4f707c16dea160ff40deff27c9d49d94b531a89323b25d7773faeff57cd40c5b",
+    "port/output/cb_all/VTDISC": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

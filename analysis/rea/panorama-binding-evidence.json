@@ -1,0 +1,2607 @@
+{
+  "authority": "saved REA/Ghidra static export + original archive inventory",
+  "target_sha256": "3b6191fd1c7c590ec3e04298f23742a94366eb1805011ed4ca3add8ad5963226",
+  "analysis_profile_digest": "e1ad533d4cc0333c2136fe0894217de2d61feea098240326e78633f9e4ddcbf9",
+  "sources": [
+    {
+      "address": "0x40186e",
+      "relative_path": "functions/0x40186e.c",
+      "sha256": "54ebff7cca860ec4a36197c296b6fefa75833efb5d0d4e96ebb72dc60d68c6fe"
+    },
+    {
+      "address": "0x401c21",
+      "relative_path": "functions/0x401c21.c",
+      "sha256": "4d9a78bcd8ff0f42483f40bfe594df5d564ed0e884e3be53c64ec8f4b8cc53c1"
+    },
+    {
+      "address": "0x401ddf",
+      "relative_path": "functions/0x401ddf.c",
+      "sha256": "5ef900b27f45601263e01452cfb68f33a8266f44c430401f0039f4230d2ff6b4"
+    },
+    {
+      "address": "0x411dfc",
+      "relative_path": "functions/0x411dfc.c",
+      "sha256": "554520e53cef4b24e1e8a17068e03da4b72b405f419741a2a70547dd2329abd6"
+    },
+    {
+      "address": "0x412d35",
+      "relative_path": "functions/0x412d35.c",
+      "sha256": "ce0ae287dfeeaf96a08460c08049bc9bc4ba0543e99b9830c4f2f1f6048a2550"
+    },
+    {
+      "address": "0x412f77",
+      "relative_path": "functions/0x412f77.c",
+      "sha256": "e3b7f0c2326dc4fc8bccfae4960c960aa0cfa2a135fa6c8327125d1c3218100e"
+    },
+    {
+      "address": "0x42db22",
+      "relative_path": "functions/0x42db22.c",
+      "sha256": "8df50fc5339a585b431bd3f8bdaea0cf93e60129fc942669de9059dd3fb130a3"
+    },
+    {
+      "address": "0x432295",
+      "relative_path": "functions/0x432295.c",
+      "sha256": "ebc09d92f42be6b118cce8c6bc25ea0bb4c53962ac577511e0c7278b0032a1c4"
+    },
+    {
+      "address": "0x43340a",
+      "relative_path": "functions/0x43340a.c",
+      "sha256": "3a9555ec83f82adcb4886ad5784a6c64b3bccd5d723091966c58ae1dbe5666a5"
+    },
+    {
+      "address": "0x436652",
+      "relative_path": "functions/0x436652.c",
+      "sha256": "3d298553bbe3de0e167c728d0a11be4834f812fb6f2f3666cf24e599855fe85e"
+    }
+  ],
+  "pe_strings": {
+    "0x45eb10": "co",
+    "0x45c0b8": "%.2s\\%s",
+    "0x45c0c0": "nodes\\%s.jpg"
+  },
+  "scenes": [
+    {
+      "scene": "AL",
+      "co_sha256": "73edbdd565834c509a7e3f4a82aef65b98f330b6e70fb8bb4504ab6b86da0f9b",
+      "commands": [
+        {
+          "instruction": 71,
+          "id": 0,
+          "name": "al00",
+          "source": "AL.CCG",
+          "jpeg": "nodes/al/al00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/al/AL00.jpg"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scene": "AM",
+      "co_sha256": "af53f2c75187c9f40d8f6d8d5a74a6b129010a2b7e8b71476b0b7c82ce44374b",
+      "commands": [
+        {
+          "instruction": 271,
+          "id": 0,
+          "name": "am03",
+          "source": "AM.CCG",
+          "jpeg": "nodes/am/am03.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/am/AM03.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 702,
+          "id": 1,
+          "name": "am05",
+          "source": "AM.CCG",
+          "jpeg": "nodes/am/am05.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/am/AM05.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 933,
+          "id": 2,
+          "name": "am04",
+          "source": "AM.CCG",
+          "jpeg": "nodes/am/am04.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/am/AM04.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 1179,
+          "id": 3,
+          "name": "am00",
+          "source": "AM.CCG",
+          "jpeg": "nodes/am/am00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/am/AM00.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 1283,
+          "id": 0,
+          "name": "am03",
+          "source": "AM.CCG",
+          "jpeg": "nodes/am/am03.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/am/AM03.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 1386,
+          "id": 4,
+          "name": "am02",
+          "source": "AM.CCG",
+          "jpeg": "nodes/am/am02.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/am/AM02.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 1485,
+          "id": 4,
+          "name": "am02",
+          "source": "AM.CCG",
+          "jpeg": "nodes/am/am02.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/am/AM02.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 1491,
+          "id": 4,
+          "name": "am02",
+          "source": "AM.CCG",
+          "jpeg": "nodes/am/am02.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/am/AM02.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 1743,
+          "id": 5,
+          "name": "am06",
+          "source": "AM.CCG",
+          "jpeg": "nodes/am/am06.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/am/AM06.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 1955,
+          "id": 5,
+          "name": "am06",
+          "source": "AM.CCG",
+          "jpeg": "nodes/am/am06.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/am/AM06.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 2004,
+          "id": 6,
+          "name": "am01",
+          "source": "AM.CCG",
+          "jpeg": "nodes/am/am01.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/am/AM01.jpg"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scene": "AS",
+      "co_sha256": "f5f46b5aae8e3f8bb360912f1f06274424e523b8759c7193a3145a80d24758e9",
+      "commands": [
+        {
+          "instruction": 46,
+          "id": 0,
+          "name": "as00",
+          "source": "AS.CCG",
+          "jpeg": "nodes/as/as00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/as/AS00.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 194,
+          "id": 1,
+          "name": "as01",
+          "source": "AS.CCG",
+          "jpeg": "nodes/as/as01.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/as/AS01.jpg"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scene": "BB",
+      "co_sha256": "8f33ff1012991ad3950c9dedc663604ff7fffac421a3127462a6b9b3ad7aeff4",
+      "commands": [
+        {
+          "instruction": 62,
+          "id": 0,
+          "name": "bb00",
+          "source": "BB.CCG",
+          "jpeg": "nodes/bb/bb00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/bb/BB00.jpg"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scene": "BC",
+      "co_sha256": "8d11d425bd2363fb7809202264f27f025ec2eaddaf7274439c0d9c38bdbe87b1",
+      "commands": [
+        {
+          "instruction": 111,
+          "id": 0,
+          "name": "bc08",
+          "source": "BC.CCG",
+          "jpeg": "nodes/bc/bc08.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/bc/BC08.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 176,
+          "id": 1,
+          "name": "bc08Crme",
+          "source": "BC.CCG",
+          "jpeg": "nodes/bc/bc08Crme.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/bc/bc08Crme.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 274,
+          "id": 0,
+          "name": "bc08",
+          "source": "BC.CCG",
+          "jpeg": "nodes/bc/bc08.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/bc/BC08.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 280,
+          "id": 0,
+          "name": "bc08",
+          "source": "BC.CCG",
+          "jpeg": "nodes/bc/bc08.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/bc/BC08.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 290,
+          "id": 0,
+          "name": "bc08",
+          "source": "BC.CCG",
+          "jpeg": "nodes/bc/bc08.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/bc/BC08.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 363,
+          "id": 2,
+          "name": "bc00",
+          "source": "BC.CCG",
+          "jpeg": "nodes/bc/bc00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/bc/BC00.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 458,
+          "id": 2,
+          "name": "bc00",
+          "source": "BC.CCG",
+          "jpeg": "nodes/bc/bc00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/bc/BC00.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 492,
+          "id": 3,
+          "name": "bc03",
+          "source": "BC.CCG",
+          "jpeg": "nodes/bc/bc03.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/bc/BC03.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 520,
+          "id": 4,
+          "name": "bc01",
+          "source": "BC.CCG",
+          "jpeg": "nodes/bc/bc01.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/bc/BC01.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 527,
+          "id": 4,
+          "name": "bc01",
+          "source": "BC.CCG",
+          "jpeg": "nodes/bc/bc01.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/bc/BC01.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 694,
+          "id": 5,
+          "name": "bc05",
+          "source": "BC.CCG",
+          "jpeg": "nodes/bc/bc05.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/bc/BC05.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 748,
+          "id": 6,
+          "name": "bc02",
+          "source": "BC.CCG",
+          "jpeg": "nodes/bc/bc02.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/bc/BC02.jpg"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scene": "CLOCK",
+      "co_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "commands": []
+    },
+    {
+      "scene": "EA",
+      "co_sha256": "73015ed3ba6bb98427b03f20738f8a17b8b89ab6b468114226b0bb42b81f8ba0",
+      "commands": [
+        {
+          "instruction": 317,
+          "id": 0,
+          "name": "ea00",
+          "source": "EA.CCG",
+          "jpeg": "nodes/ea/ea00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/ea/EA00.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 833,
+          "id": 1,
+          "name": "ea01",
+          "source": "EA.CCG",
+          "jpeg": "nodes/ea/ea01.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/ea/EA01.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 864,
+          "id": 1,
+          "name": "ea01",
+          "source": "EA.CCG",
+          "jpeg": "nodes/ea/ea01.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/ea/EA01.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 898,
+          "id": 1,
+          "name": "ea01",
+          "source": "EA.CCG",
+          "jpeg": "nodes/ea/ea01.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/ea/EA01.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 1981,
+          "id": 2,
+          "name": "ea03",
+          "source": "EA.CCG",
+          "jpeg": "nodes/ea/ea03.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/ea/EA03.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 2074,
+          "id": 3,
+          "name": "ea02",
+          "source": "EA.CCG",
+          "jpeg": "nodes/ea/ea02.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/ea/EA02.jpg"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scene": "EXAMINE",
+      "co_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "commands": []
+    },
+    {
+      "scene": "EXAMVB",
+      "co_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "commands": []
+    },
+    {
+      "scene": "EXAMVC",
+      "co_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "commands": []
+    },
+    {
+      "scene": "EXAMVH",
+      "co_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "commands": []
+    },
+    {
+      "scene": "EXAMVT",
+      "co_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "commands": []
+    },
+    {
+      "scene": "FT",
+      "co_sha256": "9bcd183080237e372a439f106a06d21f68fea510af3554f14e0e5b12ebc05158",
+      "commands": [
+        {
+          "instruction": 74,
+          "id": 0,
+          "name": "ft00",
+          "source": "FT.CCG",
+          "jpeg": "nodes/ft/ft00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/ft/FT00.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 313,
+          "id": 0,
+          "name": "ft00",
+          "source": "FT.CCG",
+          "jpeg": "nodes/ft/ft00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/ft/FT00.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 396,
+          "id": 1,
+          "name": "gt00",
+          "source": "FT.CCG",
+          "jpeg": "nodes/gt/gt00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/gt/GT00.jpg"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scene": "GC",
+      "co_sha256": "bfee15f46bdfe60ec77e330ade570f87d0a2bf41ef3a288aea48a34051cb8828",
+      "commands": [
+        {
+          "instruction": 185,
+          "id": 0,
+          "name": "al00",
+          "source": "GC.CCG",
+          "jpeg": "nodes/al/al00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/al/AL00.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 666,
+          "id": 1,
+          "name": "gc00",
+          "source": "GC.CCG",
+          "jpeg": "nodes/gc/gc00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/gc/GC00.jpg"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scene": "GT",
+      "co_sha256": "8dd0d4a903e5cbb0789055f25bdbddad8f095823ea3eeb0ccc9688947ffab0df",
+      "commands": [
+        {
+          "instruction": 35,
+          "id": 0,
+          "name": "gt00",
+          "source": "GT.CCG",
+          "jpeg": "nodes/gt/gt00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/gt/GT00.jpg"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scene": "HINTS",
+      "co_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "commands": []
+    },
+    {
+      "scene": "HL",
+      "co_sha256": "86602655fa6abc48a0e2172f2c7cd5ff1191bd5735f1a56634b8ca3cff637082",
+      "commands": [
+        {
+          "instruction": 78,
+          "id": 0,
+          "name": "hl00",
+          "source": "HL.CCG",
+          "jpeg": "nodes/hl/hl00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/hl/HL00.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 360,
+          "id": 1,
+          "name": "hl01",
+          "source": "HL.CCG",
+          "jpeg": "nodes/hl/hl01.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/hl/HL01.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 437,
+          "id": 1,
+          "name": "hl01",
+          "source": "HL.CCG",
+          "jpeg": "nodes/hl/hl01.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/hl/HL01.jpg"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scene": "HSLOWER",
+      "co_sha256": "4492634db9c82b477906df80f91a249cdd66a1e16ea817020da64ffd59f7180d",
+      "commands": [
+        {
+          "instruction": 255,
+          "id": 0,
+          "name": "hs00",
+          "source": "HSLOWER.CCG",
+          "jpeg": "nodes/hs/hs00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/hs/HS00.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 433,
+          "id": 1,
+          "name": "hs05",
+          "source": "HSLOWER.CCG",
+          "jpeg": "nodes/hs/hs05.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/hs/HS05.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 624,
+          "id": 2,
+          "name": "hs01",
+          "source": "HSLOWER.CCG",
+          "jpeg": "nodes/hs/hs01.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/hs/HS01.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 834,
+          "id": 3,
+          "name": "hs04",
+          "source": "HSLOWER.CCG",
+          "jpeg": "nodes/hs/hs04.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/hs/HS04.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 908,
+          "id": 4,
+          "name": "hs02",
+          "source": "HSLOWER.CCG",
+          "jpeg": "nodes/hs/hs02.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/hs/HS02.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 973,
+          "id": 4,
+          "name": "hs02",
+          "source": "HSLOWER.CCG",
+          "jpeg": "nodes/hs/hs02.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/hs/HS02.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 1026,
+          "id": 4,
+          "name": "hs02",
+          "source": "HSLOWER.CCG",
+          "jpeg": "nodes/hs/hs02.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/hs/HS02.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 1034,
+          "id": 4,
+          "name": "hs02",
+          "source": "HSLOWER.CCG",
+          "jpeg": "nodes/hs/hs02.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/hs/HS02.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 1295,
+          "id": 5,
+          "name": "hs03",
+          "source": "HSLOWER.CCG",
+          "jpeg": "nodes/hs/hs03.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/hs/HS03.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 1462,
+          "id": 6,
+          "name": "hs10",
+          "source": "HSLOWER.CCG",
+          "jpeg": "nodes/hs/hs10.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/hs/HS10.jpg"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scene": "HSTMED",
+      "co_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "commands": []
+    },
+    {
+      "scene": "HSUPPER",
+      "co_sha256": "592196ab67878dc3db90754a105efe8d8926ffcf89534dd9bc3bf950e4590d4c",
+      "commands": [
+        {
+          "instruction": 104,
+          "id": 0,
+          "name": "hs06",
+          "source": "HSUPPER.CCG",
+          "jpeg": "nodes/hs/hs06.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/hs/HS06.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 179,
+          "id": 0,
+          "name": "hs06",
+          "source": "HSUPPER.CCG",
+          "jpeg": "nodes/hs/hs06.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/hs/HS06.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 247,
+          "id": 1,
+          "name": "hs08",
+          "source": "HSUPPER.CCG",
+          "jpeg": "nodes/hs/hs08.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/hs/HS08.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 295,
+          "id": 1,
+          "name": "hs08",
+          "source": "HSUPPER.CCG",
+          "jpeg": "nodes/hs/hs08.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/hs/HS08.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 300,
+          "id": 1,
+          "name": "hs08",
+          "source": "HSUPPER.CCG",
+          "jpeg": "nodes/hs/hs08.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/hs/HS08.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 617,
+          "id": 2,
+          "name": "hs09",
+          "source": "HSUPPER.CCG",
+          "jpeg": "nodes/hs/hs09.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/hs/HS09.jpg"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scene": "IU",
+      "co_sha256": "c7ed20aa09e6ffe8e711edcbee33b356c3786826e878cd8ac0b4521b18f21883",
+      "commands": [
+        {
+          "instruction": 181,
+          "id": 0,
+          "name": "iu00",
+          "source": "IU.CCG",
+          "jpeg": "nodes/iu/iu00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/iu/iu00.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 306,
+          "id": 0,
+          "name": "iu00",
+          "source": "IU.CCG",
+          "jpeg": "nodes/iu/iu00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/iu/iu00.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 412,
+          "id": 0,
+          "name": "iu00",
+          "source": "IU.CCG",
+          "jpeg": "nodes/iu/iu00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/iu/iu00.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 529,
+          "id": 0,
+          "name": "iu00",
+          "source": "IU.CCG",
+          "jpeg": "nodes/iu/iu00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/iu/iu00.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 541,
+          "id": 0,
+          "name": "iu00",
+          "source": "IU.CCG",
+          "jpeg": "nodes/iu/iu00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/iu/iu00.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 554,
+          "id": 0,
+          "name": "iu00",
+          "source": "IU.CCG",
+          "jpeg": "nodes/iu/iu00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/iu/iu00.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 560,
+          "id": 0,
+          "name": "iu00",
+          "source": "IU.CCG",
+          "jpeg": "nodes/iu/iu00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/iu/iu00.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 571,
+          "id": 0,
+          "name": "iu00",
+          "source": "IU.CCG",
+          "jpeg": "nodes/iu/iu00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/iu/iu00.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 611,
+          "id": 0,
+          "name": "iu00",
+          "source": "IU.CCG",
+          "jpeg": "nodes/iu/iu00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/iu/iu00.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 623,
+          "id": 0,
+          "name": "iu00",
+          "source": "IU.CCG",
+          "jpeg": "nodes/iu/iu00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/iu/iu00.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 636,
+          "id": 0,
+          "name": "iu00",
+          "source": "IU.CCG",
+          "jpeg": "nodes/iu/iu00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/iu/iu00.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 643,
+          "id": 0,
+          "name": "iu00",
+          "source": "IU.CCG",
+          "jpeg": "nodes/iu/iu00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/iu/iu00.jpg"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scene": "IUEND",
+      "co_sha256": "a17a93d25d5359db52e15c36f40fea142a478de31b445a7470543cf349b6e892",
+      "commands": [
+        {
+          "instruction": 20,
+          "id": 0,
+          "name": "iu00",
+          "source": "IUEND.CCG",
+          "jpeg": "nodes/iu/iu00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/iu/iu00.jpg"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scene": "IUOVER",
+      "co_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "commands": []
+    },
+    {
+      "scene": "LINTEL",
+      "co_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "commands": []
+    },
+    {
+      "scene": "MAP",
+      "co_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "commands": []
+    },
+    {
+      "scene": "MORRIS",
+      "co_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "commands": []
+    },
+    {
+      "scene": "MR",
+      "co_sha256": "c2fdc8c843a8be9e0d1816624c98f4cc954299ee638aaebf459f7fd7cc18bdad",
+      "commands": [
+        {
+          "instruction": 216,
+          "id": 0,
+          "name": "mr02dr",
+          "source": "MR.CCG",
+          "jpeg": "nodes/mr/mr02dr.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/mr/MR02DR.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 226,
+          "id": 1,
+          "name": "mr02",
+          "source": "MR.CCG",
+          "jpeg": "nodes/mr/mr02.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/mr/MR02.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 398,
+          "id": 2,
+          "name": "mr01",
+          "source": "MR.CCG",
+          "jpeg": "nodes/mr/mr01.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/mr/MR01.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 486,
+          "id": 2,
+          "name": "mr01",
+          "source": "MR.CCG",
+          "jpeg": "nodes/mr/mr01.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/mr/MR01.jpg"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scene": "MZ2",
+      "co_sha256": "7b234ec485166844b863db4e0bd13b0991ddc23dbd746d857ec013e88732f7d9",
+      "commands": [
+        {
+          "instruction": 93,
+          "id": 0,
+          "name": "vtm00",
+          "source": "MZ2.CCG",
+          "jpeg": "nodes/vt/vtm00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD3/Byzantine_3.iso",
+              "member": "nodes/vt/vtm00.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 148,
+          "id": 1,
+          "name": "mz18",
+          "source": "MZ2.CCG",
+          "jpeg": "nodes/mz/mz18.jpg",
+          "assets": []
+        },
+        {
+          "instruction": 179,
+          "id": 2,
+          "name": "mz19",
+          "source": "MZ2.CCG",
+          "jpeg": "nodes/mz/mz19.jpg",
+          "assets": []
+        },
+        {
+          "instruction": 211,
+          "id": 3,
+          "name": "mz35",
+          "source": "MZ2.CCG",
+          "jpeg": "nodes/mz/mz35.jpg",
+          "assets": []
+        },
+        {
+          "instruction": 232,
+          "id": 4,
+          "name": "mz36",
+          "source": "MZ2.CCG",
+          "jpeg": "nodes/mz/mz36.jpg",
+          "assets": []
+        },
+        {
+          "instruction": 248,
+          "id": 5,
+          "name": "mz21",
+          "source": "MZ2.CCG",
+          "jpeg": "nodes/mz/mz21.jpg",
+          "assets": []
+        },
+        {
+          "instruction": 271,
+          "id": 6,
+          "name": "mz22",
+          "source": "MZ2.CCG",
+          "jpeg": "nodes/mz/mz22.jpg",
+          "assets": []
+        },
+        {
+          "instruction": 300,
+          "id": 7,
+          "name": "mz23",
+          "source": "MZ2.CCG",
+          "jpeg": "nodes/mz/mz23.jpg",
+          "assets": []
+        },
+        {
+          "instruction": 328,
+          "id": 8,
+          "name": "mz24",
+          "source": "MZ2.CCG",
+          "jpeg": "nodes/mz/mz24.jpg",
+          "assets": []
+        },
+        {
+          "instruction": 349,
+          "id": 9,
+          "name": "mz25",
+          "source": "MZ2.CCG",
+          "jpeg": "nodes/mz/mz25.jpg",
+          "assets": []
+        },
+        {
+          "instruction": 365,
+          "id": 10,
+          "name": "mz26",
+          "source": "MZ2.CCG",
+          "jpeg": "nodes/mz/mz26.jpg",
+          "assets": []
+        },
+        {
+          "instruction": 387,
+          "id": 11,
+          "name": "mz27",
+          "source": "MZ2.CCG",
+          "jpeg": "nodes/mz/mz27.jpg",
+          "assets": []
+        },
+        {
+          "instruction": 410,
+          "id": 12,
+          "name": "mz28",
+          "source": "MZ2.CCG",
+          "jpeg": "nodes/mz/mz28.jpg",
+          "assets": []
+        },
+        {
+          "instruction": 438,
+          "id": 13,
+          "name": "mz29",
+          "source": "MZ2.CCG",
+          "jpeg": "nodes/mz/mz29.jpg",
+          "assets": []
+        },
+        {
+          "instruction": 461,
+          "id": 14,
+          "name": "mz31",
+          "source": "MZ2.CCG",
+          "jpeg": "nodes/mz/mz31.jpg",
+          "assets": []
+        },
+        {
+          "instruction": 483,
+          "id": 15,
+          "name": "mz32",
+          "source": "MZ2.CCG",
+          "jpeg": "nodes/mz/mz32.jpg",
+          "assets": []
+        },
+        {
+          "instruction": 512,
+          "id": 16,
+          "name": "mz33",
+          "source": "MZ2.CCG",
+          "jpeg": "nodes/mz/mz33.jpg",
+          "assets": []
+        },
+        {
+          "instruction": 533,
+          "id": 17,
+          "name": "mz34",
+          "source": "MZ2.CCG",
+          "jpeg": "nodes/mz/mz34.jpg",
+          "assets": []
+        },
+        {
+          "instruction": 549,
+          "id": 18,
+          "name": "mz30",
+          "source": "MZ2.CCG",
+          "jpeg": "nodes/mz/mz30.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD3/Byzantine_3.iso",
+              "member": "nodes/mz/mz30.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 575,
+          "id": 19,
+          "name": "mz01",
+          "source": "MZ2.CCG",
+          "jpeg": "nodes/mz/mz01.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD3/Byzantine_3.iso",
+              "member": "nodes/mz/MZ01.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 600,
+          "id": 20,
+          "name": "mz02",
+          "source": "MZ2.CCG",
+          "jpeg": "nodes/mz/mz02.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD3/Byzantine_3.iso",
+              "member": "nodes/mz/MZ02.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 626,
+          "id": 21,
+          "name": "mz03",
+          "source": "MZ2.CCG",
+          "jpeg": "nodes/mz/mz03.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD3/Byzantine_3.iso",
+              "member": "nodes/mz/MZ03.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 658,
+          "id": 22,
+          "name": "mz04",
+          "source": "MZ2.CCG",
+          "jpeg": "nodes/mz/mz04.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD3/Byzantine_3.iso",
+              "member": "nodes/mz/MZ04.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 683,
+          "id": 23,
+          "name": "mz05",
+          "source": "MZ2.CCG",
+          "jpeg": "nodes/mz/mz05.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD3/Byzantine_3.iso",
+              "member": "nodes/mz/MZ05.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 712,
+          "id": 24,
+          "name": "mz06",
+          "source": "MZ2.CCG",
+          "jpeg": "nodes/mz/mz06.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD3/Byzantine_3.iso",
+              "member": "nodes/mz/MZ06.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 737,
+          "id": 25,
+          "name": "mz07",
+          "source": "MZ2.CCG",
+          "jpeg": "nodes/mz/mz07.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD3/Byzantine_3.iso",
+              "member": "nodes/mz/MZ07.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 759,
+          "id": 26,
+          "name": "mz08",
+          "source": "MZ2.CCG",
+          "jpeg": "nodes/mz/mz08.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD3/Byzantine_3.iso",
+              "member": "nodes/mz/MZ08.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 785,
+          "id": 27,
+          "name": "mz09",
+          "source": "MZ2.CCG",
+          "jpeg": "nodes/mz/mz09.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD3/Byzantine_3.iso",
+              "member": "nodes/mz/MZ09.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 810,
+          "id": 28,
+          "name": "mz10",
+          "source": "MZ2.CCG",
+          "jpeg": "nodes/mz/mz10.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD3/Byzantine_3.iso",
+              "member": "nodes/mz/MZ10.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 839,
+          "id": 29,
+          "name": "vtmend",
+          "source": "MZ2.CCG",
+          "jpeg": "nodes/vt/vtmend.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD3/Byzantine_3.iso",
+              "member": "nodes/vt/vtmend.jpg"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scene": "NB",
+      "co_sha256": "e0a7b7670b8c36b8f5b487e1a1e3c3025ee76ee352cb7765135a44ef7bca3b4f",
+      "commands": [
+        {
+          "instruction": 98,
+          "id": 0,
+          "name": "NB00",
+          "source": "NB.CCG",
+          "jpeg": "nodes/NB/NB00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/nb/NB00.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 160,
+          "id": 0,
+          "name": "NB00",
+          "source": "NB.CCG",
+          "jpeg": "nodes/NB/NB00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/nb/NB00.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 167,
+          "id": 0,
+          "name": "NB00",
+          "source": "NB.CCG",
+          "jpeg": "nodes/NB/NB00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/nb/NB00.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 191,
+          "id": 0,
+          "name": "NB00",
+          "source": "NB.CCG",
+          "jpeg": "nodes/NB/NB00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/nb/NB00.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 198,
+          "id": 0,
+          "name": "NB00",
+          "source": "NB.CCG",
+          "jpeg": "nodes/NB/NB00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/nb/NB00.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 439,
+          "id": 1,
+          "name": "nb01",
+          "source": "NB.CCG",
+          "jpeg": "nodes/nb/nb01.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/nb/NB01.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 492,
+          "id": 1,
+          "name": "nb01",
+          "source": "NB.CCG",
+          "jpeg": "nodes/nb/nb01.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/nb/NB01.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 853,
+          "id": 2,
+          "name": "al00",
+          "source": "NB.CCG",
+          "jpeg": "nodes/al/al00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/al/AL00.jpg"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scene": "SM",
+      "co_sha256": "762efa2121bbb5426740ae374514bc9aa8bfeeed39b9dde22a40bd0fb38dc09e",
+      "commands": [
+        {
+          "instruction": 167,
+          "id": 0,
+          "name": "sm00",
+          "source": "SM.CCG",
+          "jpeg": "nodes/sm/sm00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/sm/SM00.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 655,
+          "id": 1,
+          "name": "sm01",
+          "source": "SM.CCG",
+          "jpeg": "nodes/sm/sm01.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/sm/SM01.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 710,
+          "id": 1,
+          "name": "sm01",
+          "source": "SM.CCG",
+          "jpeg": "nodes/sm/sm01.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/sm/SM01.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 841,
+          "id": 2,
+          "name": "sm02",
+          "source": "SM.CCG",
+          "jpeg": "nodes/sm/sm02.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/sm/SM02.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 1310,
+          "id": 3,
+          "name": "sm03",
+          "source": "SM.CCG",
+          "jpeg": "nodes/sm/sm03.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/sm/SM03.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 1386,
+          "id": 4,
+          "name": "sm04",
+          "source": "SM.CCG",
+          "jpeg": "nodes/sm/sm04.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/sm/SM04.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 1482,
+          "id": 5,
+          "name": "sm05",
+          "source": "SM.CCG",
+          "jpeg": "nodes/sm/sm05.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/sm/SM05.JPG"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scene": "SP",
+      "co_sha256": "e450518ca150a3b6debad35b57f0a2b57e3d4a606ce7f52a3622f8f29ea21c3d",
+      "commands": [
+        {
+          "instruction": 22,
+          "id": 0,
+          "name": "sp00",
+          "source": "SP.CCG",
+          "jpeg": "nodes/sp/sp00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD1/Byzantine_1.iso",
+              "member": "copy2hd/nodes/sp/SP00.jpg"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scene": "STAR",
+      "co_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "commands": []
+    },
+    {
+      "scene": "START",
+      "co_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "commands": []
+    },
+    {
+      "scene": "TK",
+      "co_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "commands": []
+    },
+    {
+      "scene": "VA",
+      "co_sha256": "8759f8dde956d9abe9876af5037070d18cc2fcd6710171089122983918d9a059",
+      "commands": [
+        {
+          "instruction": 204,
+          "id": 0,
+          "name": "va01",
+          "source": "VA.CCG",
+          "jpeg": "nodes/va/va01.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD5/Byzantine_5.iso",
+              "member": "nodes/va/va01.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 273,
+          "id": 1,
+          "name": "va02",
+          "source": "VA.CCG",
+          "jpeg": "nodes/va/va02.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD5/Byzantine_5.iso",
+              "member": "nodes/va/va02.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 378,
+          "id": 2,
+          "name": "va03",
+          "source": "VA.CCG",
+          "jpeg": "nodes/va/va03.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD5/Byzantine_5.iso",
+              "member": "nodes/va/va03.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 481,
+          "id": 3,
+          "name": "va04",
+          "source": "VA.CCG",
+          "jpeg": "nodes/va/va04.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD5/Byzantine_5.iso",
+              "member": "nodes/va/va04.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 488,
+          "id": 4,
+          "name": "va04b",
+          "source": "VA.CCG",
+          "jpeg": "nodes/va/va04b.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD5/Byzantine_5.iso",
+              "member": "nodes/va/VA04B.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 588,
+          "id": 5,
+          "name": "va05",
+          "source": "VA.CCG",
+          "jpeg": "nodes/va/va05.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD5/Byzantine_5.iso",
+              "member": "nodes/va/va05.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 702,
+          "id": 6,
+          "name": "va06",
+          "source": "VA.CCG",
+          "jpeg": "nodes/va/va06.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD5/Byzantine_5.iso",
+              "member": "nodes/va/va06.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 739,
+          "id": 7,
+          "name": "va07",
+          "source": "VA.CCG",
+          "jpeg": "nodes/va/va07.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD5/Byzantine_5.iso",
+              "member": "nodes/va/va07.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 804,
+          "id": 8,
+          "name": "va08",
+          "source": "VA.CCG",
+          "jpeg": "nodes/va/va08.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD5/Byzantine_5.iso",
+              "member": "nodes/va/va08.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 842,
+          "id": 9,
+          "name": "va09",
+          "source": "VA.CCG",
+          "jpeg": "nodes/va/va09.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD5/Byzantine_5.iso",
+              "member": "nodes/va/va09.jpg"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scene": "VB",
+      "co_sha256": "3ff72c10b31a2376d346b2d514149c5a3b5fd97afce6a44191a3557c70a71c85",
+      "commands": [
+        {
+          "instruction": 231,
+          "id": 0,
+          "name": "vb01g",
+          "source": "VB.CCG",
+          "jpeg": "nodes/vb/vb01g.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD4/Byzantine_4.iso",
+              "member": "nodes/vb/vb01g.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 241,
+          "id": 1,
+          "name": "vb01",
+          "source": "VB.CCG",
+          "jpeg": "nodes/vb/vb01.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD4/Byzantine_4.iso",
+              "member": "nodes/vb/VB01.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 329,
+          "id": 2,
+          "name": "VB08",
+          "source": "VB.CCG",
+          "jpeg": "nodes/VB/VB08.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD4/Byzantine_4.iso",
+              "member": "nodes/vb/VB08.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 379,
+          "id": 2,
+          "name": "VB08",
+          "source": "VB.CCG",
+          "jpeg": "nodes/VB/VB08.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD4/Byzantine_4.iso",
+              "member": "nodes/vb/VB08.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 418,
+          "id": 3,
+          "name": "vb02g",
+          "source": "VB.CCG",
+          "jpeg": "nodes/vb/vb02g.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD4/Byzantine_4.iso",
+              "member": "nodes/vb/vb02g.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 423,
+          "id": 4,
+          "name": "vb02",
+          "source": "VB.CCG",
+          "jpeg": "nodes/vb/vb02.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD4/Byzantine_4.iso",
+              "member": "nodes/vb/VB02.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 535,
+          "id": 5,
+          "name": "vb03g",
+          "source": "VB.CCG",
+          "jpeg": "nodes/vb/vb03g.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD4/Byzantine_4.iso",
+              "member": "nodes/vb/vb03g.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 547,
+          "id": 6,
+          "name": "vb03",
+          "source": "VB.CCG",
+          "jpeg": "nodes/vb/vb03.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD4/Byzantine_4.iso",
+              "member": "nodes/vb/VB03.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 687,
+          "id": 7,
+          "name": "vb04g",
+          "source": "VB.CCG",
+          "jpeg": "nodes/vb/vb04g.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD4/Byzantine_4.iso",
+              "member": "nodes/vb/vb04g.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 698,
+          "id": 8,
+          "name": "vb04",
+          "source": "VB.CCG",
+          "jpeg": "nodes/vb/vb04.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD4/Byzantine_4.iso",
+              "member": "nodes/vb/VB04.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 811,
+          "id": 9,
+          "name": "vb05",
+          "source": "VB.CCG",
+          "jpeg": "nodes/vb/vb05.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD4/Byzantine_4.iso",
+              "member": "nodes/vb/VB05.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 853,
+          "id": 9,
+          "name": "vb05",
+          "source": "VB.CCG",
+          "jpeg": "nodes/vb/vb05.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD4/Byzantine_4.iso",
+              "member": "nodes/vb/VB05.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 878,
+          "id": 10,
+          "name": "vb06",
+          "source": "VB.CCG",
+          "jpeg": "nodes/vb/vb06.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD4/Byzantine_4.iso",
+              "member": "nodes/vb/VB06.JPG"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scene": "VBDISC",
+      "co_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "commands": []
+    },
+    {
+      "scene": "VC",
+      "co_sha256": "89f5623565d1302d1eaf464f6b34c774527e36be128745a378f9d75350c77cb1",
+      "commands": [
+        {
+          "instruction": 116,
+          "id": 0,
+          "name": "vc00",
+          "source": "VC.CCG",
+          "jpeg": "nodes/vc/vc00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD5/Byzantine_5.iso",
+              "member": "nodes/vc/vc00.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 280,
+          "id": 0,
+          "name": "vc00",
+          "source": "VC.CCG",
+          "jpeg": "nodes/vc/vc00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD5/Byzantine_5.iso",
+              "member": "nodes/vc/vc00.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 335,
+          "id": 1,
+          "name": "vc01",
+          "source": "VC.CCG",
+          "jpeg": "nodes/vc/vc01.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD5/Byzantine_5.iso",
+              "member": "nodes/vc/vc01.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 485,
+          "id": 2,
+          "name": "vc02",
+          "source": "VC.CCG",
+          "jpeg": "nodes/vc/vc02.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD5/Byzantine_5.iso",
+              "member": "nodes/vc/vc02.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 896,
+          "id": 3,
+          "name": "vc05",
+          "source": "VC.CCG",
+          "jpeg": "nodes/vc/vc05.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD5/Byzantine_5.iso",
+              "member": "nodes/vc/vc05.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 915,
+          "id": 4,
+          "name": "vc04",
+          "source": "VC.CCG",
+          "jpeg": "nodes/vc/vc04.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD5/Byzantine_5.iso",
+              "member": "nodes/vc/vc04.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 937,
+          "id": 3,
+          "name": "vc05",
+          "source": "VC.CCG",
+          "jpeg": "nodes/vc/vc05.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD5/Byzantine_5.iso",
+              "member": "nodes/vc/vc05.jpg"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scene": "VCDISC",
+      "co_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "commands": []
+    },
+    {
+      "scene": "VH",
+      "co_sha256": "20d383944f5ed8bef19d5d6f1bb3cad07822618a08640e5fe3427550b20ae292",
+      "commands": [
+        {
+          "instruction": 310,
+          "id": 0,
+          "name": "vh00",
+          "source": "VH.CCG",
+          "jpeg": "nodes/vh/vh00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD6/Byzantine_6.iso",
+              "member": "nodes/vh/vh00.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 354,
+          "id": 0,
+          "name": "vh00",
+          "source": "VH.CCG",
+          "jpeg": "nodes/vh/vh00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD6/Byzantine_6.iso",
+              "member": "nodes/vh/vh00.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 424,
+          "id": 1,
+          "name": "vh01",
+          "source": "VH.CCG",
+          "jpeg": "nodes/vh/vh01.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD6/Byzantine_6.iso",
+              "member": "nodes/vh/vh01.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 509,
+          "id": 2,
+          "name": "vh02",
+          "source": "VH.CCG",
+          "jpeg": "nodes/vh/vh02.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD6/Byzantine_6.iso",
+              "member": "nodes/vh/vh02.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 617,
+          "id": 3,
+          "name": "vh03",
+          "source": "VH.CCG",
+          "jpeg": "nodes/vh/vh03.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD6/Byzantine_6.iso",
+              "member": "nodes/vh/vh03.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 715,
+          "id": 4,
+          "name": "vh04",
+          "source": "VH.CCG",
+          "jpeg": "nodes/vh/vh04.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD6/Byzantine_6.iso",
+              "member": "nodes/vh/vh04.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 1108,
+          "id": 5,
+          "name": "vh05",
+          "source": "VH.CCG",
+          "jpeg": "nodes/vh/vh05.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD6/Byzantine_6.iso",
+              "member": "nodes/vh/vh05.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 1149,
+          "id": 6,
+          "name": "vh06",
+          "source": "VH.CCG",
+          "jpeg": "nodes/vh/vh06.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD6/Byzantine_6.iso",
+              "member": "nodes/vh/vh06.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 1180,
+          "id": 7,
+          "name": "vh07",
+          "source": "VH.CCG",
+          "jpeg": "nodes/vh/vh07.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD6/Byzantine_6.iso",
+              "member": "nodes/vh/vh07.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 1240,
+          "id": 7,
+          "name": "vh07",
+          "source": "VH.CCG",
+          "jpeg": "nodes/vh/vh07.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD6/Byzantine_6.iso",
+              "member": "nodes/vh/vh07.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 1279,
+          "id": 8,
+          "name": "vh08",
+          "source": "VH.CCG",
+          "jpeg": "nodes/vh/vh08.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD6/Byzantine_6.iso",
+              "member": "nodes/vh/vh08.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 1332,
+          "id": 9,
+          "name": "vh09",
+          "source": "VH.CCG",
+          "jpeg": "nodes/vh/vh09.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD6/Byzantine_6.iso",
+              "member": "nodes/vh/vh09.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 1462,
+          "id": 10,
+          "name": "vhe00",
+          "source": "VH.CCG",
+          "jpeg": "nodes/vh/vhe00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD6/Byzantine_6.iso",
+              "member": "nodes/vh/vhe00.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 1528,
+          "id": 11,
+          "name": "vegA",
+          "source": "VH.CCG",
+          "jpeg": "nodes/ve/vegA.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD6/Byzantine_6.iso",
+              "member": "nodes/ve/vegA.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 1571,
+          "id": 12,
+          "name": "vegB",
+          "source": "VH.CCG",
+          "jpeg": "nodes/ve/vegB.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD6/Byzantine_6.iso",
+              "member": "nodes/ve/vegB.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 1621,
+          "id": 13,
+          "name": "vegDC",
+          "source": "VH.CCG",
+          "jpeg": "nodes/ve/vegDC.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD6/Byzantine_6.iso",
+              "member": "nodes/ve/vegDC.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 1678,
+          "id": 14,
+          "name": "vegE",
+          "source": "VH.CCG",
+          "jpeg": "nodes/ve/vegE.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD6/Byzantine_6.iso",
+              "member": "nodes/ve/vege.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 1715,
+          "id": 13,
+          "name": "vegDC",
+          "source": "VH.CCG",
+          "jpeg": "nodes/ve/vegDC.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD6/Byzantine_6.iso",
+              "member": "nodes/ve/vegDC.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 1754,
+          "id": 15,
+          "name": "vegGI",
+          "source": "VH.CCG",
+          "jpeg": "nodes/ve/vegGI.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD6/Byzantine_6.iso",
+              "member": "nodes/ve/veggi.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 1799,
+          "id": 16,
+          "name": "vegFH",
+          "source": "VH.CCG",
+          "jpeg": "nodes/ve/vegFH.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD6/Byzantine_6.iso",
+              "member": "nodes/ve/vegfh.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 1838,
+          "id": 16,
+          "name": "vegFH",
+          "source": "VH.CCG",
+          "jpeg": "nodes/ve/vegFH.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD6/Byzantine_6.iso",
+              "member": "nodes/ve/vegfh.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 1867,
+          "id": 15,
+          "name": "vegGI",
+          "source": "VH.CCG",
+          "jpeg": "nodes/ve/vegGI.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD6/Byzantine_6.iso",
+              "member": "nodes/ve/veggi.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 1897,
+          "id": 17,
+          "name": "vegJ",
+          "source": "VH.CCG",
+          "jpeg": "nodes/ve/vegJ.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD6/Byzantine_6.iso",
+              "member": "nodes/ve/vegj.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 1954,
+          "id": 18,
+          "name": "vegK",
+          "source": "VH.CCG",
+          "jpeg": "nodes/ve/vegK.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD6/Byzantine_6.iso",
+              "member": "nodes/ve/vegk.jpg"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scene": "VHDISC",
+      "co_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "commands": []
+    },
+    {
+      "scene": "VOICE",
+      "co_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "commands": []
+    },
+    {
+      "scene": "VT",
+      "co_sha256": "6fc6507c1ada4c9200725018615f051430c63a97bf71d4a3b6180a13c7b0f230",
+      "commands": [
+        {
+          "instruction": 370,
+          "id": 0,
+          "name": "vt00",
+          "source": "VT.CCG",
+          "jpeg": "nodes/vt/vt00.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD2/Byzantine_2.iso",
+              "member": "nodes/vt/VT00.JPG"
+            },
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD3/Byzantine_3.iso",
+              "member": "nodes/vt/VT00.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 739,
+          "id": 1,
+          "name": "vt01",
+          "source": "VT.CCG",
+          "jpeg": "nodes/vt/vt01.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD2/Byzantine_2.iso",
+              "member": "nodes/vt/VT01.JPG"
+            },
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD3/Byzantine_3.iso",
+              "member": "nodes/vt/VT01.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 1014,
+          "id": 2,
+          "name": "vt02",
+          "source": "VT.CCG",
+          "jpeg": "nodes/vt/vt02.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD3/Byzantine_3.iso",
+              "member": "nodes/vt/VT02.JPG"
+            }
+          ]
+        },
+        {
+          "instruction": 1565,
+          "id": 3,
+          "name": "vt03",
+          "source": "VT.CCG",
+          "jpeg": "nodes/vt/vt03.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD3/Byzantine_3.iso",
+              "member": "nodes/vt/Vt03.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 1926,
+          "id": 4,
+          "name": "vt04",
+          "source": "VT.CCG",
+          "jpeg": "nodes/vt/vt04.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD3/Byzantine_3.iso",
+              "member": "nodes/vt/vt04.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 2162,
+          "id": 5,
+          "name": "vt05",
+          "source": "VT.CCG",
+          "jpeg": "nodes/vt/vt05.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD3/Byzantine_3.iso",
+              "member": "nodes/vt/vt05.jpg"
+            }
+          ]
+        },
+        {
+          "instruction": 2181,
+          "id": 6,
+          "name": "vt05NGte",
+          "source": "VT.CCG",
+          "jpeg": "nodes/vt/vt05NGte.jpg",
+          "assets": [
+            {
+              "iso": "Byzantine-The-Betrayal_Win_TR_CD3/Byzantine_3.iso",
+              "member": "nodes/vt/vt05NGte.jpg"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scene": "VTDISC",
+      "co_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "commands": []
+    }
+  ],
+  "limits": [
+    "No original game execution or runtime path reachability observed.",
+    "Case-insensitive ISO filename matching; no panorama projection implemented.",
+    "CO parser accepts the observed 0xff flag records only."
+  ],
+  "summary": {
+    "scenes": 44,
+    "load_commands": 182,
+    "missing_commands": 17
+  }
+}

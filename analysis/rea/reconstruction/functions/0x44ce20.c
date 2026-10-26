@@ -1,0 +1,41 @@
+// Reconstructed pseudocode (decompiler output, not original source)
+// address: 0x44ce20
+// name: FUN_0044ce20
+// ranges: 0x44ce20-0x44ce81
+// calls: 0x44ce20
+
+char * __cdecl FUN_0044ce20(char *param_1,int param_2,FILE *param_3)
+
+{
+  int iVar1;
+  uint uVar2;
+  char *pcVar3;
+  
+  pcVar3 = param_1;
+  if (param_2 < 1) {
+    return (char *)0x0;
+  }
+  do {
+    param_2 = param_2 + -1;
+    if (param_2 == 0) break;
+    iVar1 = param_3->_cnt + -1;
+    param_3->_cnt = iVar1;
+    if (iVar1 < 0) {
+      uVar2 = __filbuf(param_3);
+    }
+    else {
+      uVar2 = (uint)(byte)*param_3->_ptr;
+      param_3->_ptr = param_3->_ptr + 1;
+    }
+    if (uVar2 == 0xffffffff) {
+      if (pcVar3 == param_1) {
+        return (char *)0x0;
+      }
+      break;
+    }
+    *pcVar3 = (char)uVar2;
+    pcVar3 = pcVar3 + 1;
+  } while ((char)uVar2 != '\n');
+  *pcVar3 = '\0';
+  return param_1;
+}

@@ -1,0 +1,345 @@
+{
+  "authority": "Saved REA/Ghidra exports plus focused GNU objdump static disassembly; no runtime observation",
+  "target_sha256": "3b6191fd1c7c590ec3e04298f23742a94366eb1805011ed4ca3add8ad5963226",
+  "analysis_profile_digest": "e1ad533d4cc0333c2136fe0894217de2d61feea098240326e78633f9e4ddcbf9",
+  "sources": [
+    {
+      "address": "0x402e00",
+      "relative_path": "functions/0x402e00.c",
+      "sha256": "ecfecb86e4dbb7e5d478b482d1b3b1f34c834acccd567735434f9b4dcd3916a4"
+    },
+    {
+      "address": "0x402e70",
+      "relative_path": "functions/0x402e70.c",
+      "sha256": "cf5a77bc1b0b79ce9441ec1152f86dd0304a48a34cd537d7efa243ed8f3dd33c"
+    },
+    {
+      "address": "0x423310",
+      "relative_path": "functions/0x423310.c",
+      "sha256": "15a39a169fabbb997dd942a6000557781b838c0f90f032513ce1c683808eb6ff"
+    },
+    {
+      "address": "0x4236b5",
+      "relative_path": "functions/0x4236b5.c",
+      "sha256": "468a314e335ed2f94ce7ffea46ef0833cd969b2b23cee8c512a397e833f5e91b"
+    },
+    {
+      "address": "0x423a37",
+      "relative_path": "functions/0x423a37.c",
+      "sha256": "f516464f25260ed8b902ffe64a64b91f5e86c603254647f3d74d3ab292488142"
+    },
+    {
+      "address": "0x423c42",
+      "relative_path": "functions/0x423c42.c",
+      "sha256": "d3592c705a5ab2ad2294448ac3fb7841fe10ee943c52f0db16d4f235f5ca8b5c"
+    },
+    {
+      "address": "0x423cdf",
+      "relative_path": "functions/0x423cdf.c",
+      "sha256": "bcdfabeec9006b3bb521607d06a5f4087e6d5effe7fc3c1797ee8dba9b8d744b"
+    },
+    {
+      "address": "0x4242bd",
+      "relative_path": "functions/0x4242bd.c",
+      "sha256": "257fcd5a5d11d854092af7e55cd59c9bd39797a99a330ce654a26f9f097c973a"
+    },
+    {
+      "address": "0x44bc38",
+      "relative_path": "functions/0x44bc38.c",
+      "sha256": "124f35ecf2ba8a0666ba733c8bd47dfe062076ee4173b42cc16c15676c2c5f08"
+    },
+    {
+      "address": "0x44bd80",
+      "relative_path": "functions/0x44bd80.c",
+      "sha256": "c803da69d38d1a693f370be855a9e6ee605af9acd5f6c05f5c85d5a6175fbbe4"
+    },
+    {
+      "address": "0x44bd8a",
+      "relative_path": "functions/0x44bd8a.c",
+      "sha256": "71de5c555635d9022ea0bd71afc77d41b1bdb0e495a4003d9fff39b688389950"
+    },
+    {
+      "address": "0x44d431",
+      "relative_path": "functions/0x44d431.c",
+      "sha256": "a32bbf94fe98156f2c27d456173242889464d99dc1c0d4af34d09987a4d4df74"
+    },
+    {
+      "address": "0x44a7a0",
+      "relative_path": "functions/0x44a7a0.c",
+      "sha256": "9cbda7705c68352419f794e6901635bc7f50d81005872f0e947ef991c136e336"
+    },
+    {
+      "address": "0x44bfd0",
+      "relative_path": "functions/0x44bfd0.c",
+      "sha256": "8cc70aeeecd6d2d0fe82af26ad9eea579de094706d1d9c4955808d7644e17e20"
+    },
+    {
+      "address": "0x44d530",
+      "relative_path": "functions/0x44d530.c",
+      "sha256": "300c8c6322012f17ffa158e3e7cd927da54031a9e5e139943466594eaa9c2996"
+    },
+    {
+      "address": "0x44e870",
+      "relative_path": "functions/0x44e870.c",
+      "sha256": "6c4e12c7672fd2e4385638281fb6bb03f71971cf6b4b4b8e5b58d41d3ca642b9"
+    },
+    {
+      "address": "0x454580",
+      "relative_path": "functions/0x454580.c",
+      "sha256": "bf029c457c29b803e019ae06d3f5b25cc297885b10623d3e6ac9d1ccfd1343a5"
+    },
+    {
+      "address": "0x4545c0",
+      "relative_path": "functions/0x4545c0.c",
+      "sha256": "8053079ab2b8a44b36af23e740daeef23de5b4cdcbd929f5c4e5609027dff3a2"
+    },
+    {
+      "address": "0x454610",
+      "relative_path": "functions/0x454610.c",
+      "sha256": "e2ce849c749f016790fa630739d065773d5a832e5313b8a204180d5389974894"
+    },
+    {
+      "address": "0x4546c0",
+      "relative_path": "functions/0x4546c0.c",
+      "sha256": "c3e4a58b4d26ee7151cf7f162b47beecd445879bf22488c624fc7ed759c08de6"
+    },
+    {
+      "address": "0x4241e2",
+      "relative_path": "functions/0x4241e2.c",
+      "sha256": "371e58cfb0d6be8ca6673d5bc46f4754cd041a5731f895805f34e8cdbb160bd0"
+    },
+    {
+      "address": "0x42423d",
+      "relative_path": "functions/0x42423d.c",
+      "sha256": "107803a432a664095fae7227481d3489f507c26f2e40d7ae1a84d6c802b9618a"
+    },
+    {
+      "address": "0x42427b",
+      "relative_path": "functions/0x42427b.c",
+      "sha256": "b2ad6976b76f2ae88e16e257bc0ac62de9340fe75a37daa8c78ec7df5d50a849"
+    },
+    {
+      "address": "0x401256",
+      "relative_path": "functions/0x401256.c",
+      "sha256": "14244ab4d11bb8b5cf692dfe828d67697b35c81a7ddb80c2949552931cdbe4ac"
+    },
+    {
+      "address": "0x401ddf",
+      "relative_path": "functions/0x401ddf.c",
+      "sha256": "5ef900b27f45601263e01452cfb68f33a8266f44c430401f0039f4230d2ff6b4"
+    },
+    {
+      "address": "0x40186e",
+      "relative_path": "functions/0x40186e.c",
+      "sha256": "54ebff7cca860ec4a36197c296b6fefa75833efb5d0d4e96ebb72dc60d68c6fe"
+    },
+    {
+      "address": "0x401ee6",
+      "relative_path": "functions/0x401ee6.c",
+      "sha256": "b9dbc196cbe49ddf5729c95f7aac0c455a2739ffc678cce4db07ddc042da135d"
+    },
+    {
+      "address": "0x401d29",
+      "relative_path": "functions/0x401d29.c",
+      "sha256": "4ce100ddf9de58123662787a176798b9d306e1a03ea644fccef974a5450f23b0"
+    }
+  ],
+  "disassembly": [
+    {
+      "start": "0x402e00",
+      "end_exclusive": "0x402e44",
+      "file_offset": 8704,
+      "byte_sha256": "6d0797cc3bd4ba2025f7d88a83e433280dc3085fe689bb78556bf1115cda11ec",
+      "relative_path": "projection-disassembly/0x402e00.asm",
+      "sha256": "e739b959c4e3d8da890ac252b1231b554babba698c62ea6ecd60d9d4be32901c"
+    },
+    {
+      "start": "0x402e70",
+      "end_exclusive": "0x402eb4",
+      "file_offset": 8816,
+      "byte_sha256": "2a621741a8637db2dad2530788fbfde964731f429f6a57336cc6643f6418b3d0",
+      "relative_path": "projection-disassembly/0x402e70.asm",
+      "sha256": "865b36b9eaa16c9dc3316b04f717468a89cc0f71ea555930a1b8c9657e38a1f2"
+    },
+    {
+      "start": "0x423a37",
+      "end_exclusive": "0x423c42",
+      "file_offset": 142903,
+      "byte_sha256": "224f18e06c30a7f9560e6f0ae208b4f1e68dc91602e53df089e3cf536f23ff4b",
+      "relative_path": "projection-disassembly/0x423a37.asm",
+      "sha256": "c80bad8b278e81096f6fa1ddc8168661c91a336117a16e529484810bb6147845"
+    },
+    {
+      "start": "0x423c42",
+      "end_exclusive": "0x423cdd",
+      "file_offset": 143426,
+      "byte_sha256": "9e6de6309e152fc0e3f3c5d4e0a63500b2c88ae31289c81fe4238d3734c19364",
+      "relative_path": "projection-disassembly/0x423c42.asm",
+      "sha256": "a16150e865e381e8e3b0da49446ac0c145942bfc8818d771987d425f5df08fa7"
+    },
+    {
+      "start": "0x423cdf",
+      "end_exclusive": "0x423d9e",
+      "file_offset": 143583,
+      "byte_sha256": "130ca8a102d099527104585518e8bc91a91a7b2b4bc09ee8aab83992b014ff2e",
+      "relative_path": "projection-disassembly/0x423cdf.asm",
+      "sha256": "db6e96f883a99675060b4b334ab49effeec6235852fccc265e7fca494fc60d2b"
+    },
+    {
+      "start": "0x4244f4",
+      "end_exclusive": "0x4245b6",
+      "file_offset": 145652,
+      "byte_sha256": "c59e33061015f0e62a71591ab324aeccef7b3b88f1fd3e197820c9e76d9ae662",
+      "relative_path": "projection-disassembly/0x4244f4.asm",
+      "sha256": "0c83e79258c7e9f12ace43dd435ae32a0d3db1278f448ae2c868d5c463478937"
+    },
+    {
+      "start": "0x44bc38",
+      "end_exclusive": "0x44bc5f",
+      "file_offset": 307256,
+      "byte_sha256": "d0a2aca68648a0ae9d5cbfae1b276d4a64d4f797fc0c60f28b64096cdfa3148c",
+      "relative_path": "projection-disassembly/0x44bc38.asm",
+      "sha256": "3a703b7fa63a19a90253ecd7f5be35b8e2f5906789b60a09f7f3a35bc40a99a4"
+    },
+    {
+      "start": "0x44bd80",
+      "end_exclusive": "0x44bd91",
+      "file_offset": 307584,
+      "byte_sha256": "e22bffd468ef5879af8e525a3f4b46e68c940751c9d79357ecd63195678d7558",
+      "relative_path": "projection-disassembly/0x44bd80.asm",
+      "sha256": "cd0ddf5022976800158abb217c580c949df0b8c4a999a3dde0a560ffc9911c48"
+    },
+    {
+      "start": "0x44d420",
+      "end_exclusive": "0x44d438",
+      "file_offset": 313376,
+      "byte_sha256": "c3995c2c125ffcd16bb025a5499eddfea87d88e49b6deb1543fc9247a1139266",
+      "relative_path": "projection-disassembly/0x44d420.asm",
+      "sha256": "9f8108ab6fbceb3f0d0d06f3cb889ce3768a130960977a80f52db99ed2dad8da"
+    },
+    {
+      "start": "0x450df5",
+      "end_exclusive": "0x450e21",
+      "file_offset": 328181,
+      "byte_sha256": "e19cd274cce3e64167d684b67c4591dcd4ffa2f2804f48cfa41f9a7dc0168e4a",
+      "relative_path": "projection-disassembly/0x450df5.asm",
+      "sha256": "f5c4028f48fe6b388339493d61cedafd7180acd7117b913377b57f31d40c467e"
+    },
+    {
+      "start": "0x423310",
+      "end_exclusive": "0x423626",
+      "file_offset": 141072,
+      "byte_sha256": "52a934de39c80cd68bed66f89cae09fa42d03f45a9176098b6c2e81fa18605c3",
+      "relative_path": "projection-disassembly/0x423310.asm",
+      "sha256": "046e3b57ef7eca37dd9619754eda89d4f1561c7443c390c239e804f1a6e898e1"
+    },
+    {
+      "start": "0x44a7a0",
+      "end_exclusive": "0x44a7b7",
+      "file_offset": 301984,
+      "byte_sha256": "069fc724ab163bf3e1295edb751475c98feb5cae6bfad5d685685e2f3801a157",
+      "relative_path": "projection-disassembly/0x44a7a0.asm",
+      "sha256": "3d9d192d5d3100e23e8557ce48b94be5579f5bd1ada00b67d9f1cb28f28baaa4"
+    },
+    {
+      "start": "0x44e870",
+      "end_exclusive": "0x44e883",
+      "file_offset": 318576,
+      "byte_sha256": "5f3db8dc7e649f5cb685697a42e69fc44056a8515db054f2e7ea242a13f57c2f",
+      "relative_path": "projection-disassembly/0x44e870.asm",
+      "sha256": "950b139c4abe699dbfdf21c4490b400272b9e9cbf64a28de55e740a4f32bf6d9"
+    },
+    {
+      "start": "0x454580",
+      "end_exclusive": "0x4545d8",
+      "file_offset": 342400,
+      "byte_sha256": "60060de015242763e755686278f8ab7eabd0c054ea55852a6333a783da7db999",
+      "relative_path": "projection-disassembly/0x454580.asm",
+      "sha256": "a9747f6c0b1f9ba3ddd202b63827c49d57bddbd93e4137d9f90a0897b0be9e8c"
+    },
+    {
+      "start": "0x454610",
+      "end_exclusive": "0x45474d",
+      "file_offset": 342544,
+      "byte_sha256": "5674166ffde209f15883ca6c49556921075dbb775f04f1f2fe76d9328a2a6177",
+      "relative_path": "projection-disassembly/0x454610.asm",
+      "sha256": "a6699baadf94163a16e389d1d39301ec6a6531c48ad26ad1dd15c2218709cd13"
+    },
+    {
+      "start": "0x44bfd0",
+      "end_exclusive": "0x44c000",
+      "file_offset": 308176,
+      "byte_sha256": "d7109ecbcf62c2bbc3164f766fd02fe841e0b228f850c7b741b2ce0c4c813395",
+      "relative_path": "projection-disassembly/0x44bfd0.asm",
+      "sha256": "033e3b4814857be2ab48e2860509e21273fce597f16835af974f68d911855ca4"
+    },
+    {
+      "start": "0x4242bd",
+      "end_exclusive": "0x4244f4",
+      "file_offset": 145085,
+      "byte_sha256": "35ec8e0cd9c97e3b3c92eff99dd6a41ec095dce26787a8f0fadbab1113facdbf",
+      "relative_path": "projection-disassembly/0x4242bd.asm",
+      "sha256": "b10ebaca9012915f44916ccf6bc88d28921bc1c459189c3ed93b2639e36bfec1"
+    },
+    {
+      "start": "0x4245b6",
+      "end_exclusive": "0x42462a",
+      "file_offset": 145846,
+      "byte_sha256": "9738d51379e9583a80ff0da2d96e0817e0cd470458ea87fd1719aa27815401d5",
+      "relative_path": "projection-disassembly/0x4245b6.asm",
+      "sha256": "b6855d0f8d9c7cafee5338dd69a3a17811d6c8b23a9414e9a36bd7928f7f3424"
+    }
+  ],
+  "data": [
+    {
+      "address": "0x45b080",
+      "file_offset": 367232,
+      "size": 16,
+      "hex": "0000000000806640ea2e4454fb210940",
+      "sha256": "badec0f7760079d20ea3e4af16ae1f89a64066078caaf58fea99cf0387b48c56"
+    },
+    {
+      "address": "0x45b140",
+      "file_offset": 367424,
+      "size": 72,
+      "hex": "ea2e4454fb2119400001000000003843000000000000f03fea2e4454fb2109c0ea2e4454fb2109409c742d3852c1f0bf9c742d3852c1f03f00000000000000000000000000806640",
+      "sha256": "0e05ea0b728513fb6e7d8d0682ee3f1ab005243f1e336b1cae6534a7b0ce9ca7"
+    },
+    {
+      "address": "0x463452",
+      "file_offset": 399954,
+      "size": 32,
+      "hex": "0373696e000000000000000000011e00ea0b45000c5a4500225a4500b85a4500",
+      "sha256": "b02d91c4544687d000200228c16b811de4c1b00a0e07702328e4047205bb2779"
+    },
+    {
+      "address": "0x463472",
+      "file_offset": 399986,
+      "size": 32,
+      "hex": "03636f73000000000000000000011200e00b45001d5a4500225a4500b85a4500",
+      "sha256": "4473984cd98c0f9eb43285850509ba70ffb37503b2d5705f67f526e02911bc07"
+    },
+    {
+      "address": "0x463810",
+      "file_offset": 400912,
+      "size": 32,
+      "hex": "046174616e0000000000000000010f00a23145000c5a4500225a450028324500",
+      "sha256": "3d99d4f3e780574f3a1de2fb9a5e5b46a27086834dce67391837ef58ef31a339"
+    },
+    {
+      "address": "0x462aec",
+      "file_offset": 397548,
+      "size": 4,
+      "hex": "a0a74400",
+      "sha256": "97995bf64961ca9233a535568ffc9204bac3f1640d6cc5d173cc35def78b1933"
+    },
+    {
+      "address": "0x45b138",
+      "file_offset": 367416,
+      "size": 8,
+      "hex": "0000000000408f40",
+      "sha256": "139107fd63d004e94cb64abb75361dd8490810c6709a9311896ca17496f5ecde"
+    }
+  ],
+  "objdump_version": "GNU objdump (GNU Binutils for Ubuntu) 2.42"
+}

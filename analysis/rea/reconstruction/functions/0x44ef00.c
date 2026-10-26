@@ -1,0 +1,31 @@
+// Reconstructed pseudocode (decompiler output, not original source)
+// address: 0x44ef00
+// name: __shift
+// ranges: 0x44ef00-0x44ef2a
+// calls: -
+
+/* Library Function - Single Match
+    __shift
+   
+   Library: Visual Studio 1998 Release */
+
+void __cdecl __shift(char *param_1,int param_2)
+
+{
+  char cVar1;
+  uint uVar2;
+  char *pcVar3;
+  
+  if (param_2 != 0) {
+    uVar2 = 0xffffffff;
+    pcVar3 = param_1;
+    do {
+      if (uVar2 == 0) break;
+      uVar2 = uVar2 - 1;
+      cVar1 = *pcVar3;
+      pcVar3 = pcVar3 + 1;
+    } while (cVar1 != '\0');
+    FID_conflict__memcpy(param_1 + param_2,param_1,~uVar2);
+  }
+  return;
+}

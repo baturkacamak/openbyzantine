@@ -1,0 +1,49 @@
+// Reconstructed pseudocode (decompiler output, not original source)
+// address: 0x44f370
+// name: GetRangeOfTrysToCheck
+// ranges: 0x44f370-0x44f40e
+// calls: 0x44fa70
+
+/* Library Function - Single Match
+    struct _s_TryBlockMapEntry const * __cdecl GetRangeOfTrysToCheck(struct _s_FuncInfo const
+   *,int,int,unsigned int *,unsigned int *)
+   
+   Library: Visual Studio 1998 Release */
+
+_s_TryBlockMapEntry * __cdecl
+GetRangeOfTrysToCheck(_s_FuncInfo *param_1,int param_2,int param_3,uint *param_4,uint *param_5)
+
+{
+  int iVar1;
+  int *piVar2;
+  uint uVar3;
+  uint local_c;
+  uint local_8;
+  
+  iVar1 = *(int *)(param_1 + 0x10);
+  uVar3 = *(uint *)(param_1 + 0xc);
+  local_c = uVar3;
+  if (-1 < param_2) {
+    piVar2 = (int *)(uVar3 * 0x14 + 4 + iVar1);
+    local_8 = uVar3;
+    do {
+      if (uVar3 == 0xffffffff) {
+        FUN_0044fa70();
+      }
+      uVar3 = uVar3 - 1;
+      if (((piVar2[-5] < param_3) && (param_3 <= piVar2[-4])) || (uVar3 == 0xffffffff)) {
+        param_2 = param_2 + -1;
+        local_c = local_8;
+        local_8 = uVar3;
+      }
+      piVar2 = piVar2 + -5;
+    } while (-1 < param_2);
+  }
+  uVar3 = uVar3 + 1;
+  *param_4 = uVar3;
+  *param_5 = local_c;
+  if ((*(uint *)(param_1 + 0xc) < local_c) || (local_c < uVar3)) {
+    FUN_0044fa70();
+  }
+  return (_s_TryBlockMapEntry *)(iVar1 + uVar3 * 0x14);
+}

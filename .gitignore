@@ -1,0 +1,39 @@
+# Game media: copyrighted, and far beyond GitHub's per-file/repo limits.
+# The reconstruction reads its own extracted copy; see port/README.md.
+Byzantine-The-Betrayal_Win_TR_CD*/
+Byzantine-The-Betrayal_Manual_Win_EN/
+*.iso
+*.zip
+
+# The game executable. The reconstruction derives behaviour from the saved
+# export evidence under analysis/rea/, never from shipping the binary.
+analysis/rea/BETRAYAL.EXE
+
+# Records derived from the game media (CB/CC/CO extracts, save samples are
+# kept). Recreate with byzantine-all or port/scene.sh.
+port/output/
+
+# A separate tool with its own repository (and 866 MB of node_modules).
+tools/
+
+# Video upscaling experiments, unrelated to the reconstruction.
+upscale_ornek/
+
+# Build products.
+port/byzantine-rle
+port/byzantine-all
+port/byzantine-cc
+port/byzantine-play
+port/scene-state-test
+port/variable-metadata-test
+port/panorama-test
+port/panorama-view-test
+port/records-test
+port/save-test
+port/anims-test
+port/compose-test
+port/jpeg-test
+*.o
+*.a
+*.so
+build/

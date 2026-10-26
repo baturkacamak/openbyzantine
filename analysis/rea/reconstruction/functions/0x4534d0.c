@@ -1,0 +1,19 @@
+// Reconstructed pseudocode (decompiler output, not original source)
+// address: 0x4534d0
+// name: __ismbblead
+// ranges: 0x4534d0-0x4534e1
+// calls: -
+
+/* Library Function - Single Match
+    __ismbblead
+   
+   Library: Visual Studio 1998 Release */
+
+int __cdecl __ismbblead(uint _C)
+
+{
+  int iVar1;
+  
+  iVar1 = x_ismbbtype((byte)_C,0,4);
+  return iVar1;
+}

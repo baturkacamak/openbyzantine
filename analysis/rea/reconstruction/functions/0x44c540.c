@@ -1,0 +1,31 @@
+// Reconstructed pseudocode (decompiler output, not original source)
+// address: 0x44c540
+// name: FUN_0044c540
+// ranges: 0x44c540-0x44c575
+// calls: 0x44c540
+
+char * __cdecl FUN_0044c540(char *param_1,char *param_2)
+
+{
+  char *pcVar1;
+  char *pcVar2;
+  
+  pcVar1 = param_1;
+  pcVar2 = param_2;
+  while( true ) {
+    if (*pcVar2 == '\0') {
+      return param_1;
+    }
+    if (*pcVar1 == '\0') break;
+    if (*pcVar2 == *pcVar1) {
+      pcVar2 = pcVar2 + 1;
+      pcVar1 = pcVar1 + 1;
+    }
+    else {
+      param_1 = param_1 + 1;
+      pcVar1 = param_1;
+      pcVar2 = param_2;
+    }
+  }
+  return (char *)0x0;
+}

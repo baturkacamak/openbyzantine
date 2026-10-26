@@ -1,0 +1,39 @@
+// Reconstructed pseudocode (decompiler output, not original source)
+// address: 0x42b4be
+// name: FUN_0042b4be
+// ranges: 0x42b4be-0x42b5b1
+// calls: 0x42b49f, 0x42b4be
+
+void __cdecl FUN_0042b4be(ushort *param_1,ushort *param_2,int param_3,int param_4)
+
+{
+  ushort uVar1;
+  ushort uVar2;
+  ushort uVar3;
+  uint uVar4;
+  int local_14;
+  undefined4 local_10;
+  undefined4 local_c;
+  undefined4 local_8;
+  
+  for (local_14 = 0; local_14 < param_4; local_14 = local_14 + 1) {
+    local_c = CONCAT22(local_c._2_2_,(short)((int)(uint)*param_1 >> (DAT_00485c78 & 0x1f))) &
+              0xffff001f;
+    local_10 = CONCAT22(local_10._2_2_,(short)((int)(uint)*param_1 >> (DAT_00485c80 & 0x1f))) &
+               0xffff001f;
+    local_8 = CONCAT22(local_8._2_2_,*param_1) & 0xffff001f;
+    uVar4 = FUN_0042b49f(local_c,param_3);
+    uVar1 = (ushort)((uVar4 & 0xffff) << (DAT_00485c78 & 0x1f));
+    local_c = CONCAT22(local_c._2_2_,uVar1);
+    uVar4 = FUN_0042b49f(local_10,param_3);
+    uVar2 = (ushort)((uVar4 & 0xffff) << (DAT_00485c80 & 0x1f));
+    local_10 = CONCAT22(local_10._2_2_,uVar2);
+    uVar4 = FUN_0042b49f(local_8,param_3);
+    uVar3 = (ushort)((uVar4 & 0xffff) << ((byte)DAT_00485c8c & 0x1f));
+    local_8 = CONCAT22(local_8._2_2_,uVar3);
+    *param_2 = uVar3 | uVar2 | uVar1;
+    param_1 = param_1 + 1;
+    param_2 = param_2 + 1;
+  }
+  return;
+}

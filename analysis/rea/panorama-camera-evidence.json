@@ -1,0 +1,98 @@
+{
+  "authority": "saved REA/Ghidra static exports; not original source or runtime evidence",
+  "target_sha256": "3b6191fd1c7c590ec3e04298f23742a94366eb1805011ed4ca3add8ad5963226",
+  "analysis_profile_digest": "e1ad533d4cc0333c2136fe0894217de2d61feea098240326e78633f9e4ddcbf9",
+  "sources": [
+    {
+      "address": "0x401256",
+      "relative_path": "functions/0x401256.c",
+      "sha256": "14244ab4d11bb8b5cf692dfe828d67697b35c81a7ddb80c2949552931cdbe4ac"
+    },
+    {
+      "address": "0x40186e",
+      "relative_path": "functions/0x40186e.c",
+      "sha256": "54ebff7cca860ec4a36197c296b6fefa75833efb5d0d4e96ebb72dc60d68c6fe"
+    },
+    {
+      "address": "0x401d29",
+      "relative_path": "functions/0x401d29.c",
+      "sha256": "4ce100ddf9de58123662787a176798b9d306e1a03ea644fccef974a5450f23b0"
+    },
+    {
+      "address": "0x401ddf",
+      "relative_path": "functions/0x401ddf.c",
+      "sha256": "5ef900b27f45601263e01452cfb68f33a8266f44c430401f0039f4230d2ff6b4"
+    },
+    {
+      "address": "0x401ee6",
+      "relative_path": "functions/0x401ee6.c",
+      "sha256": "b9dbc196cbe49ddf5729c95f7aac0c455a2739ffc678cce4db07ddc042da135d"
+    },
+    {
+      "address": "0x402e00",
+      "relative_path": "functions/0x402e00.c",
+      "sha256": "ecfecb86e4dbb7e5d478b482d1b3b1f34c834acccd567735434f9b4dcd3916a4"
+    },
+    {
+      "address": "0x402e70",
+      "relative_path": "functions/0x402e70.c",
+      "sha256": "cf5a77bc1b0b79ce9441ec1152f86dd0304a48a34cd537d7efa243ed8f3dd33c"
+    },
+    {
+      "address": "0x423310",
+      "relative_path": "functions/0x423310.c",
+      "sha256": "15a39a169fabbb997dd942a6000557781b838c0f90f032513ce1c683808eb6ff"
+    },
+    {
+      "address": "0x4236b5",
+      "relative_path": "functions/0x4236b5.c",
+      "sha256": "468a314e335ed2f94ce7ffea46ef0833cd969b2b23cee8c512a397e833f5e91b"
+    },
+    {
+      "address": "0x42382b",
+      "relative_path": "functions/0x42382b.c",
+      "sha256": "43de272114fabc4786cd16a2cdff26f8cdaec4bc524637a258da0dad8ed5b2fa"
+    },
+    {
+      "address": "0x423a37",
+      "relative_path": "functions/0x423a37.c",
+      "sha256": "f516464f25260ed8b902ffe64a64b91f5e86c603254647f3d74d3ab292488142"
+    },
+    {
+      "address": "0x423c42",
+      "relative_path": "functions/0x423c42.c",
+      "sha256": "d3592c705a5ab2ad2294448ac3fb7841fe10ee943c52f0db16d4f235f5ca8b5c"
+    },
+    {
+      "address": "0x423cdf",
+      "relative_path": "functions/0x423cdf.c",
+      "sha256": "bcdfabeec9006b3bb521607d06a5f4087e6d5effe7fc3c1797ee8dba9b8d744b"
+    },
+    {
+      "address": "0x4241e2",
+      "relative_path": "functions/0x4241e2.c",
+      "sha256": "371e58cfb0d6be8ca6673d5bc46f4754cd041a5731f895805f34e8cdbb160bd0"
+    },
+    {
+      "address": "0x42423d",
+      "relative_path": "functions/0x42423d.c",
+      "sha256": "107803a432a664095fae7227481d3489f507c26f2e40d7ae1a84d6c802b9618a"
+    },
+    {
+      "address": "0x4242bd",
+      "relative_path": "functions/0x4242bd.c",
+      "sha256": "257fcd5a5d11d854092af7e55cd59c9bd39797a99a330ce654a26f9f097c973a"
+    },
+    {
+      "address": "0x43be09",
+      "relative_path": "functions/0x43be09.c",
+      "sha256": "7ba209e3cc244b3db0fec0256c9d8e5768a9118585208cf0a452913147b34954"
+    }
+  ],
+  "scope": "panorama camera setup, padded RGB16 rows and projection investigation",
+  "limits": [
+    "No original game execution.",
+    "Projection exports lose x87 return values and conversion expressions; pixel-exact renderer remains unresolved.",
+    "No VM panorama loader enabled."
+  ]
+}
