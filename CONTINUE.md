@@ -179,16 +179,16 @@ ESC/stop.
   labels are `conversation_request` (interactive), `blocking_total=0`; completed
   5,899 (5,877 return + 22 script_end), unresolved variable 1,296. Reports:
   `analysis/rea/CONVERSATION.md`, `analysis/rea/reconstruction/vm-census.*`.
-- Try: `./port/scene.sh . MR 0 30.btb --entry --run-label 413`; click an answer
-  row at the bottom (logical y≈274/302/350). Headless:
+- Try: `./port/scene.sh . MR 0 30.btb --entry --run-label 413`; the current
+  option/subtitle coordinates are in the latest step above. Headless:
   `… --conversation-choices 1,0,0,0,0,0 --shot /tmp/mr-final.ppm` (~60 s real
   video).
 - Not modelled: repeated 0x70 calls on the same record keep `DAT_00482ad0`
   across calls in the original (unspeak/done/group), the port starts a fresh
   session per call; the `DAT_0047a280` gate; conversation opcodes outside the
   table above (`0x34/0x35,0x45/0x46`, inventory/cursor branches, `0x69/0xb9/
-  0xbd/0x8d`); `0x436b01`'s ESC/menu result, the original video window
-  placement, the 0x4176d8/0x424981 reveal tick, and a scene **entry** that
+  0xbd/0x8d`); `0x436b01`'s ESC/menu result, the 0x4176d8/0x424981 reveal
+  tick, and a scene **entry** that
   starts a conversation inside `travel_to` (travel commits the pre-conversation
   pause; MR's entry does not reach one).
 
