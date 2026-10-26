@@ -1354,39 +1354,6 @@ void pump_window(Session& session) {
     ++session.wait.frames;
 }
 
-// Queues the clip, then keeps the window alive until the device drains it.
-void play_and_wait(Session& session, const byzantine::WavClip& clip, std::uint64_t cap_ms) {
-    session.audio.queue(clip);
-    if (session.options.selftest_events && !session.wait.injected) {
-        // Test hook: prove that the wait loop still processes input. H must
-        // toggle the overlay and a click must be ignored, not start a label.
-        session.wait.injected = true;
-        SDL_Event key{};
-        key.type = SDL_KEYDOWN;
-        key.key.keysym.sym = SDLK_h;
-        SDL_PushEvent(&key);
-        SDL_Event click{};
-        click.type = SDL_MOUSEBUTTONDOWN;
-        click.button.button = SDL_BUTTON_LEFT;
-        click.button.x = kSceneWidth / 2;
-        click.button.y = kSceneHeight / 2;
-        SDL_PushEvent(&click);
-    }
-    const std::uint64_t limit =
-        cap_ms == 0 ? clip.duration_ms + 50 : std::min(cap_ms, clip.duration_ms + 50);
-    const auto start = std::chrono::steady_clock::now();
-    while (session.running && session.audio.queued() != 0) {
-        pump_window(session);
-        if (!session.running) return;
-        const auto waited = static_cast<std::uint64_t>(
-            std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::steady_clock::now() - start)
-                .count());
-        if (waited >= limit) break;
-        SDL_Delay(4);
-    }
-}
-
 // Ends a --selftest-events run so the counters print and the process exits
 // instead of entering the interactive loop.
 void push_quit() {
@@ -3611,6 +3578,12 @@ bool restart_scene(Session& session,
     // entry_state is the save state, so this is the same fresh load there.
     session.return_armed = false;
     session.return_view = SceneView{};
+    if (session.audio.ready() && session.audio.ambient() != 0) {
+        const auto voices = session.audio.ambient();
+        session.audio.stop_all();
+        std::cout << "ambient_scene_stop reason=" << reason
+                  << " voices=" << voices << '\n';
+    }
     SceneView fresh;
     fresh.name = session.view.name;
     fresh.cc_path = session.view.cc_path;
@@ -3639,6 +3612,7 @@ bool restart_scene(Session& session,
     if (!run(point, session.view.entry_state, probe)) return false;
     apply_panorama_events(session.view, session.options, verbose);
     show_message_text(session, verbose);
+    resume_ambient(session, verbose);
     refresh_background(session.options, session.view);
     session.display.compose(session.view, verbose);
     session.display.present(session.view, session.options.overlay);
