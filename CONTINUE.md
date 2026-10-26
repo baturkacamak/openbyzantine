@@ -27,7 +27,8 @@ exposed a missing generic opcode pair. Report:
 `analysis/rea/INPUT_AND_CANCEL.md`; mouse report: `analysis/rea/MOUSE_INPUT.md`.
 
 - **Commits:** `197e97e` mouse fix + tests; `7e7808c` shared 0x45/0x46;
-  `dad129a` ESC dialog/explicit reload (docs follow-up `c5ef1fb`).
+  `dad129a` ESC dialog/explicit reload; `cfbb814` reload from the scene's
+  arrival state (follow-ups `1aac33d`, `7e0a7d3`).
 - **Commit `197e97e` — mouse fix + tests.** SDL_RenderSetLogicalSize's event
   watch already delivers logical mouse events; the old `window_to_logical`
   multiplied by `output/window` and applied dpi_scale twice. Events use their
@@ -91,8 +92,8 @@ exposed a missing generic opcode pair. Report:
 - **Map return (unchanged, still valid).** MAP after the MR conversation:
   slot 47/action 246 opens the region overlay, second click at (192,300) hits
   slot 13/action 257 → `0x73 [31]` → `SHOW.LCX[31]=27` = MR. Verified with
-  real mouse earlier; see `analysis/rea/INPUT_AND_CANCEL.md` §4 of the previous
-  revision / `port/output/recordings/map_return_physical.log`.
+  real mouse earlier; see `analysis/rea/INPUT_AND_CANCEL.md` §5 /
+  `port/output/recordings/map_return_physical.log`.
 - Try: real window `./port/scene.sh . MR 0 30.btb --entry` (or with
   `BYZ_DATA=/tmp/byz-conv` here), click the door at window (704,482), seller at
   (600,680), then at the first answer list press ESC → the real dialog appears.
