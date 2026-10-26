@@ -76,6 +76,16 @@ int main() {
         fs::remove_all(root);
         fs::create_directories(root);
 
+        // MESSAGES.TXT is CP1254; the font uses the shipped game bytes.
+        const std::string turkish_cp1254 =
+            "\xc7\xde\xdd\xd0\xdc\xd6\xe7\xfe\xfd\xf0\xfc\xf6";
+        const std::string turkish_game =
+            "\xa1\xa2\xa3\xa4\xa5\xa6\xa7\xa8\xaa\xab\xac\xad";
+        require(byzantine::cp1254_to_game_text(turkish_cp1254) == turkish_game,
+                "CP1254 Turkish letters map to the game font bytes");
+        require(byzantine::cp1254_to_game_text("EVET / TAMAM") == "EVET / TAMAM",
+                "CP1254 conversion leaves ASCII unchanged");
+
         // 8x8 atlas, two glyphs: glyph 0 = ' ' (4x4, empty mask) and glyph 1 =
         // '!' (3x3 at 4,0) with gr=0xff at its top-left pixel and 0x80 at the
         // centre; bk=0x40 at the top-left too.

@@ -435,19 +435,26 @@ and centre for every active hotspot under the current camera, and logs
 
 ### Cancel
 
-`0x436b01`'s ESC/right-click branch returns `0xfffe`; `0x42db22` case 0x70 then
-sets `local_8=1`, stops the script and returns to the scene without a resume or
-scene switch. The port's `ConversationSession::cancel()` returns the same result,
-does **not** set `state+0xe`, keeps the entry flags, and the answer loop no
-longer quits the whole player on ESC. `execute_plan` commits the conversation's
-variable writes and memory and returns control to the scene.
+The original ESC/right-click is not an immediate cancel. `0x414cd2` sets
+`DAT_0045f058`; `0x436b01` opens `FUN_0041d6df(9)` (`0x41d6df`, proc
+`0x41d523` with buttons 1/2/6/7). `MESSAGES.TXT` is read 0-based by `0x41d45a`:
+id 9 is the “Kaydetmeden oyundan çıkmak istiyor musunuz?” message and labels
+0x4c..0x4f are EVET/HAYIR/TAMAM/İPTAL. Only result 6 (EVET) returns `0xfffe`
+and sets `DAT_0045f48c`; results 1/2/7 return to the same answer list.
 
-Concrete blocker: in the MR label-261 path the script has already disabled the
-shop hotspots (`state.hotspot_enabled` is empty at the `0x70`), so after 0xfffe
-the scene has `hotspots=0`. The original's out-of-script idle/menu path that
-might re-enable them is not modelled; the port therefore cannot re-talk after a
-cancel by a natural click. Forcing label 413 would hide this, so it is reported
-instead of being counted as a completed re-talk.
+The port draws that dialog with the real strings (`--messages`); ESC,
+HAYIR/TAMAM/İPTAL resume without recreating the session, so the current
+choices, `ConversationMemory` and variables are preserved. EVET/6 calls
+`ConversationSession::cancel()` (0xfffe, `state+0xe` stays clear). The full
+evidence is in `INPUT_AND_CANCEL.md` §1.
+
+After 0xfffe the original ends the scene session: `0x42d594` stores the script
+pointer, `0x42c8a0` calls `0x41e289(0x41de4b())`, `DAT_0045f48c` makes
+`0x41e289(6)` return 1, and `0x41535a` returns. It does not restore the
+`0xb8` snapshot. The port leaves the scene committed (`hotspots=0`), shows the
+explicit `R`/ESC notice and reloads only when the user presses R
+(`scene_restart reason=conversation_session_exit_user_choice`). Silent reloads
+were removed. `--conversation-cancel N` is the deterministic terminate path.
 
 ### Scene exit / return
 
@@ -456,20 +463,22 @@ The re-entry above ends with one line and resumes at 524, which travels
 `conversation_memory reset=scene_load previous_entries=1`; the fresh MAP state
 has no conversation memory, matching `0x40f98c`.
 
-MAP's active hotspots 34,36,39,40,41,46,47,49 and the tested full-screen
-region/action hotspots only toggle map information in the port; no tested MAP
-click travelled back to MR. The map's travel UI is not modelled, so the
-"leave and return" leg is not claimed; the reset itself is shown by the travel
-log and by reloading `30.btb` (a fresh scene load logs `asked=0`).
+MAP's active hotspots 34,36,39,40,41,46,47,49 are the region/info toggles. The
+return leg **is implemented and verified** (see
+`analysis/rea/INPUT_AND_CANCEL.md` §5): slot 47/action 246 opens the region
+overlay (record 27, Istanbul map; hotspot 13 enabled), and a second click at the
+same logical point runs action 257 → `0x73 [31]` → `SHOW.LCX[31] = 27` → MR.
+The earlier "no MAP click travelled back" observation came from testing only a
+single click.
 
-### Host input note
+### Host input note (superseded)
 
-On this host the X11 display is 2x-scaled: `xdotool` physical coordinates and
-SDL's logical mapping disagreed (a visible door click arrived at half the
-logical position). `Display::window_to_logical` now scales window coordinates by
-renderer-output/window size before `SDL_RenderWindowToLogical`. The headless
-acceptance still uses the same `hotspot_at` coordinates; the real-window
-recordings use SDL events/`--click-at`, not a physical click.
+The earlier note about a 2x-scaled X11 display came from
+`Display::window_to_logical` multiplying window points by
+`renderer-output/window` before `SDL_RenderWindowToLogical`, which applies the
+same DPI factor again. SDL's `SDL_RendererEventWatch` already delivers mouse
+event coordinates in renderer-logical space; the latest step uses them directly
+and verifies real X11 pointer events at seven window sizes (report §1).
 
 ## 8. Tests and census
 

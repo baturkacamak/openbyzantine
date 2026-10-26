@@ -63,8 +63,8 @@ All seven clicks produced the same hotspot with the same logical coordinate
 `port/output/recordings/size_check/summary.txt` (ignored build evidence).
 
 The same mapping is exercised by the recording
-`port/output/recordings/step_mouse_esc_retalk.mp4` (resize to 1024x768 + door
-click, then 1280x960 + seller click).
+`port/output/recordings/step_mouse_esc_menu_reload.mp4` (resize to 1024x768 +
+door click, then 1280x960 + seller click).
 
 ## Regression test
 

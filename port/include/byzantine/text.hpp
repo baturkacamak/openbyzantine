@@ -57,6 +57,12 @@ SfnFont load_sfn_font_single_atlas(const std::string& sfn_path,
                                    const std::string& atlas_tga_path,
                                    std::uint16_t fill);
 
+// MESSAGES.TXT is CP1254, while the SFN atlases index the shipped game bytes
+// (0x4061e7 uses byte-0x41). Convert the twelve Turkish letters so the common
+// message table (menu text/labels) draws with the game font instead of
+// dropping them. ASCII passes through unchanged.
+std::string cp1254_to_game_text(const std::string& text);
+
 // 0x4063e0: draws `text` with `font` into `surface` at (x, y), one line per
 // '\n', at most `max_lines` lines. `alignment` follows the original: 1 centres
 // on x, 2 and 4 right-align to x, 3 left-aligns from x. Each byte is a glyph

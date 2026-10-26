@@ -56,7 +56,7 @@ if [ ! -f "$data/.prepared" ]; then
     # CD1: the engine tables, game preferences and the savegames.
     7z x -y "$iso1" "copy2hd/engine/*.ALL" "copy2hd/engine/SHOW.L*" \
         "copy2hd/goldsave/GAMEPREF.000" "copy2hd/savegame/*.btb" \
-        "copy2hd/fonts/*" -o"$data" >/dev/null
+        "copy2hd/fonts/*" "copy2hd/setupart/MESSAGES.TXT" -o"$data" >/dev/null
     # Every CD: backgrounds, panorama nodes, animation assets, sounds.
     for index in 1 2 3 4 5 6; do
         iso="$(find_iso "$index")" || continue
@@ -111,6 +111,12 @@ if [ ! -d "$data/copy2hd/fonts" ] || [ ! -d "$data/ce" ]; then
     "$here/byzantine-all" "$data/copy2hd/engine/CE.ALL" "$data/ce" >/dev/null
 fi
 
+# 0x41d45a reads setupart/MESSAGES.TXT for the common dialogs; the conversation
+# exit dialog uses line 9 and labels 0x4c..0x4f.
+if [ ! -f "$data/copy2hd/setupart/MESSAGES.TXT" ]; then
+    7z x -y "$iso1" "copy2hd/setupart/MESSAGES.TXT" -o"$data" >/dev/null
+fi
+
 upper_scene="$(printf '%s' "$scene" | tr '[:lower:]' '[:upper:]')"
 cc="$here/output/cc_all/$upper_scene"
 cb="$here/output/cb_all/$upper_scene"
@@ -144,6 +150,8 @@ save_path="$data/copy2hd/savegame/$save"
 text_args=()
 [ -n "$ce" ] && text_args+=(--ce "$ce")
 [ -n "$fonts" ] && text_args+=(--fonts "$fonts")
+messages="$data/copy2hd/setupart/MESSAGES.TXT"
+[ -f "$messages" ] && text_args+=(--messages "$messages")
 
 exec "$here/byzantine-play" "$cc" "$cb" "$label" \
     --save "$save_path" \

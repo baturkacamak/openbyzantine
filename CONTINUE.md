@@ -18,7 +18,88 @@ game ISOs/archives, `analysis/rea/BETRAYAL.EXE`, `tools/rea`, `upscale_ornek` an
 needs `port/output/`: recreate it from your own copy with `port/byzantine-all`
 (and `port/scene.sh` for the extracted media) before running the suites.
 
-## Latest step — natural MR conversation continuation and persistent state
+## Latest step — mouse fix committed, ESC dialog, explicit session end
+
+The mouse-coordinate fix is now its own commit and the ESC path models the
+original dialog instead of silently reloading the scene. A different
+character's real conversation (AM curator) exercised the shared interpreter and
+exposed a missing generic opcode pair. Report:
+`analysis/rea/INPUT_AND_CANCEL.md`; mouse report: `analysis/rea/MOUSE_INPUT.md`.
+
+- **Commit `197e97e` — mouse fix + tests.** SDL_RenderSetLogicalSize's event
+  watch already delivers logical mouse events; the old `window_to_logical`
+  multiplied by `output/window` and applied dpi_scale twice. Events use their
+  fields directly, `SDL_GetMouseState` + `SDL_RenderWindowToLogical` remains for
+  hover, and every real click logs `mouse_click … logical=… window=…`.
+  `input-test` is part of `make test`; a real X11 check hit the same MR door at
+  1280x960 (704,482), 1920x1080 (1046,543), 1024x768 (563,386), 900x700
+  (495,352), 640x480 (352,241), 1500x900 (822,452) and 960x600 (528,302), with
+  the logged logical point 351/352,200/201 and slot 42 every time.
+- **Commit `7e7808c` — shared conversation 0x45/0x46.** AM `icuam1a` stopped at
+  `unsupported conversation opcode 0x46`; 0x43340a writes an operand byte plus
+  a FUN_004367eb-resolved entry in state+0x2a (0x45) or state+0x5c/0x8e
+  (0x46). The port stores `{byte, entry key}` in ConversationMemory and carries
+  it across 0x70 calls; a synthetic regression test covers both selectors and
+  persistence. No scene/character branch was added.
+- **ESC is the original dialog, not a cancel key.** VK_ESCAPE (0x414cd2) sets
+  `DAT_0045f058`; 0x436b01 opens `FUN_0041d6df(9)` (`0x41d6df`, dialog proc
+  `0x41d523`). `MESSAGES.TXT` is read 0-based by `0x41d45a`: id 9 is
+  “Kaydetmeden oyundan çıkmak istiyor musunuz?” and labels 0x4c..0x4f are
+  EVET/HAYIR/TAMAM/İPTAL. Only result 6 (EVET) is 0xfffe; 1/2/7 return to the
+  **same** answer list. The port draws these real strings (loaded with
+  `--messages`, extracted by `scene.sh`); ESC, HAYIR (7), TAMAM (1), İPTAL (2)
+  resume without recreating the session, so choices, conversation memory and
+  variables are preserved. The vertical layout is the port's; button ids and
+  actions are the original's.
+- **Session end is explicit.** 0xfffe → 0x42db22 local_8=1 → 0x42d594 stops the
+  script → 0x42c8a0 calls 0x41e289(0x41de4b()); 0x41de4b returns 6 and
+  0x41e289(6) returns 1 because `DAT_0045f48c`, so the scene session ends
+  (0x41535a returns). The original does not restore the 0xb8 snapshot; MR has
+  0xb8 at 166/278 and no 0xb7. The port leaves the scene as committed
+  (`scene_session_ended … hotspots=0`), draws
+  `OTURUM SONLANDI / YENİDEN YÜKLE: R / ÇIKIŞ: ESC` in the message window and
+  logs `reload_choice … (explicit user choice; not automatic)`. Only pressing
+  R performs the fresh save/entry load
+  (`scene_restart reason=conversation_session_exit_user_choice … hotspots=2`).
+  `--conversation-cancel N` is the deterministic terminate path: hotspots=0,
+  notice printed, no reload. No silent rollback.
+- **Verification and recording.** `step_mouse_esc_menu_reload.mp4` (22.3 s,
+  1280x960 H.264, silent `--no-video --no-audio`): resize to 1024x768 + door
+  click, restore 1280x960 + seller click, ESC dialog, ESC/İPTAL returns to the
+  same list, answer 0 picked, next list ESC → EVET (click at logical 110,168),
+  scene session ends with the notice, R reloads, door+seller re-talk. Log and
+  screenshots: `port/output/recordings/menu_flow/` (`menu_open.png`,
+  `menu_resumed.png`, `menu_terminated.png`, `menu_reloaded.png`).
+- **Same interpreter, different character.** AM save `62.btb`, real script
+  actions 1512/1530/1546/1633: records 6 `icuam1a` (8 lines, 7 lists, 44
+  instructions, resume 1898), 7 `ICuAm3a` (8/6/18, 1918), 8 `icuam5a`
+  (11/10/30, 1937), 10 `INuTK3a` (7/4/20, 2051), all result 0xffff with no
+  unsupported opcode. The AM resumed segments stop at `unresolved_random`
+  (instruction 1777/2005; the CRT seed is not in the save). The AM entry uses
+  `--run-label` only because the save's active hotspot set lacks those slots;
+  this is an interpreter test, not physical-mouse verification. AM dialog media
+  is missing from the prepared data dir, so AM video was not verified.
+- **General vs example.** General: mouse mapping/`input-test`, ESC dialog
+  paths, session end + explicit R, 0x45/0x46, persistent slot tables. Only MR:
+  its 0xb8/no-0xb7 state and first-list choices. Only AM: the four records and
+  their counts.
+- **Map return (unchanged, still valid).** MAP after the MR conversation:
+  slot 47/action 246 opens the region overlay, second click at (192,300) hits
+  slot 13/action 257 → `0x73 [31]` → `SHOW.LCX[31]=27` = MR. Verified with
+  real mouse earlier; see `analysis/rea/INPUT_AND_CANCEL.md` §4 of the previous
+  revision / `port/output/recordings/map_return_physical.log`.
+- Try: real window `./port/scene.sh . MR 0 30.btb --entry` (or with
+  `BYZ_DATA=/tmp/byz-conv` here), click the door at window (704,482), seller at
+  (600,680), then at the first answer list press ESC → the real dialog appears.
+  ESC/HAYIR/TAMAM/İPTAL returns to the same list; EVET/6 ends the session with
+  `hotspots=0` and the notice; press R to reload explicitly, then door+seller
+  again.
+- Still not modelled: the original main menu (R is the explicit substitute),
+  save/load actions for dialog buttons 1/2/7 (the original caller also only
+  resumes the answer loop), AM dialog media, and the CRT random seed needed by
+  the AM resumed segments.
+
+## Previous step — natural MR conversation continuation and persistent state
 
 The MR conversation now starts from the evidence save with real hotspot clicks,
 returns to the same scene on completion, keeps `DAT_00482ad0`'s asked/disabled
@@ -45,22 +126,25 @@ instead of closing the player.
   yaw=151.596, so the player must rotate the panorama to bring the post-scene
   hotspots into view. `--print-hotspots` prints the actual logical rectangles.
 - **Cancel:** answer-list ESC returns 0xfffe, does not set `state+0xe`, keeps the
-  entry flags, and `execute_plan` returns to the scene with the conversation's
-  writes committed. The answer loop no longer quits the player on ESC.
-  `--conversation-cancel N` is the deterministic headless counterpart.
-- **Blocker:** in the MR label-261 path the script has disabled the hotspots by
-  the time 0x70 runs; after cancel the scene has `hotspots=0`, so a natural
-  re-talk click after cancel is not possible. The original's out-of-script
-  idle/menu re-enable is not modelled; label 413 is not forced to hide this.
-- **Scene exit/return:** re-entry ends at 524 and travels to MAP; the travel log
-  shows the memory reset and a fresh MAP state. The tested MAP hotspots only
-  toggle map information; no MAP click travelled back to MR, so the return leg
-  is not claimed and the map travel UI remains unimplemented.
-- **Input note:** the host's 2x X scaling made physical `xdotool` clicks arrive
-  at half the expected logical point. `Display::window_to_logical` scales
-  window coordinates by renderer-output/window size; the verified runs use the
-  same `hotspot_at` path through `--click-at`/SDL events rather than claiming a
-  physical mouse click.
+  entry flags. `--conversation-cancel N` is the deterministic headless
+  counterpart. **Corrected in the latest step:** 0xfffe ends the scene session
+  (0x42c8a0 → 0x41e289(6) → 1), so the port now reloads the scene from the same
+  save/entry (`scene_restart`) instead of staying on `hotspots=0`.
+- **Blocker (superseded):** in the MR label-261 path the script has disabled the
+  hotspots by the time 0x70 runs; after cancel the scene had `hotspots=0`. The
+  latest step proves the original does not stay in that scene and replaces the
+  stale hotspot table with a fresh load; see the top section.
+- **Scene exit/return (corrected in the latest step):** re-entry ends at 524 and
+  travels to MAP; the travel log shows the memory reset and a fresh MAP state.
+  The return is a two-stage click: MAP slot 47/action 246 opens the region
+  overlay (slot 13), and the second click at the same point runs action 257 →
+  `0x73 [31]` → `SHOW.LCX[31]=27` → MR. Verified with physical mouse; see the
+  top section.
+- **Input note (superseded):** the earlier note about host 2x X scaling was
+  based on the old `window_to_logical`, which applied the output/window factor
+  before `SDL_RenderWindowToLogical` and thus double-applied DPI scaling. SDL's
+  renderer event watch already delivers logical event coordinates; the latest
+  step uses them directly and verifies real clicks at seven window sizes.
 - Real-window clip: `port/output/recordings/mr_natural_start_clean.mp4` (8 s,
   1280x960 H.264 + AAC, mean -23.7 dB, max -1.3 dB), started by the door/NPC
   `--click 42 --click-at 300,300` path; it shows the `Mr2meh03` video and green

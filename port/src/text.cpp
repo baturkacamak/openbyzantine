@@ -6,6 +6,33 @@
 #include <stdexcept>
 
 namespace byzantine {
+
+std::string cp1254_to_game_text(const std::string& text) {
+    // CP1254 Turkish letters -> the shipped font's byte values. The mapping is
+    // the inverse of the 0x406bf0 high-byte path documented in TEXT_WINDOW.md:
+    // the atlas glyph index is byte-0x41, and 0xa1..0xad are the Turkish set.
+    std::string out;
+    out.reserve(text.size());
+    for (const unsigned char byte : text) {
+        switch (byte) {
+        case 0xc7: out.push_back(static_cast<char>(0xa1)); break;  // Ç
+        case 0xde: out.push_back(static_cast<char>(0xa2)); break;  // Ş
+        case 0xdd: out.push_back(static_cast<char>(0xa3)); break;  // İ
+        case 0xd0: out.push_back(static_cast<char>(0xa4)); break;  // Ğ
+        case 0xdc: out.push_back(static_cast<char>(0xa5)); break;  // Ü
+        case 0xd6: out.push_back(static_cast<char>(0xa6)); break;  // Ö
+        case 0xe7: out.push_back(static_cast<char>(0xa7)); break;  // ç
+        case 0xfe: out.push_back(static_cast<char>(0xa8)); break;  // ş
+        case 0xfd: out.push_back(static_cast<char>(0xaa)); break;  // ı
+        case 0xf0: out.push_back(static_cast<char>(0xab)); break;  // ğ
+        case 0xfc: out.push_back(static_cast<char>(0xac)); break;  // ü
+        case 0xf6: out.push_back(static_cast<char>(0xad)); break;  // ö
+        default: out.push_back(static_cast<char>(byte)); break;
+        }
+    }
+    return out;
+}
+
 namespace {
 
 std::vector<std::uint8_t> read_file(const std::string& path) {

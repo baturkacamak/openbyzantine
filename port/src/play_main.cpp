@@ -119,6 +119,7 @@ struct Options {
     std::filesystem::path ccb;                 // split CCB.ALL (engine/<name>.ccb)
     std::filesystem::path ccf;                 // split CCF.ALL (engine/<name>.ccf)
     std::filesystem::path byz;                 // split Byz.all (engine/<name>.byz)
+    std::filesystem::path messages;            // copy2hd/setupart/MESSAGES.TXT
     std::filesystem::path dialog;              // dialog/<conversation>/<clip>.avi root
     std::filesystem::path dialog_cache;        // decoded clip cache (created on demand)
     std::string shot;                          // --shot <file.ppm>
@@ -152,7 +153,8 @@ const std::set<std::string> kValued = {
     "--save", "--engine", "--lcx", "--lci", "--ci", "--lcy", "--cy", "--co", "--cf",
     "--ca", "--anims", "--gameprefs", "--inventor", "--hotitems", "--cs", "--ce",
     "--backgrounds", "--sounds", "--shot", "--click", "--click-at", "--staged-x",
-    "--fonts", "--cd", "--ccb", "--ccf", "--byz", "--dialog", "--dialog-cache",
+    "--fonts", "--cd", "--ccb", "--ccf", "--byz", "--messages", "--dialog",
+    "--dialog-cache",
     "--run-label", "--conversation-choices", "--conversation-shot",
     "--conversation-object", "--conversation-video-shot", "--conversation-cancel"};
 
@@ -198,6 +200,7 @@ Options parse_options(int argc, char** argv) {
             else if (token == "--ccb") options.ccb = value;
             else if (token == "--ccf") options.ccf = value;
             else if (token == "--byz") options.byz = value;
+            else if (token == "--messages") options.messages = value;
             else if (token == "--dialog") options.dialog = value;
             else if (token == "--dialog-cache") options.dialog_cache = value;
             else if (token == "--run-label") options.run_label = std::stoi(value);
@@ -1050,6 +1053,12 @@ struct Session {
     // engine/<scene>ce, the text entries 0x412206 loads into DAT_00483640.
     // Reloaded on a scene switch from the target's --ce record.
     std::optional<byzantine::SceneTextTable> scene_text;
+    // copy2hd/setupart/MESSAGES.TXT, 0-based lines (0x41d45a reads line id).
+    // The conversation exit dialog uses id 9 and labels 0x4c..0x4f.
+    std::vector<std::string> messages;
+    // Set by a 0xfffe conversation exit: the scene session has ended. The user
+    // must explicitly choose R to reload; nothing is reloaded silently.
+    bool reload_available = false;
     // Set by the interactive branch: a scene entry may then wait on audio like
     // any other script. --shot stays deterministic and never waits.
     bool interactive = false;
@@ -1283,6 +1292,37 @@ void load_scene_text(Session& session, bool verbose) {
     }
 }
 
+// 0x41d45a reads setupart/MESSAGES.TXT line `id` (0-based) into the dialog
+// text. The file is CP1254; the font drawer uses the game byte encoding.
+void load_messages(Session& session, bool verbose) {
+    session.messages.clear();
+    if (session.options.messages.empty()) return;
+    try {
+        const auto bytes = read_file(session.options.messages);
+        std::string line;
+        for (const auto byte : bytes) {
+            if (byte == '\n') {
+                if (!line.empty() && line.back() == '\r') line.pop_back();
+                session.messages.push_back(byzantine::cp1254_to_game_text(line));
+                line.clear();
+            } else {
+                line.push_back(static_cast<char>(byte));
+            }
+        }
+        if (!line.empty()) {
+            if (line.back() == '\r') line.pop_back();
+            session.messages.push_back(byzantine::cp1254_to_game_text(line));
+        }
+        if (verbose) {
+            std::cout << "messages file=" << session.options.messages
+                      << " lines=" << session.messages.size() << '\n';
+        }
+    } catch (const std::exception& error) {
+        std::cout << "messages " << session.options.messages << ": " << error.what()
+                  << " (conversation exit dialog uses fallback labels)\n";
+    }
+}
+
 // 0x40c329 sets DAT_004603d4 from the clicked object's +0x14 and 0x4177c7 shows
 // engine/<scene>ce[+0x14] in the 3-line scroll window.
 void show_object_text(Session& session, std::uint16_t slot, bool verbose) {
@@ -1442,6 +1482,7 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose) {
     std::cout << '\n';
 
     session.view = std::move(next_view);
+    session.reload_available = false;
     options.scene = std::move(next);
     options.cc_path = session.view.cc_path;
     options.cb_path = session.view.cb_path;
@@ -1999,6 +2040,46 @@ struct ConversationUi {
         }
     }
 
+    // The original 0x436b01 ESC path opens FUN_0041d6df's 4-button dialog. We
+    // draw the real MESSAGES.TXT id 9 message and the id 0x4c..0x4f labels in
+    // the common conversation screen; the layout is the port's (a vertical
+    // list), the button ids and actions are the original's.
+    void draw_menu(Session& session, const std::string& message,
+                   const std::vector<std::pair<std::string, int>>& buttons,
+                   int hovered, std::vector<SDL_Rect>* rects) {
+        rects->clear();
+        if (answers_font == nullptr) return;
+        const int left = 40;
+        const int right = 600;
+        const int top = 80;
+        const int bottom = 370;
+        for (int y = top; y < bottom; ++y) {
+            for (int x = left; x < right; ++x) {
+                session.display.surface.at(x, y) = 0;
+            }
+        }
+        const auto lines = wrap_dialog_text(*answers_font, message, 480);
+        int y = top + 20;
+        for (const auto& line : lines) {
+            if (!line.empty()) {
+                byzantine::draw_text(session.display.surface, *answers_font, line,
+                                     left + 20, y, 1, 3, 0xffff);
+            }
+            y += line_height;
+        }
+        y += 18;
+        for (std::size_t index = 0; index < buttons.size(); ++index) {
+            const auto width = byzantine::text_width(*answers_font, buttons[index].first);
+            byzantine::draw_text(session.display.surface, *answers_font,
+                                 buttons[index].first, left + 40, y, 1, 3,
+                                 index == static_cast<std::size_t>(hovered) ? 0xffff
+                                                                            : 0xe2c0);
+            rects->push_back(SDL_Rect{left + 40, y + kScreenPlayfieldTop, width,
+                                      line_height});
+            y += line_height + 8;
+        }
+    }
+
     void compose(Session& session) {
         std::fill(screen.pixels.begin(), screen.pixels.end(), 0);
         for (int y = 0; y < kSceneHeight; ++y) {
@@ -2504,11 +2585,48 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                 }
                 continue;
             }
+            // 0x436b01's ESC branch is FUN_0041d6df: a 4-button dialog whose
+            // message is MESSAGES.TXT id 9 and whose labels are ids 0x4c..0x4f.
+            // Only result 6 (EVET) takes the 0xfffe path; 1/2/7 (TAMAM/İPTAL/
+            // HAYIR) close the dialog and return to the same answer list.
+            std::string menu_message = "Kaydetmeden oyundan cikmak istiyor musunuz?";
+            std::vector<std::pair<std::string, int>> menu_buttons;
+            {
+                const char* const fallback[4] = {"EVET", "HAYIR", "TAMAM", "IPTAL"};
+                const std::size_t label_ids[4] = {0x4c, 0x4d, 0x4e, 0x4f};
+                const int results[4] = {6, 7, 1, 2};
+                if (session.messages.size() > 9) menu_message = session.messages[9];
+                for (int i = 0; i < 4; ++i) {
+                    menu_buttons.emplace_back(
+                        session.messages.size() > label_ids[i] ? session.messages[label_ids[i]]
+                                                               : fallback[i],
+                        results[i]);
+                }
+                if (verbose) {
+                    std::cout << "conversation_menu_ready message_id=9 buttons=4"
+                              << " source=" << (session.messages.empty() ? "fallback"
+                                                                         : "messages")
+                              << '\n';
+                }
+            }
             std::vector<SDL_Rect> rects;
+            std::vector<SDL_Rect> menu_rects;
             int hovered = -1;
             int last_hovered = -2;
+            bool menu_open = false;
             bool picked = false;
             bool cancelled = false;
+            const auto terminate_from_menu = [&]() {
+                // 0x436b01 result 6: 0xfffe, DAT_0045f48c = 1. The caller ends
+                // the scene session; nothing is reloaded here.
+                conversation.cancel();
+                ui.clear_caption();
+                outcome.ok = true;
+                outcome.cancelled = true;
+                outcome.result = 0xfffe;
+                cancelled = true;
+                picked = true;
+            };
             while (session.running && !picked) {
                 // 0x436b01 redraws the list on every pointer move: the option
                 // under the pointer uses its white (0xffff) colour. The rects
@@ -2517,14 +2635,21 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                 float mouse_x = 0;
                 float mouse_y = 0;
                 session.display.mouse_logical(&mouse_x, &mouse_y);
-                hovered = answer_at(rects, mouse_x, mouse_y);
+                hovered = menu_open ? answer_at(menu_rects, mouse_x, mouse_y)
+                                    : answer_at(rects, mouse_x, mouse_y);
                 if (verbose && hovered != last_hovered) {
-                    std::cout << "conversation_hover choice=" << hovered
-                              << " logical=" << static_cast<int>(mouse_x) << ','
+                    std::cout << (menu_open ? "conversation_menu_hover button="
+                                            : "conversation_hover choice=")
+                              << hovered << " logical="
+                              << static_cast<int>(mouse_x) << ','
                               << static_cast<int>(mouse_y) << '\n';
                     last_hovered = hovered;
                 }
-                ui.draw_answers(session, event.answers, hovered, &rects);
+                ui.draw_answers(session, event.answers, menu_open ? -1 : hovered, &rects);
+                if (menu_open) {
+                    ui.draw_menu(session, menu_message, menu_buttons, hovered,
+                                 &menu_rects);
+                }
                 ui.present(session);
                 if (!options.conversation_shot.empty() && !answer_shot_written) {
                     if (ui.write(session, options.conversation_shot)) {
@@ -2533,7 +2658,7 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                     }
                     answer_shot_written = true;
                 }
-                if (options.selftest_events && !rects.empty()) {
+                if (options.selftest_events && !menu_open && !rects.empty()) {
                     // Prove the real answer hit test: a logical click at the
                     // centre of the first answer row, delivered through SDL.
                     int window_x = 0;
@@ -2557,19 +2682,37 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                         session.running = false;
                     } else if (event_poll.type == SDL_KEYDOWN &&
                                event_poll.key.keysym.sym == SDLK_ESCAPE) {
-                        // 0x436b01's ESC branch: 0xfffe, script stops, control
-                        // returns to the scene. It does not close the player.
-                        conversation.cancel();
-                        ui.clear_caption();
-                        outcome.ok = true;
-                        outcome.cancelled = true;
-                        outcome.result = 0xfffe;
-                        cancelled = true;
-                        picked = true;
-                        std::cout << "conversation_cancel record=" << record_index
-                                  << " answer_list=" << outcome.answer_lists
-                                  << " result=0xfffe (control returns to the scene)\n";
-                        break;
+                        // The original ESC opens/cancels the dialog; it never
+                        // cancels the conversation directly.
+                        if (!menu_open) {
+                            menu_open = true;
+                            menu_rects.clear();
+                            last_hovered = -2;
+                            std::cout << "conversation_menu open message_id=9 "
+                                         "action=return_to_conversation_or_terminate\n";
+                        } else {
+                            menu_open = false;
+                            std::cout << "conversation_menu result=2 action=resume "
+                                         "(same answer list, memory and variables)\n";
+                        }
+                    } else if (menu_open && event_poll.type == SDL_KEYDOWN) {
+                        const auto key = event_poll.key.keysym.sym;
+                        const int result = key == SDLK_1   ? 1
+                                           : key == SDLK_2 ? 2
+                                           : key == SDLK_6 ? 6
+                                           : key == SDLK_7 ? 7
+                                                           : 0;
+                        if (result != 0) {
+                            std::cout << "conversation_menu result=" << result
+                                      << " action="
+                                      << (result == 6 ? "terminate" : "resume")
+                                      << '\n';
+                            menu_open = false;
+                            if (result == 6) {
+                                terminate_from_menu();
+                                break;
+                            }
+                        }
                     } else if (event_poll.type == SDL_KEYDOWN &&
                                event_poll.key.keysym.sym == SDLK_h) {
                         session.options.overlay = !session.options.overlay;
@@ -2579,6 +2722,22 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                         const float logical_x = static_cast<float>(event_poll.button.x);
                         const float logical_y = static_cast<float>(event_poll.button.y);
                         session.display.log_mouse_click(logical_x, logical_y, "conversation");
+                        if (menu_open) {
+                            const auto index = answer_at(menu_rects, logical_x, logical_y);
+                            if (index >= 0) {
+                                const int result = menu_buttons[index].second;
+                                std::cout << "conversation_menu result=" << result
+                                          << " action="
+                                          << (result == 6 ? "terminate" : "resume")
+                                          << '\n';
+                                menu_open = false;
+                                if (result == 6) {
+                                    terminate_from_menu();
+                                    break;
+                                }
+                            }
+                            continue;
+                        }
                         const auto index = answer_at(rects, logical_x, logical_y);
                         if (index >= 0) {
                             if (verbose) {
@@ -2627,15 +2786,58 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
     return outcome;
 }
 
+// 0xfffe makes 0x42db22 return 1; 0x42d594 stores DAT_00484e28 and clears the
+// script pointer, then 0x42c8a0 calls FUN_0041e289(FUN_0041de4b()). The ESC
+// path set DAT_0045f48c, so FUN_0041e289(6) returns 1 and the scene session
+// ends. The original next shows the main menu; the port has no main menu, so a
+// fresh scene load is offered only as an explicit user choice (R), never
+// silently. It is the same 0x42c8a0 head load: clear the tables and run the
+// entry from the supplied save.
+bool restart_scene(Session& session,
+                   const std::function<bool(EntryPoint, const byzantine::SceneState&,
+                                            const byzantine::SceneTrace&)>& run,
+                   bool verbose, const char* reason) {
+    const auto label_value = session.options.label.empty()
+                                 ? 0u
+                                 : std::stoul(session.options.label, nullptr, 0);
+    SceneView fresh = open_scene(session.options.scene, session.options.cc_path,
+                                 session.options.cb_path,
+                                 static_cast<std::uint16_t>(label_value));
+    fresh.pool_on_arrival = fresh.state.variable_pool;
+    session.view = std::move(fresh);
+    session.reload_available = false;
+    load_scene_text(session, verbose);
+    const EntryPoint point{static_cast<std::uint16_t>(label_value),
+                           session.options.entry, std::nullopt};
+    byzantine::SceneState probe_state = session.view.entry_state;
+    const auto probe = point.at_entry
+        ? byzantine::trace_scene_entry(session.view.script, session.view.entries,
+                                       probe_state, 0)
+        : byzantine::trace_scene_label(session.view.script, session.view.entries,
+                                       probe_state, point.label);
+    if (!run(point, session.view.entry_state, probe)) return false;
+    apply_panorama_events(session.view, session.options, verbose);
+    show_message_text(session, verbose);
+    refresh_background(session.options, session.view);
+    session.display.compose(session.view, verbose);
+    session.display.present(session.view, session.options.overlay);
+    std::cout << "scene_restart reason=" << reason << " scene=" << session.view.name
+              << " point=" << (point.at_entry ? "entry" : "label")
+              << " hotspots=" << session.view.trace.active_hotspots.size()
+              << " steps=" << session.view.trace.steps << '\n';
+    return true;
+}
+
 // Runs a click plan end to end. For a 0x70 plan the pre-conversation segment is
 // played first (its sounds included), then the real conversation runs on the
 // state at the pause, and the script resumes at the instruction the result
 // selects. `run` is the caller's segment runner (audio-gated interactive or one
-// unbudgeted pass in --shot).
+// unbudgeted pass in --shot). A 0xfffe result ends the scene session; the caller
+// must skip the old session's post-click updates and offer the explicit reload.
 bool execute_plan(Session& session, const ClickPlan& plan,
                   const std::function<bool(EntryPoint, const byzantine::SceneState&,
                                            const byzantine::SceneTrace&)>& run,
-                  bool verbose) {
+                  bool verbose, bool* session_ended = nullptr) {
     if (!plan.conversation) {
         return run(plan.point, plan.entry, plan.probe);
     }
@@ -2691,15 +2893,29 @@ bool execute_plan(Session& session, const ClickPlan& plan,
                   << session.view.state.records.size() << '\n';
     }
     if (outcome.cancelled || outcome.result == 0xfffe) {
-        // 0x42db22 case 0x70: 0xfffe sets local_8 = 1, so the script stops and
-        // the outer loop returns control to the scene. The conversation's
-        // variable writes and the persistent DAT_00482ad0 slice stay committed;
-        // there is no resume instruction and no scene switch.
-        std::cout << "conversation_branch cancel (0xfffe: script stops, control "
-                     "returns to the scene)\n";
+        // 0x42db22 case 0x70: 0xfffe sets local_8 = 1. 0x42d594 stores the
+        // script pointer and 0x42c8a0's t==1 branch runs
+        // FUN_0041e289(FUN_0041de4b()); DAT_0045f48c makes that return 1, so
+        // the scene session ends. The port leaves the scene exactly as it is
+        // (the 0xb8 snapshot is not restored) and offers a fresh load only as
+        // the explicit R choice. No progress is rolled back silently.
+        std::cout << "conversation_branch terminate (0xfffe: 0x42db22 returns 1, "
+                     "0x42c8a0 ends the scene session)\n";
+        session.reload_available = true;
+        // The original returns to the main menu. The port has no main menu, so
+        // the scene message window carries the explicit choice. This is port
+        // UI text, not a recovered game string.
+        session.view.message_text.active = true;
+        session.view.message_text.text = byzantine::cp1254_to_game_text(
+            "OTURUM SONLANDI\nYENİDEN YÜKLE: R\nÇIKIŞ: ESC");
         refresh_background(session.options, session.view);
         session.display.compose(session.view, false);
         session.display.present(session.view, false);
+        std::cout << "scene_session_ended reason=conversation_exit hotspots="
+                  << session.view.trace.active_hotspots.size() << '\n';
+        std::cout << "reload_choice available=yes key=R scene=" << session.view.name
+                  << " (explicit user choice; not automatic)\n";
+        if (session_ended != nullptr) *session_ended = true;
         return true;
     }
     std::size_t resume = 0;
@@ -2777,6 +2993,7 @@ int main(int argc, char** argv) {
         session.view.pool_on_arrival = session.view.state.variable_pool;
         session.metadata = byzantine::read_variable_metadata(options.scene);
         load_scene_text(session, false);
+        load_messages(session, true);
         session.display.init();
         if (!options.fonts.empty()) {
             const auto sfn = find_child(options.fonts, "klio");
@@ -2936,6 +3153,7 @@ int main(int argc, char** argv) {
             session.interactive = true;
             const EntryPoint startup_point{session.view.label, options.entry, std::nullopt};
             bool startup_ok = false;
+            bool startup_ended = false;
             if (probe.conversation_request) {
                 ClickPlan startup;
                 startup.ok = true;
@@ -2944,14 +3162,17 @@ int main(int argc, char** argv) {
                 startup.entry = probe_state;
                 startup.entry_before = session.view.entry_state;
                 startup.probe = probe;
-                startup_ok = execute_plan(session, startup, run, true);
+                startup_ok = execute_plan(session, startup, run, true, &startup_ended);
             } else {
                 startup_ok = run(startup_point, session.view.entry_state, probe);
             }
             // The label's node loads/rotations belong to the renderer, so they
-            // are applied exactly once, from the committed trace.
-            apply_panorama_events(session.view, options, true);
-            show_message_text(session, true);
+            // are applied exactly once, from the committed trace. A 0xfffe
+            // session end already composed the explicit reload notice.
+            if (!startup_ended) {
+                apply_panorama_events(session.view, options, true);
+                show_message_text(session, true);
+            }
             if (options.selftest_events && !options.click && options.click_ats.empty() &&
                 !options.run_label) {
                 push_quit();
@@ -2981,22 +3202,30 @@ int main(int argc, char** argv) {
                 if (!blocker.empty()) {
                     std::cout << "run_label " << plan.action << " stopped: " << blocker
                               << " at instruction " << plan.probe.stopped_at << '\n';
-                } else if (!execute_plan(session, plan, run, true)) {
-                    session.view.state = plan.entry_before;
-                    set_trace(session.view, before_trace);
-                    std::cout << "run_label " << plan.action
-                              << " not committed\n";
                 } else {
-                    std::cout << "run_label " << plan.action << " click_result "
-                              << describe_trace(session.view.trace, session.view.state)
-                              << '\n';
-                    show_message_text(session, true);
-                    apply_panorama_events(session.view, options, true);
-                    refresh_background(options, session.view);
-                    session.display.compose(session.view);
-                    session.display.present(session.view, options.overlay);
-                    follow_switches(session, true);
-                    if (options.print_hotspots) print_hotspot_screens(session.view);
+                    bool ended = false;
+                    if (!execute_plan(session, plan, run, true, &ended)) {
+                        session.view.state = plan.entry_before;
+                        set_trace(session.view, before_trace);
+                        std::cout << "run_label " << plan.action
+                                  << " not committed\n";
+                    } else if (ended) {
+                        std::cout << "run_label " << plan.action
+                                  << " click_result scene_session_ended\n";
+                        follow_switches(session, true);
+                        if (options.print_hotspots) print_hotspot_screens(session.view);
+                    } else {
+                        std::cout << "run_label " << plan.action << " click_result "
+                                  << describe_trace(session.view.trace, session.view.state)
+                                  << '\n';
+                        show_message_text(session, true);
+                        apply_panorama_events(session.view, options, true);
+                        refresh_background(options, session.view);
+                        session.display.compose(session.view);
+                        session.display.present(session.view, options.overlay);
+                        follow_switches(session, true);
+                        if (options.print_hotspots) print_hotspot_screens(session.view);
+                    }
                 }
                 if (options.selftest_events) push_quit();
             }
@@ -3025,7 +3254,8 @@ int main(int argc, char** argv) {
                 if (!plan.ok) return;
                 const auto before_state = session.view.state;
                 const auto before_trace = session.view.trace;
-                if (!execute_plan(session, plan, run, true)) {
+                bool ended = false;
+                if (!execute_plan(session, plan, run, true, &ended)) {
                     // A conversation that stopped before 0x432d6e returned is
                     // not a completed action: discard its partial variable
                     // writes instead of leaving them in the scene.
@@ -3033,6 +3263,15 @@ int main(int argc, char** argv) {
                     set_trace(session.view, before_trace);
                     session.display.compose(session.view, false);
                     session.display.present(session.view, options.overlay);
+                    return;
+                }
+                if (ended) {
+                    // The scene session ended; the explicit R/ESC notice is
+                    // already composed. Do not touch the old click's object.
+                    std::cout << "click_result scene_session_ended active_slots="
+                              << session.view.trace.active_hotspots.size() << '\n';
+                    follow_switches(session, true);
+                    if (options.print_hotspots) print_hotspot_screens(session.view);
                     return;
                 }
                 show_object_text(session, *hit.slot, true);
@@ -3069,18 +3308,25 @@ int main(int argc, char** argv) {
                           << " handled=" << (plan.ok ? "true" : "false") << '\n';
                 const auto before_state = session.view.state;
                 const auto before_trace = session.view.trace;
-                if (plan.ok && execute_plan(session, plan, run, true)) {
-                    show_object_text(session, static_cast<std::uint16_t>(*options.click), true);
-                    show_message_text(session, true);
-                    apply_panorama_events(session.view, options, true);
-                    refresh_background(options, session.view);
-                    session.display.compose(session.view);
-                    session.display.present(session.view, options.overlay);
-                    std::cout << "click_result "
-                              << describe_trace(session.view.trace, session.view.state)
-                              << " active_slots="
-                              << session.view.trace.active_hotspots.size() << '\n';
-                    follow_switches(session, true);
+                bool ended = false;
+                if (plan.ok && execute_plan(session, plan, run, true, &ended)) {
+                    if (ended) {
+                        std::cout << "click_result scene_session_ended active_slots="
+                                  << session.view.trace.active_hotspots.size() << '\n';
+                        follow_switches(session, true);
+                    } else {
+                        show_object_text(session, static_cast<std::uint16_t>(*options.click), true);
+                        show_message_text(session, true);
+                        apply_panorama_events(session.view, options, true);
+                        refresh_background(options, session.view);
+                        session.display.compose(session.view);
+                        session.display.present(session.view, options.overlay);
+                        std::cout << "click_result "
+                                  << describe_trace(session.view.trace, session.view.state)
+                                  << " active_slots="
+                                  << session.view.trace.active_hotspots.size() << '\n';
+                        follow_switches(session, true);
+                    }
                 } else if (plan.ok) {
                     session.view.state = before_state;
                     set_trace(session.view, before_trace);
@@ -3109,6 +3355,20 @@ int main(int argc, char** argv) {
                                event.key.keysym.sym == SDLK_h) {
                         options.overlay = !options.overlay;
                         session.display.present(session.view, options.overlay);
+                    } else if (event.type == SDL_KEYDOWN &&
+                               event.key.keysym.sym == SDLK_r &&
+                               session.reload_available) {
+                        // The explicit choice after a conversation session end.
+                        // The scene is reloaded from the supplied save/entry;
+                        // no automatic rollback happened before this key.
+                        if (restart_scene(session, run, true,
+                                          "conversation_session_exit_user_choice")) {
+                            follow_switches(session, true);
+                            SDL_SetWindowTitle(
+                                session.display.window,
+                                ("Byzantine - " + session.view.name + " label " +
+                                 std::to_string(session.view.label)).c_str());
+                        }
                     } else if (event.type == SDL_KEYDOWN &&
                                (event.key.keysym.sym == SDLK_LEFT ||
                                 event.key.keysym.sym == SDLK_RIGHT ||
@@ -3189,6 +3449,7 @@ int main(int argc, char** argv) {
             set_trace(session.view, trace_point(session.view, point, entry, 0));
             return true;
         };
+        bool startup_ended = false;
         if (probe.conversation_request) {
             ClickPlan startup;
             startup.ok = true;
@@ -3197,7 +3458,7 @@ int main(int argc, char** argv) {
             startup.entry = probe_state;
             startup.entry_before = session.view.entry_state;
             startup.probe = probe;
-            if (!execute_plan(session, startup, run_shot, true)) {
+            if (!execute_plan(session, startup, run_shot, true, &startup_ended)) {
                 session.view.state = startup.entry;
                 set_trace(session.view, probe);
                 std::cout << "startup_not_committed\n";
@@ -3207,8 +3468,10 @@ int main(int argc, char** argv) {
             set_trace(session.view, probe);
             session.view.state = std::move(probe_state);
         }
-        apply_panorama_events(session.view, options, true);
-        show_message_text(session, true);
+        if (!startup_ended) {
+            apply_panorama_events(session.view, options, true);
+            show_message_text(session, true);
+        }
         if (options.run_label) {
             ClickPlan plan;
             plan.ok = true;
@@ -3225,16 +3488,23 @@ int main(int argc, char** argv) {
             if (!blocker.empty()) {
                 std::cout << "run_label " << plan.action << " stopped: " << blocker
                           << " at instruction " << plan.probe.stopped_at << '\n';
-            } else if (!execute_plan(session, plan, run_shot, true)) {
-                session.view.state = plan.entry_before;
-                set_trace(session.view, before_trace);
-                std::cout << "run_label " << plan.action << " not committed\n";
             } else {
-                std::cout << "run_label " << plan.action << " click_result "
-                          << describe_trace(session.view.trace, session.view.state) << '\n';
-                show_message_text(session, true);
-                apply_panorama_events(session.view, options, true);
-                follow_switches(session, false);
+                bool ended = false;
+                if (!execute_plan(session, plan, run_shot, true, &ended)) {
+                    session.view.state = plan.entry_before;
+                    set_trace(session.view, before_trace);
+                    std::cout << "run_label " << plan.action << " not committed\n";
+                } else if (ended) {
+                    std::cout << "run_label " << plan.action
+                              << " click_result scene_session_ended\n";
+                    follow_switches(session, false);
+                } else {
+                    std::cout << "run_label " << plan.action << " click_result "
+                              << describe_trace(session.view.trace, session.view.state) << '\n';
+                    show_message_text(session, true);
+                    apply_panorama_events(session.view, options, true);
+                    follow_switches(session, false);
+                }
             }
         }
         if (options.click) {
@@ -3243,10 +3513,14 @@ int main(int argc, char** argv) {
                       << " handled=" << (plan.ok ? "true" : "false") << '\n';
             if (plan.ok) {
                 const auto before_trace = session.view.trace;
-                if (!execute_plan(session, plan, run_shot, true)) {
+                bool ended = false;
+                if (!execute_plan(session, plan, run_shot, true, &ended)) {
                     session.view.state = plan.entry_before;
                     set_trace(session.view, before_trace);
                     std::cout << "click_not_committed\n";
+                } else if (ended) {
+                    std::cout << "click_result scene_session_ended\n";
+                    follow_switches(session, false);
                 } else {
                     std::cout << "click_result "
                               << describe_trace(session.view.trace, session.view.state) << '\n';
@@ -3272,10 +3546,16 @@ int main(int argc, char** argv) {
                 continue;
             }
             const auto before_trace = session.view.trace;
-            if (!execute_plan(session, plan, run_shot, true)) {
+            bool ended = false;
+            if (!execute_plan(session, plan, run_shot, true, &ended)) {
                 session.view.state = plan.entry_before;
                 set_trace(session.view, before_trace);
                 std::cout << " click_not_committed\n";
+                continue;
+            }
+            if (ended) {
+                std::cout << " click_result scene_session_ended\n";
+                follow_switches(session, false);
                 continue;
             }
             std::cout << " click_result "
