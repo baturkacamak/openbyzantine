@@ -41,7 +41,9 @@ Port mapping (common, no scene lookup):
 - The port logs `conversation_menu open`, `conversation_menu result=N action=…`
   and `conversation_menu_ready source=messages|fallback`.
 
-Verification (MR `30.btb`, real X11 input; log
+Verification (MR `30.btb`, X11 pointer events on an isolated server
+(`xdotool`/XTEST, the same SDL event path as a physical pointer; see
+`MOUSE_INPUT.md` for why the host pointer was isolated); log
 `port/output/recordings/menu_flow/menu_flow.log`):
 
 ```
@@ -154,7 +156,7 @@ save. That is the documented general data blocker, not a conversation opcode.
 The AM start used `--run-label <action>` as a development entry: the save's
 active hotspot set does not contain those slots. This is explicitly **not**
 claimed as physical-mouse verification; the dialog/session-end/re-talk flow was
-verified with real mouse input on MR.
+verified with X11 pointer events (XTEST) on MR.
 
 Media note: the AM conversation AVI folders are not in the prepared test data
 dir, so `conversation_media clip=… missing`; text/VM/choice behaviour is what
