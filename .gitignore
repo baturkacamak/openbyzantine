@@ -35,6 +35,7 @@ port/compose-test
 port/jpeg-test
 port/text-test
 port/conversation-test
+port/input-test
 *.o
 *.a
 *.so

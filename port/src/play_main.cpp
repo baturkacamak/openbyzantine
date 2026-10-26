@@ -821,6 +821,16 @@ struct Display {
                                     SDL_TEXTUREACCESS_STREAMING, kSceneWidth, kSceneHeight);
         if (texture == nullptr) throw std::runtime_error(SDL_GetError());
         surface = byzantine::make_surface(kSceneWidth, kSceneHeight, 0);
+        int window_width = 0;
+        int window_height = 0;
+        int output_width = 0;
+        int output_height = 0;
+        SDL_GetWindowSize(window, &window_width, &window_height);
+        SDL_GetRendererOutputSize(renderer, &output_width, &output_height);
+        std::cout << "window geometry=" << window_width << 'x' << window_height
+                  << " output=" << output_width << 'x' << output_height
+                  << " logical=" << logical_width << 'x' << logical_height
+                  << " (mouse events arrive in logical coordinates)\n";
     }
 
     void load_background(const std::filesystem::path& file) {
@@ -899,6 +909,16 @@ struct Display {
             logical_width = image.width;
             logical_height = image.height;
             SDL_RenderSetLogicalSize(renderer, logical_width, logical_height);
+            int window_width = 0;
+            int window_height = 0;
+            int output_width = 0;
+            int output_height = 0;
+            SDL_GetWindowSize(window, &window_width, &window_height);
+            SDL_GetRendererOutputSize(renderer, &output_width, &output_height);
+            std::cout << "window geometry=" << window_width << 'x' << window_height
+                      << " output=" << output_width << 'x' << output_height
+                      << " logical=" << logical_width << 'x' << logical_height
+                      << " (logical size changed)\n";
         }
         SDL_UpdateTexture(texture, nullptr, image.pixels.data(), image.width * 2);
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
@@ -937,25 +957,36 @@ struct Display {
         present_image(surface, view, overlay, 0);
     }
 
-    // SDL_RenderWindowToLogical expects renderer-output pixels. X11 mouse
-    // events are in window points; on a 2x-scaled display the renderer output
-    // is 2560x1920 while the window is 1280x960, so feeding the event
-    // coordinate directly lands at half the visible position. Scale by
-    // output/window first.
-    void window_to_logical(int window_x, int window_y, float* logical_x,
-                           float* logical_y) const {
-        int output_width = 0;
-        int output_height = 0;
+    // SDL_RenderSetLogicalSize installs SDL_RendererEventWatch, which rewrites
+    // every queued SDL_MOUSEMOTION/BUTTON coordinate from window points to the
+    // logical size (SDL_render.c's logical_w branch: subtract the viewport and
+    // divide by scale*dpi_scale). Those event fields are therefore ALREADY
+    // logical and must not be scaled again. SDL_GetMouseState, however, returns
+    // window coordinates; SDL_RenderWindowToLogical is its inverse and applies
+    // dpi_scale (window points -> renderer output pixels) itself. Multiplying
+    // the window point by output/window first would apply the DPI factor twice.
+    void mouse_logical(float* logical_x, float* logical_y) const {
+        int window_x = 0;
+        int window_y = 0;
+        SDL_GetMouseState(&window_x, &window_y);
+        SDL_RenderWindowToLogical(renderer, window_x, window_y, logical_x, logical_y);
+    }
+
+    // Evidence for a real click: the event coordinate SDL delivered (already
+    // logical) together with the window/output geometry that produced it.
+    void log_mouse_click(float logical_x, float logical_y, const char* phase) const {
         int window_width = 0;
         int window_height = 0;
-        SDL_GetRendererOutputSize(renderer, &output_width, &output_height);
+        int output_width = 0;
+        int output_height = 0;
         SDL_GetWindowSize(window, &window_width, &window_height);
-        const float scale_x =
-            window_width > 0 ? static_cast<float>(output_width) / window_width : 1.0f;
-        const float scale_y =
-            window_height > 0 ? static_cast<float>(output_height) / window_height : 1.0f;
-        SDL_RenderWindowToLogical(renderer, window_x * scale_x, window_y * scale_y,
-                                  logical_x, logical_y);
+        SDL_GetRendererOutputSize(renderer, &output_width, &output_height);
+        std::cout << "mouse_click phase=" << phase
+                  << " logical=" << static_cast<int>(logical_x) << ','
+                  << static_cast<int>(logical_y) << " window=" << window_width << 'x'
+                  << window_height << " output=" << output_width << 'x'
+                  << output_height << " logical_size=" << logical_width << 'x'
+                  << logical_height << std::endl;
     }
 
     // 0x4177c7 (examine, font 1, 0x14a, 3 lines, left) and 0x417a17 (message,
@@ -2483,13 +2514,9 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                 // under the pointer uses its white (0xffff) colour. The rects
                 // are screen coordinates, so the hit area is exactly the drawn
                 // text's width and line block.
-                int pointer_x = 0;
-                int pointer_y = 0;
-                SDL_GetMouseState(&pointer_x, &pointer_y);
                 float mouse_x = 0;
                 float mouse_y = 0;
-                session.display.window_to_logical(pointer_x, pointer_y, &mouse_x,
-                                                 &mouse_y);
+                session.display.mouse_logical(&mouse_x, &mouse_y);
                 hovered = answer_at(rects, mouse_x, mouse_y);
                 if (verbose && hovered != last_hovered) {
                     std::cout << "conversation_hover choice=" << hovered
@@ -2548,11 +2575,10 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                         session.options.overlay = !session.options.overlay;
                     } else if (event_poll.type == SDL_MOUSEBUTTONUP &&
                                event_poll.button.button == SDL_BUTTON_LEFT) {
-                        float logical_x = 0;
-                        float logical_y = 0;
-                        session.display.window_to_logical(
-                            event_poll.button.x, event_poll.button.y, &logical_x,
-                            &logical_y);
+                        // SDL_RendererEventWatch already made button.x/y logical.
+                        const float logical_x = static_cast<float>(event_poll.button.x);
+                        const float logical_y = static_cast<float>(event_poll.button.y);
+                        session.display.log_mouse_click(logical_x, logical_y, "conversation");
                         const auto index = answer_at(rects, logical_x, logical_y);
                         if (index >= 0) {
                             if (verbose) {
@@ -3097,23 +3123,21 @@ int main(int argc, char** argv) {
                         turn(yaw, pitch);
                     } else if (event.type == SDL_MOUSEBUTTONDOWN &&
                                event.button.button == SDL_BUTTON_LEFT) {
-                        float logical_x = 0;
-                        float logical_y = 0;
-                        session.display.window_to_logical(
-                            event.button.x, event.button.y, &logical_x, &logical_y);
+                        // SDL_RendererEventWatch already converted button.x/y
+                        // to the renderer's logical size; use them as they are.
+                        const float logical_x = static_cast<float>(event.button.x);
+                        const float logical_y = static_cast<float>(event.button.y);
                         if (panorama_layer(session.view)) {
                             dragging = true;
                             dragged = false;
                             drag_x = static_cast<int>(logical_x);
                         } else {
+                            session.display.log_mouse_click(logical_x, logical_y, "down");
                             handle_click(static_cast<int>(logical_x),
                                          static_cast<int>(logical_y));
                         }
                     } else if (event.type == SDL_MOUSEMOTION && dragging) {
-                        float logical_x = 0;
-                        float logical_y = 0;
-                        session.display.window_to_logical(
-                            event.motion.x, event.motion.y, &logical_x, &logical_y);
+                        const float logical_x = static_cast<float>(event.motion.x);
                         const int delta = static_cast<int>(logical_x) - drag_x;
                         if (delta != 0) {
                             // One source column per screen pixel, the same
@@ -3128,11 +3152,10 @@ int main(int argc, char** argv) {
                     } else if (event.type == SDL_MOUSEBUTTONUP &&
                                event.button.button == SDL_BUTTON_LEFT && dragging) {
                         dragging = false;
-                        float logical_x = 0;
-                        float logical_y = 0;
-                        session.display.window_to_logical(
-                            event.button.x, event.button.y, &logical_x, &logical_y);
+                        const float logical_x = static_cast<float>(event.button.x);
+                        const float logical_y = static_cast<float>(event.button.y);
                         if (!dragged) {
+                            session.display.log_mouse_click(logical_x, logical_y, "up");
                             handle_click(static_cast<int>(logical_x),
                                          static_cast<int>(logical_y));
                         } else {

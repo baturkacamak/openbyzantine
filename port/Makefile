@@ -18,7 +18,7 @@ byzantine-play: src/play_main.cpp src/cc.cpp src/cb.cpp src/anims.cpp src/compos
 	$(CXX) $(CXXFLAGS) $(SDL2_CFLAGS) -Iinclude src/play_main.cpp src/cc.cpp src/cb.cpp src/anims.cpp src/compose.cpp src/jpeg.cpp src/panorama.cpp src/panorama_view.cpp src/save.cpp src/records.cpp src/variables.cpp src/scene_setup.cpp src/text.cpp src/conversation.cpp $(SDL2_LIBS) -o $@
 
 clean:
-	rm -f byzantine-rle byzantine-all byzantine-cc byzantine-play scene-state-test variable-metadata-test panorama-test panorama-view-test records-test save-test anims-test compose-test jpeg-test
+	rm -f byzantine-rle byzantine-all byzantine-cc byzantine-play scene-state-test variable-metadata-test panorama-test panorama-view-test records-test save-test anims-test compose-test jpeg-test input-test
 
 scene-state-test: tests/scene_state.cpp src/cc.cpp src/cb.cpp src/variables.cpp src/anims.cpp include/byzantine/cc.hpp include/byzantine/anims.hpp include/byzantine/compose.hpp
 	$(CXX) $(CXXFLAGS) -Iinclude tests/scene_state.cpp src/cc.cpp src/cb.cpp src/variables.cpp src/anims.cpp src/compose.cpp -o $@
@@ -50,10 +50,13 @@ text-test: tests/text.cpp src/text.cpp src/compose.cpp include/byzantine/text.hp
 conversation-test: tests/conversation.cpp src/conversation.cpp src/all.cpp src/cc.cpp src/cb.cpp src/variables.cpp src/anims.cpp src/compose.cpp include/byzantine/conversation.hpp include/byzantine/all.hpp include/byzantine/cc.hpp include/byzantine/anims.hpp include/byzantine/compose.hpp
 	$(CXX) $(CXXFLAGS) -Iinclude tests/conversation.cpp src/conversation.cpp src/all.cpp src/cc.cpp src/cb.cpp src/variables.cpp src/anims.cpp src/compose.cpp -o $@
 
+input-test: tests/input.cpp
+	$(CXX) $(CXXFLAGS) $(SDL2_CFLAGS) -Iinclude tests/input.cpp $(SDL2_LIBS) -o $@
+
 save-test: tests/save.cpp src/save.cpp src/cc.cpp src/cb.cpp src/variables.cpp src/anims.cpp include/byzantine/save.hpp include/byzantine/cc.hpp include/byzantine/cb.hpp include/byzantine/anims.hpp include/byzantine/compose.hpp
 	$(CXX) $(CXXFLAGS) -Iinclude tests/save.cpp src/save.cpp src/cc.cpp src/cb.cpp src/variables.cpp src/anims.cpp src/compose.cpp -o $@
 
-test: scene-state-test variable-metadata-test panorama-test panorama-view-test records-test save-test anims-test compose-test jpeg-test text-test conversation-test
+test: scene-state-test variable-metadata-test panorama-test panorama-view-test records-test save-test anims-test compose-test jpeg-test text-test conversation-test input-test
 	./scene-state-test output/cc_all/EA output/cb_all/EA output/cc_all/STAR output/cb_all/STAR output/co_all/EA
 	./variable-metadata-test ../analysis/rea/engine_sample/copy2hd/engine output/cc_all/EA output/cb_all/EA
 	./panorama-test
@@ -65,5 +68,6 @@ test: scene-state-test variable-metadata-test panorama-test panorama-view-test r
 	./text-test
 	./conversation-test ../analysis/rea/engine_sample/copy2hd/engine/Byz.all
 	./save-test ../analysis/rea/save_sample ../analysis/rea/engine_sample/copy2hd/engine/SHOW.LCC output/cc_all
+	./input-test
 
 .PHONY: all clean test
