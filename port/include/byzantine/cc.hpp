@@ -381,12 +381,22 @@ struct ConversationEntryKey {
     }
 };
 
+// One 8-byte record allocated by 0x45/0x46: a byte (instruction operand 1)
+// and a pointer to an entry resolved by FUN_004367eb (operand 2). The original
+// writes these tables but no decompiled reader consumes them; the port keeps
+// them so the opcodes are not skipped and so the state shape is complete.
+struct ConversationSlotValue {
+    std::uint8_t byte = 0;
+    ConversationEntryKey entry;
+};
+
 // The persistent part of DAT_00482ad0's per-conversation state (0x1ea4 bytes,
 // allocated once by 0x410669). 0x432d6e resets only the per-call cursor/chosen
 // slots; the group entries' enabled/unspeak flags, the line overrides, the skip
-// arrays and the default group bytes survive the next 0x70. 0x42c8a0's scene
-// load calls 0x41316f -> 0x40fbf6 -> 0x40f98c, which frees every conversation
-// state, so a 0x73 scene switch starts with an empty map.
+// arrays, the 0x45/0x46 slot tables and the default group bytes survive the
+// next 0x70. 0x42c8a0's scene load calls 0x41316f -> 0x40fbf6 -> 0x40f98c,
+// which frees every conversation state, so a 0x73 scene switch starts with an
+// empty map.
 struct ConversationMemory {
     std::set<ConversationEntryKey> unspeak;
     std::set<ConversationEntryKey> disabled;
@@ -396,6 +406,13 @@ struct ConversationMemory {
     std::vector<std::uint8_t> skip_a = std::vector<std::uint8_t>(50, 0xff);
     std::vector<std::uint8_t> skip_b = std::vector<std::uint8_t>(50, 0xff);
     std::vector<std::uint8_t> skip_c = std::vector<std::uint8_t>(50, 0xff);
+    // state+0x2a, state+0x5c and state+0x8e (50 pointers each).
+    std::vector<std::optional<ConversationSlotValue>> slot_2a =
+        std::vector<std::optional<ConversationSlotValue>>(50);
+    std::vector<std::optional<ConversationSlotValue>> slot_5c =
+        std::vector<std::optional<ConversationSlotValue>>(50);
+    std::vector<std::optional<ConversationSlotValue>> slot_8e =
+        std::vector<std::optional<ConversationSlotValue>>(50);
     std::uint8_t default_reply = 0xff;  // state+0xb (0x3b)
     std::uint8_t default_line = 0xff;   // state+0xd (0x40)
     bool default_reply_pending = false; // state+0xc

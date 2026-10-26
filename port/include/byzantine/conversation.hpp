@@ -219,6 +219,11 @@ private:
     // state+0xf2 (50 entries) and state+0x490 (50 bytes) overrides.
     std::vector<std::optional<ConversationEntry*>> line_override_;
     std::vector<std::uint8_t> line_override_flag_ = std::vector<std::uint8_t>(50, 0);
+    // state+0x2a/0x5c/0x8e: the 0x45/0x46 {byte, entry} slot tables. They are
+    // part of the conversation state and persist across 0x70 calls.
+    std::vector<std::optional<ConversationSlotValue>> slot_2a_;
+    std::vector<std::optional<ConversationSlotValue>> slot_5c_;
+    std::vector<std::optional<ConversationSlotValue>> slot_8e_;
     // state+0xc0: the answer entry chosen for each group.
     std::vector<std::optional<ConversationEntry*>> chosen_;
     std::vector<std::optional<ConversationEntryKey>> line_override_keys_ =

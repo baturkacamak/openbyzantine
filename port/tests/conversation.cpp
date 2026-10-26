@@ -279,6 +279,53 @@ void test_program_and_runtime() {
     check(state3.variables[5] == 1, "object click keeps the conversation's writes");
 }
 
+void test_slot_opcodes() {
+    // 0x45/0x46 write a byte and an entry pointer into state+0x2a/0x5c/0x8e.
+    // The shipped AM curator conversation ICUAM1A uses 0x46 before its first
+    // line; no decompiled reader consumes the records, but the opcodes must
+    // not be skipped and the state must persist across 0x70 calls.
+    Writer writer;
+    write_list(writer, {Instr{0x45, {{1, 0}, {1, 9}, {8, 0}}},
+                        Instr{0x46, {{1, 1}, {1, 7}, {8, 0}, {1, 2}}},
+                        Instr{0x46, {{1, 2}, {1, 5}, {8, 0}, {1, 0}}},
+                        Instr{0x32, {{1, 0}}}});
+    write_list(writer, {Instr{0x3e, {{32, 0}}}});
+    GroupFixture line_group;
+    line_group.entries.push_back(entry(1, {Instr{0x39, {}}}));
+    write_groups(writer, {line_group});
+    GroupFixture answer_group;
+    answer_group.entries.push_back(entry(2, {}));
+    write_groups(writer, {answer_group});
+    const auto clips = lines({"null", "line one"});
+    const auto texts = lines({"null", "line one"});
+    auto program = byzantine::parse_conversation_program(writer.bytes, clips, texts,
+                                                         "slot-opcodes");
+    auto state = zero_state();
+    auto& memory = state.conversation_memory[7];
+    byzantine::ConversationSession session(program, state, &memory);
+    session.start();
+    auto event = session.next();
+    check(event.kind == byzantine::ConversationEventKind::line && event.line.index == 1,
+          "0x45/0x46 prelude reaches the line");
+    session.line_shown();
+    event = session.next();
+    check(event.kind == byzantine::ConversationEventKind::finished,
+          "0x45/0x46 fixture ends");
+    check(memory.slot_2a.size() == 50 && memory.slot_2a[0].has_value() &&
+              memory.slot_2a[0]->byte == 9 &&
+              memory.slot_2a[0]->entry == byzantine::ConversationEntryKey{1, 0, 0, 0xffff},
+          "0x45 stores its byte and answer entry in state+0x2a");
+    check(memory.slot_5c[1].has_value() && memory.slot_5c[1]->byte == 7,
+          "0x46 selector 2 stores in state+0x5c");
+    check(memory.slot_8e[2].has_value() && memory.slot_8e[2]->byte == 5,
+          "0x46 other selector stores in state+0x8e");
+    // A second 0x70 applies the persisted slot tables.
+    byzantine::ConversationSession again(program, state, &memory);
+    again.start();
+    check(again.next().kind == byzantine::ConversationEventKind::line,
+          "0x45/0x46 state applies on re-entry");
+}
+
 void test_memory_reentry() {
     auto program = build_program();
     const auto run_to_answers = [&](byzantine::ConversationSession& session) {
@@ -497,6 +544,7 @@ int main(int argc, char** argv) {
     try {
         test_lines_and_records();
         test_program_and_runtime();
+        test_slot_opcodes();
         test_memory_reentry();
         test_conditions();
         test_unsupported_and_rejections();

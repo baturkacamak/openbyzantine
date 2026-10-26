@@ -236,6 +236,9 @@ ConversationSession::ConversationSession(ConversationProgram program, SceneState
     answer_b_.resize(kGroupSlots);
     answer_c_.resize(kGroupSlots);
     line_override_.resize(kGroupSlots);
+    slot_2a_.resize(kGroupSlots);
+    slot_5c_.resize(kGroupSlots);
+    slot_8e_.resize(kGroupSlots);
     chosen_.resize(kGroupSlots);
 }
 
@@ -305,6 +308,9 @@ void ConversationSession::apply_memory() {
             }
         }
     }
+    slot_2a_ = memory_->slot_2a;
+    slot_5c_ = memory_->slot_5c;
+    slot_8e_ = memory_->slot_8e;
 }
 
 void ConversationSession::save_memory(bool mark_done) {
@@ -342,6 +348,9 @@ void ConversationSession::save_memory(bool mark_done) {
     memory_->default_line = default_line_;
     memory_->line_override = line_override_keys_;
     memory_->line_override_flag = line_override_flag_;
+    memory_->slot_2a = slot_2a_;
+    memory_->slot_5c = slot_5c_;
+    memory_->slot_8e = slot_8e_;
     if (mark_done) memory_->done = done_;
 }
 
@@ -609,6 +618,36 @@ void ConversationSession::run_instruction_list(
             line_override_keys_[index.value] = ConversationEntryKey{
                 0, index.value, index.high, 0xffff};
             line_override_flag_[index.value] = static_cast<std::uint8_t>(index.high);
+            break;
+        }
+        case 0x45:    // store {operand1 byte, resolved entry} in state+0x2a
+        case 0x46: {  // store it in state+0x5c (operand3 == 2) or state+0x8e
+            // 0x43340a: operand 0 is the 50-slot index, operand 1 the byte, and
+            // operand 2 is an entry reference resolved by FUN_004367eb: its
+            // type bit 0x10 selects the line list (state+0x4c4), otherwise the
+            // answer list (state+0x58c); word 0 is the group and word 1 the
+            // +8 hop. The game writes these 8-byte records but no decompiled
+            // reader consumes them; the store is still part of the state.
+            const auto slot = argument(instruction, 0);
+            const auto byte = argument(instruction, 1);
+            const auto index = argument(instruction, 2);
+            if (slot.value >= kGroupSlots) {
+                throw std::runtime_error("conversation 0x45/0x46 slot outside 50");
+            }
+            const bool line_list = (index.type & 0x10) != 0;
+            auto& groups = line_list ? program_.lines : program_.answers;
+            entry_at(groups, index.value, index.high, "0x45/0x46");
+            const ConversationSlotValue value{
+                static_cast<std::uint8_t>(byte.value),
+                ConversationEntryKey{static_cast<std::uint8_t>(line_list ? 0 : 1),
+                                     index.value, index.high, 0xffff}};
+            if (instruction.opcode == 0x45) {
+                slot_2a_[slot.value] = value;
+            } else if (argument(instruction, 3).value == 2) {
+                slot_5c_[slot.value] = value;
+            } else {
+                slot_8e_[slot.value] = value;
+            }
             break;
         }
         case 0x49: {  // if var0 == value: switch line group (not a CC label)
