@@ -184,6 +184,11 @@ reproduced and fixed in the same layer. Reports:
   `item_use slot=26 … compatible=yes`, `click_result steps=9 … active_slots=7`;
   screenshot `port/output/recordings/item_use/clock_after_use.png` shows the
   empty page-2 strip. A real wrong-item click on object 24 was rejected.
+- **Item cursor (follow-up `a6613e8`).** While a strip record is selected the
+  pointer is the item's `inventor/<name>.tga` (`0x407bd7`/`0x40df05`), via a
+  real SDL colour cursor; deselection restores the arrow. A rejected item use
+  now logs `(item in hand; click its strip slot again to cancel)`. The
+  hotitem (`0x407bd7(1)`) hover image is still not claimed.
 - **Tools/tests.** `--click-at` with `y >= 0x1a4` now uses the real strip
   handler; `--print-objects` (objects + strip state) and `--print-variables`
   (local/global/name/value) are diagnostics; `--save-dump` prints channel item
