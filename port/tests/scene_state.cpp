@@ -956,6 +956,42 @@ int main(int argc, char** argv) {
                 "compose_scene ordering/counters mismatch");
         require(composed.records[0].blit.y == 1, "compose_scene playfield origin");
         require(target.at(1, 1) == 0x2211, "composed pixel missing");  // 0x1111 after 0x4164a0
+        // 0x43b216 phase 1: a flag-0x20 record with a +0x20 frame is drawn
+        // once at +0x24/+0x26 and the +0x20 pointer is cleared. DAT_004859cd
+        // (set after a save load) disables the whole pass.
+        {
+            auto snap_state = compose_state;
+            snap_state.actor_assets.resize(7);
+            snap_state.actor_assets[6] = byzantine::NamedRecord{"abanim", "T.CCG", 1};
+            byzantine::SceneRecordState snap;
+            snap.kind = 0;
+            snap.flags = 0x20;
+            snap.frame_index_20 = 0;
+            snap.snap_x = 3;
+            snap.snap_y = byzantine::kPlayfieldTop + 4;
+            snap_state.records[6] = snap;
+            snap_state.flag_4859cd = false;
+            auto snap_target = byzantine::make_surface(8, 8, 0);
+            const auto snapped = byzantine::compose_scene(snap_state, snap_target);
+            require(snapped.snap_drawn == 1 && snapped.drawn == 2 &&
+                        snap_target.at(3, 4) == 0x2211 &&
+                        snap_state.records.at(6).frame_index_20 == 0xffff,
+                    "0x43b216 snap pass did not draw/clear the +0x20 frame");
+            byzantine::SceneRecordState snap_again;
+            snap_again.kind = 0;
+            snap_again.flags = 0x20;
+            snap_again.frame_index_20 = 0;
+            snap_again.snap_x = 3;
+            snap_again.snap_y = byzantine::kPlayfieldTop + 4;
+            auto loaded_state = compose_state;
+            loaded_state.records[6] = snap_again;
+            loaded_state.flag_4859cd = true;  // save load: DAT_004859cd = 1
+            auto loaded_target = byzantine::make_surface(8, 8, 0);
+            const auto loaded = byzantine::compose_scene(loaded_state, loaded_target);
+            require(loaded.snap_drawn == 0 && loaded_target.at(3, 4) == 0 &&
+                        loaded_state.records.at(6).frame_index_20 == 0,
+                    "snap pass ran after a load (DAT_004859cd) ");
+        }
         // 0x40241c rejects a record whose top-left is above the playfield: the
         // original never draws through a negative origin.
         auto above_state = compose_state;

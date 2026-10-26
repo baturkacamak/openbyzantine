@@ -142,6 +142,7 @@ struct Options {
     bool print_hotspots = false;               // --print-hotspots
     bool print_objects = false;                // --print-objects
     bool print_variables = false;              // --print-variables
+    bool print_records = false;                // --print-records
 
     // --conversation-choices 1,0,...: deterministic answers for --shot/tests.
     // The interactive player never uses this: an answer is a real mouse click.
@@ -200,6 +201,10 @@ Options parse_options(int argc, char** argv) {
         }
         if (token == "--print-variables") {
             options.print_variables = true;
+            continue;
+        }
+        if (token == "--print-records") {
+            options.print_records = true;
             continue;
         }
         if (token == "--bar-use") {
@@ -284,7 +289,7 @@ Options parse_options(int argc, char** argv) {
             "[--conversation-video-shot <ppm>] [--bar-select <id>] [--bar-use] "
             "[--bar-next] [--bar-prev] [--no-video] "
             "[--no-hotspots] [--no-audio] [--print-audio] [--print-hotspots] "
-            "[--print-objects] [--print-variables] [--selftest-events]");
+            "[--print-objects] [--print-variables] [--print-records] [--selftest-events]");
     }
     options.cc_path = positional[0];
     options.cb_path = positional[1];
@@ -1060,6 +1065,7 @@ struct Display {
                       << " drawn=" << drawn.drawn
                       << " skipped_no_frame=" << drawn.skipped_no_frame
                       << " skipped_snap=" << drawn.skipped_snap
+                      << " snap_drawn=" << drawn.snap_drawn
                       << " skipped_hidden=" << drawn.skipped_hidden
                       << " pixels=" << drawn.pixels_written
                       << " drawn_ids=" << drawn_ids(drawn) << '\n';
@@ -1079,6 +1085,7 @@ struct Display {
                   << " drawn=" << drawn.drawn
                   << " skipped_no_frame=" << drawn.skipped_no_frame
                   << " skipped_snap=" << drawn.skipped_snap
+                  << " snap_drawn=" << drawn.snap_drawn
                   << " skipped_hidden=" << drawn.skipped_hidden
                   << " pixels=" << drawn.pixels_written
                   << " drawn_ids=" << drawn_ids(drawn) << '\n';
@@ -2259,6 +2266,31 @@ void print_objects(const SceneView& view) {
     }
 }
 
+// Diagnostic for the record/animation layer: the live DAT_004649e8 slots with
+// the fields 0x43b216/0x43c114 read (kind +0x08, flags +0x09, current frame
+// +0x1c, the mode-1 position +0x24/+0x26 and its +0x20 frame).
+void print_records(const SceneView& view) {
+    for (const auto& [id, record] : view.state.records) {
+        std::cout << "record id=" << id << " kind=" << static_cast<unsigned>(record.kind)
+                  << " flags=0x" << std::hex << static_cast<unsigned>(record.flags)
+                  << std::dec << " x=" << record.x << " y=" << record.y
+                  << " snap_x=" << record.snap_x << " snap_y=" << record.snap_y
+                  << " frame="
+                  << (record.current_frame ? std::to_string(*record.current_frame) : "none")
+                  << " snap_frame="
+                  << (record.frame_index_20 == 0xffff
+                          ? "none"
+                          : std::to_string(record.frame_index_20))
+                  << " frames=" << record.frame_count
+                  << " frames_known=" << (record.frames_known ? 1 : 0);
+        if (id < view.state.actor_assets.size()) {
+            std::cout << " asset=" << view.state.actor_assets[id].name
+                      << " type=" << static_cast<unsigned>(view.state.actor_assets[id].type);
+        }
+        std::cout << '\n';
+    }
+}
+
 // Diagnostic: the scene's local variables (DAT_0047e2f0 projection) and, when
 // the engine tables are loaded, their global id and declared name. This is the
 // state a scene entry rebuilds its visible objects from.
@@ -2280,6 +2312,18 @@ void print_variables(const Session& session) {
         }
         std::cout << '\n';
     }
+}
+
+// Entry summary for the startup trace (a 0x73 travel prints its own line in
+// travel_to). Counts and the stop reason come from the shared trace/blocker
+// classification, so a partially loaded entry cannot look complete.
+void log_entry_summary(const Session& session) {
+    std::cout << "entry scene=" << session.view.name
+              << " steps=" << session.view.trace.steps
+              << " stopped_at=" << session.view.trace.stopped_at
+              << stop_reason(session.view.trace)
+              << " hotspots=" << session.view.trace.active_hotspots.size()
+              << " records=" << session.view.state.records.size() << '\n';
 }
 
 // A hotspot whose action reaches 0x73 is a scene switch: 0x42db22 writes
@@ -3915,6 +3959,7 @@ int main(int argc, char** argv) {
                 apply_panorama_events(session.view, options, true);
                 show_message_text(session, true);
             }
+            log_entry_summary(session);
             if (options.selftest_events && !options.click && options.click_ats.empty() &&
                 !options.run_label) {
                 push_quit();
@@ -3978,6 +4023,7 @@ int main(int argc, char** argv) {
             if (options.print_hotspots) print_hotspot_screens(session.view);
             if (options.print_objects) print_objects(session.view);
             if (options.print_variables) print_variables(session);
+            if (options.print_records) print_records(session.view);
             SDL_SetWindowTitle(session.display.window,
                                ("Byzantine - " + session.view.name + " label " +
                                 std::to_string(session.view.label)).c_str());
@@ -4248,6 +4294,7 @@ int main(int argc, char** argv) {
             apply_panorama_events(session.view, options, true);
             show_message_text(session, true);
         }
+        log_entry_summary(session);
         if (options.run_label) {
             ClickPlan plan;
             plan.ok = true;
@@ -4354,6 +4401,7 @@ int main(int argc, char** argv) {
         if (options.print_hotspots) print_hotspot_screens(session.view);
         if (options.print_objects) print_objects(session.view);
         if (options.print_variables) print_variables(session);
+        if (options.print_records) print_records(session.view);
         session.display.write_shot(session.view, options.shot);
         std::cout << "scene=" << session.view.name
                   << " background=" << session.view.background_name

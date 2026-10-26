@@ -29,9 +29,9 @@ content; the layer line only says which picture is behind it.
 ## Summary
 
 - 44 scenes; **970 CA sprite assets** (type 255 = 692, type 0 = 193, type 1 = 3, type 2 = 16, type 3 = 66).
-- At arrival the player draws **34** records in total, skips **0** without a frame, **103** through the unimplemented snap pass and **0** through `flags & 0x40`.
+- At arrival the player draws **34** records in total, reports **0** without a decodable frame, **103** with the `+0x09 & 0x20` flag (kind pass skips them; the implemented snap pass has no `+0x20` frame in this data) and **0** with `flags & 0x40`.
 - Type 255 is not a missing file: `0x431b0f` leaves the record slot NULL, so every record command for it is skipped (`skipped_node_commands`).
-- `skipped_snap` is a **port gap**, not original invisibility: those records have `+0x09 & 0x20` and the original draws them through the `+0x20` rectangle. `skipped_hidden` (`flags & 0x40`) is the original's own skip.
+- `skipped_snap` means the record carries `+0x09 & 0x20`; the original draws such a record only through `0x43b216` phase 1, which needs a non-NULL `+0x20` frame. Every shipped save record with the flag has `+0x20 = 0xffff` and a save load sets `DAT_004859cd = 1` (phase 1 off), so this is not a hidden missing asset. `skipped_hidden` (`flags & 0x40`) is the original's own skip.
 - Background-only arrivals (no drawn record, no active object, no hotspot): start, hints, iuover, vbdisc, vcdisc, vhdisc, vtdisc.
 
 ## Arrival table
@@ -135,7 +135,7 @@ failure instead of hiding it.
 
 - Only **278/970** CA entries can ever create a record; the rest are type 255.
 - At arrival only **7 scenes** draw any record (clock, hl, hstmed, iu, map, star, voice); that is the actual sprite/character content, not the background.
-- **103** records are skipped by the unimplemented snap pass (`+0x09 & 0x20`), i.e. a shared draw path the port still owes. `skipped_hidden`=0 and `skipped_no_frame`=0.
+- **103** records carry the `+0x09 & 0x20` flag and are not drawn by the kind pass. This is **not missing art**: the snap pass only draws a record with a valid `+0x20` frame, and every such record in the shipped saves has `+0x20 = 0xffff` (NULL); after a save load `DAT_004859cd = 1` disables the pass entirely. The port now implements the pass (`+0x24/+0x26` position, `+0x20` frame, clears it after the one draw) and reports `snap_drawn`; `skipped_hidden`=0, `skipped_no_frame`=0.
 - Background-only arrivals (no record, no active object, no hotspot): start, hints, iuover, vbdisc, vcdisc, vhdisc, vtdisc. Opening their backdrop is *not* scene completion.
 - Media gaps: 3 backgrounds are genuinely absent (ALGDoor2, BCCountr, EAPhne2) and 7 CB entries in the close-up scenes are expected placeholders (the close-up uses `inventor/examine/<item>.jpg`); 17 MZ2 panorama nodes (mz18/mz19/mz21..mz29/mz31..mz36) are not on the CDs while the extracted MZ01..MZ10/mz30 are; BC `bckill1`/`bckill2` are type 0 with no anims file; 3 CD records have no dialog clip folder; 5 CS sounds are not shipped.
 - Characters/dialogue records exist in 18 scenes (start, am, as, bb, bc, ea, ft, gt, hints, hl, hslower, hsupper, iu, mr, nb, sm, sp, tk); item/character names exist in 37 scenes.

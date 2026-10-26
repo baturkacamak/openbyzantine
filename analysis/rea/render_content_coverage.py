@@ -67,15 +67,18 @@ emit(f"- 44 scenes; **{total_ca} CA sprite assets** "
      f"(type 255 = {ca_types.get(255,0)}, type 0 = {ca_types.get(0,0)}, "
      f"type 1 = {ca_types.get(1,0)}, type 2 = {ca_types.get(2,0)}, "
      f"type 3 = {ca_types.get(3,0)}).")
-emit(f"- At arrival the player draws **{drawn}** records in total, skips "
-     f"**{noframe}** without a frame, **{snap}** through the unimplemented snap "
-     f"pass and **{hidden}** through `flags & 0x40`.")
+emit(f"- At arrival the player draws **{drawn}** records in total, reports "
+     f"**{noframe}** without a decodable frame, **{snap}** with the `+0x09 & 0x20` "
+     f"flag (kind pass skips them; the implemented snap pass has no `+0x20` "
+     f"frame in this data) and **{hidden}** with `flags & 0x40`.")
 emit("- Type 255 is not a missing file: `0x431b0f` leaves the record slot NULL, "
      "so every record command for it is skipped (`skipped_node_commands`).")
-emit("- `skipped_snap` is a **port gap**, not original invisibility: those "
-     "records have `+0x09 & 0x20` and the original draws them through the "
-     "`+0x20` rectangle. `skipped_hidden` (`flags & 0x40`) is the original's own "
-     "skip.")
+emit("- `skipped_snap` means the record carries `+0x09 & 0x20`; the original "
+     "draws such a record only through `0x43b216` phase 1, which needs a non-NULL "
+     "`+0x20` frame. Every shipped save record with the flag has `+0x20 = 0xffff` "
+     "and a save load sets `DAT_004859cd = 1` (phase 1 off), so this is not a "
+     "hidden missing asset. `skipped_hidden` (`flags & 0x40`) is the original's "
+     "own skip.")
 emit("- Background-only arrivals (no drawn record, no active object, no "
      "hotspot): " + ", ".join(bg_only) + ".")
 emit("")
@@ -167,9 +170,14 @@ emit(f"- Only **{sum(1 for d in data.values() for x in d['static']['ca'] if x['t
 emit(f"- At arrival only **{len(scene_draw)} scenes** draw any record "
      f"({', '.join(scene_draw)}); that is the actual sprite/character content, "
      "not the background.")
-emit(f"- **{snap}** records are skipped by the unimplemented snap pass "
-     "(`+0x09 & 0x20`), i.e. a shared draw path the port still owes. "
-     f"`skipped_hidden`={hidden} and `skipped_no_frame`={noframe}.")
+emit(f"- **{snap}** records carry the `+0x09 & 0x20` flag and are not drawn by "
+     "the kind pass. This is **not missing art**: the snap pass only draws a "
+     "record with a valid `+0x20` frame, and every such record in the shipped "
+     "saves has `+0x20 = 0xffff` (NULL); after a save load `DAT_004859cd = 1` "
+     "disables the pass entirely. The port now implements the pass "
+     "(`+0x24/+0x26` position, `+0x20` frame, clears it after the one draw) and "
+     f"reports `snap_drawn`; `skipped_hidden`={hidden}, "
+     f"`skipped_no_frame`={noframe}.")
 emit(f"- Background-only arrivals (no record, no active object, no hotspot): "
      f"{', '.join(bg_only)}. Opening their backdrop is *not* scene completion.")
 emit(f"- Media gaps: 3 backgrounds are genuinely absent (ALGDoor2, BCCountr, "

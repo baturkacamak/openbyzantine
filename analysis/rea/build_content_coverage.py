@@ -363,7 +363,8 @@ class Coverage:
         for line in out.splitlines():
             if line.startswith("composed "):
                 m = re.search(r"composed (?:background|panorama)=(\S+).*?drawn=(\d+)"
-                              r" skipped_no_frame=(\d+) skipped_snap=(\d+) "
+                              r" skipped_no_frame=(\d+) skipped_snap=(\d+)"
+                              r"(?: snap_drawn=(\d+))? "
                               r"skipped_hidden=(\d+) pixels=(\d+)(?:.*?drawn_ids=([\d,]*))?",
                               line)
                 if m:
@@ -371,9 +372,10 @@ class Coverage:
                         "layer": m.group(1), "drawn": int(m.group(2)),
                         "skipped_no_frame": int(m.group(3)),
                         "skipped_snap": int(m.group(4)),
-                        "skipped_hidden": int(m.group(5)),
-                        "pixels": int(m.group(6)),
-                        "drawn_ids": [int(x) for x in m.group(7).split(",") if x],
+                        "snap_drawn": int(m.group(5) or 0),
+                        "skipped_hidden": int(m.group(6)),
+                        "pixels": int(m.group(7)),
+                        "drawn_ids": [int(x) for x in (m.group(8) or "").split(",") if x],
                     })
             elif line.startswith("background_missing"):
                 data.setdefault("missing", []).append(line)

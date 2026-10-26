@@ -193,6 +193,14 @@ SceneSetup load_scene_setup(const std::string& cc_path,
                          std::to_string(layout.global_ids.size());
     }
     apply_dialogue_inputs(setup.state, options);
+    if (setup.save) {
+        // 0x426b9d marker 1 loads the animation payload after the 0x40-byte
+        // record copy. The anims/CA inputs are only available now.
+        const auto records = load_save_record_assets(setup.state);
+        if (records != 0) {
+            setup.summary += " record_assets=" + std::to_string(records);
+        }
+    }
     return setup;
 }
 

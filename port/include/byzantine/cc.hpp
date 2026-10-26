@@ -94,6 +94,10 @@ struct SceneRecordState {
     std::int16_t y = 0x14;       // +0x02
     std::int16_t field04 = 10;   // +0x04, written by 0x64 (operand 2) and 0x86
     std::int16_t field06 = 0;    // +0x06, cleared by 0x64
+    // +0x24/+0x26: the mode-1 position 0x43c114 uses with the +0x20 frame.
+    // 0x64 writes it as x/y; 0x426b9d restores it from the save's raw copy.
+    std::int16_t snap_x = 0;
+    std::int16_t snap_y = 0x14;
     std::uint8_t kind = 0;       // +0x08, written only by 0x95
     std::uint8_t flags = 0x20;   // +0x09, kind-bit set by 0x64/0x85/0x86
     // +0x14: the frame count 0x40ffee stores from 0x410078's header and the
@@ -119,7 +123,7 @@ struct SceneRecordState {
     // Save block 17 only: the presence marker byte (1 = 0x40fe70 on load).
     std::uint8_t marker = 0;
     std::uint32_t frame_index_1c = 0;  // +0x1c, 0xffff = none (0x40cf73)
-    std::uint32_t frame_index_20 = 0;  // +0x20, 0xffff = none (0x426ed0)
+    std::uint32_t frame_index_20 = 0xffff;  // +0x20, 0xffff = none (0x426ed0)
     std::uint32_t field_2c = 0;        // +0x2c
     std::uint32_t field_30 = 0;        // +0x30
     // +0x34 extra list (save block 17; 0x42db22 0x8a appends to +0x2c).
@@ -757,6 +761,7 @@ void write_local_variable(SceneState& state, std::uint16_t local,
 struct SceneDraw {
     std::uint16_t id = 0;
     std::uint8_t kind = 0;
+    bool snap = false;  // drew through +0x20/+0x24/+0x26 (0x43b216 phase 1)
     FrameBlit blit;
 };
 
@@ -765,9 +770,11 @@ struct SceneCompose {
     std::size_t drawn = 0;            // records that wrote at least one pixel
     std::size_t skipped_no_frame = 0; // kind 0..4 but no decodable current frame
     std::size_t skipped_other_kind = 0;  // kind outside 0..4 (0x43b216's loop bound)
-    // +0x09 & 0x20: handled by 0x43b216's snap pass, which this port does not
-    // model (it needs the record's +0x20 word, left 0 by 0x40ffee).
+    // +0x09 & 0x20 records the normal pass never draws. Those with a valid
+    // +0x20 frame are drawn once by phase 1 (`snap_drawn`) unless
+    // DAT_004859cd is set (after a save load); the rest stay counted here.
     std::size_t skipped_snap = 0;
+    std::size_t snap_drawn = 0;
     // +0x09 & 0x40: skipped by the normal pass as well.
     std::size_t skipped_hidden = 0;
     std::size_t pixels_written = 0;
@@ -788,13 +795,23 @@ struct SceneRecordPreload {
 };
 SceneRecordPreload preload_scene_records(SceneState& state);
 
-// 0x43b216's record pass, reduced to what the port can draw: for kind 0..4 it
-// walks the DAT_004649e8 table from the highest id down, and draws each
-// record's current frame (+0x1c) at the record's x/y through 0x40bbfd, clipped
-// to the surface. The +0x09 & 0x80 destination-read blend, the `+0x09 & 0x20`
-// "snap" pass and the trail list are NOT modelled (see ANIMATION_ASSET.md).
-// Records whose current frame is unknown are counted, never invented.
+// 0x43b216's record pass: phase 1 (the `+0x09 & 0x20` snap pass, when
+// DAT_004859cd == 0) draws a record once through its `+0x20` frame at
+// `+0x24/+0x26` and clears that frame pointer; phase 2 walks kind 0..4 from the
+// highest id down and draws each record's current frame (+0x1c) at x/y through
+// 0x40bbfd, clipped to the surface. The `+0x09 & 0x80` destination-read blend,
+// the `+0x09 & 0x10` offset pair and the +0x3c trail draw are NOT modelled
+// (see ANIMATION_ASSET.md); records whose frame is unknown are counted.
 SceneCompose compose_scene(SceneState& state, Rgb16Surface& target);
+
+// 0x426b9d marker 1: after the saved 0x40-byte record is copied, 0x40fe70
+// loads the CA asset's animation payload. For an already-allocated record
+// 0x410078 takes its "existing record" branch: frame list, +0x14 count and
+// +0x28 signature come from the asset, but x/y are NOT offset again (the save
+// already stores the frame-0 offsets). Call after the CA/anims inputs exist.
+// Returns how many records were filled; a missing asset is reported, not
+// invented.
+std::size_t load_save_record_assets(SceneState& state);
 
 // Parses a compiled .CC scene script. Opcode meanings are not yet reconstructed.
 // Throws std::runtime_error on invalid input.

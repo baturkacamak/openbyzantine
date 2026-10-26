@@ -159,8 +159,14 @@ void dump_save(const std::vector<std::uint8_t>& bytes,
         std::cout << "node slot=" << static_cast<unsigned>(node.slot) << " marker="
                   << static_cast<unsigned>(node.marker)
                   << " frame1c=" << node.frame_index_1c
-                  << " frame20=" << node.frame_index_20 << " extra=" << node.extra.size()
-                  << '\n';
+                  << " frame20=" << node.frame_index_20
+                  << " x24=" << static_cast<std::int16_t>(node.raw[0x24] | (node.raw[0x25] << 8))
+                  << " y26=" << static_cast<std::int16_t>(node.raw[0x26] | (node.raw[0x27] << 8))
+                  << " flags=0x" << std::hex << static_cast<unsigned>(node.raw[9])
+                  << std::dec
+                  << " d0a=" << static_cast<std::int16_t>(node.raw[0x0a] | (node.raw[0x0b] << 8))
+                  << " d0c=" << static_cast<std::int16_t>(node.raw[0x0c] | (node.raw[0x0d] << 8))
+                  << " extra=" << node.extra.size() << '\n';
     }
 
     std::cout << "objects=" << save.objects.size() << '/' << byzantine::kSaveSlotCount
@@ -537,6 +543,10 @@ int main(int argc, char** argv) {
                 }
             }
             apply_dialogue_inputs(state, arguments.values);
+            if (loaded_save) {
+                const auto records = byzantine::load_save_record_assets(state);
+                if (records != 0) std::cout << "record_assets=" << records << '\n';
+            }
             const auto trace = byzantine::trace_scene_label(
                 instructions, entries, state, static_cast<std::uint16_t>(parsed_label));
             std::cout << "steps=" << trace.steps << " stopped_at=" << trace.stopped_at;
@@ -929,6 +939,7 @@ int main(int argc, char** argv) {
                           << " skipped_no_frame=" << composed.skipped_no_frame
                           << " skipped_other_kind=" << composed.skipped_other_kind
                           << " skipped_snap=" << composed.skipped_snap
+                          << " snap_drawn=" << composed.snap_drawn
                           << " skipped_hidden=" << composed.skipped_hidden
                           << " pixels=" << composed.pixels_written;
                 if (compose_out->second != "-") {

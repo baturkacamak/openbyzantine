@@ -508,42 +508,100 @@ SceneRecordPreload preload_scene_records(SceneState& state) {
     return result;
 }
 
+std::size_t load_save_record_assets(SceneState& state) {
+    if (!state.anims_library || !state.actor_assets_known) return 0;
+    std::size_t loaded = 0;
+    for (auto& [id, record] : state.records) {
+        // 0x426b9d: marker 0 is "record only", marker 1 also calls 0x40fe70.
+        if (record.marker != 1) continue;
+        if (id >= state.actor_assets.size()) continue;
+        const auto asset = state.anims_library->load(state.actor_assets[id].name);
+        if (!asset) continue;
+        // 0x410078's existing-record branch (param_2[0] != NULL): fill the
+        // frame list and counts, do not add the frame-0 x/y offsets again (the
+        // save already has them) and keep the saved current index.
+        record.frame_count = static_cast<std::uint16_t>(asset->frames.size());
+        record.anims_signature = static_cast<std::uint16_t>(asset->signature & 0xff);
+        record.frames = asset->frames;
+        record.frames_known = true;
+        if (record.current_frame && *record.current_frame >= record.frame_count) {
+            record.current_frame = record.frame_count == 0
+                                       ? std::nullopt
+                                       : std::optional<std::uint16_t>{0};
+        }
+        ++loaded;
+    }
+    return loaded;
+}
+
 SceneCompose compose_scene(SceneState& state, Rgb16Surface& target) {
     SceneCompose result;
-    const auto draw = [&](std::uint16_t id, const SceneRecordState& record) {
-        if (!record.current_frame || !state.anims_library ||
-            id >= state.actor_assets.size()) {
+    // 0x43c114 + 0x40241c + 0x42b679 for one frame at one position. `screen_y`
+    // is the record's +0x02/+0x26 value (it carries the +0x14 surface bias).
+    const auto draw_frame = [&](std::uint16_t id, const SceneRecordState& record,
+                                const std::optional<std::uint16_t>& frame,
+                                std::int32_t screen_x, std::int32_t screen_y,
+                                bool snap) -> bool {
+        if (!frame || !state.anims_library || id >= state.actor_assets.size()) {
             ++result.skipped_no_frame;
-            return;
+            return false;
         }
         const auto decoded = state.anims_library->decode(state.actor_assets[id].name,
-                                                         *record.current_frame);
+                                                         *frame);
         if (!decoded) {
             ++result.skipped_no_frame;
-            return;
+            return false;
         }
         SceneDraw entry;
         entry.id = id;
         entry.kind = record.kind;
-        // 0x43c114 returns the record's x/y unchanged; the destination is the
-        // 640x480 scene surface, so the playfield band starts at kPlayfieldTop.
-        const auto x = static_cast<std::int32_t>(record.x);
-        const auto y = static_cast<std::int32_t>(record.y) - kPlayfieldTop;
+        entry.snap = snap;
+        const auto x = screen_x;
+        const auto y = screen_y - kPlayfieldTop;
         if (!target.inside(x, y)) {
             // 0x40241c rejects a record whose TOP-LEFT is outside the window;
-            // it never draws a partially negative origin.
+            // it never draws a partially negative origin. Keep the attempt in
+            // the report so an off-screen record is visible as such.
             entry.blit.x = x;
             entry.blit.y = y;
             entry.blit.covered = decoded->run_pixels;
             entry.blit.clipped = decoded->run_pixels;
             result.records.push_back(entry);
-            return;
+            return false;
         }
         entry.blit = blit_frame(target, *decoded, x, y);
         result.pixels_written += entry.blit.written;
         if (entry.blit.drawn) ++result.drawn;
         result.records.push_back(entry);
+        return true;
     };
+    // 0x43b216 phase 1 (the snap pass), only when DAT_004859cd == 0 (not after
+    // a save load) and the table is non-empty. A record is eligible when
+    // (+0x09 & 0x20) is set, or when its CA type is 1/2 and flags bit 4 is
+    // clear, and it has a +0x20 frame node. The original then draws it through
+    // +0x24/+0x26, removes the matching +0x3c trail node (0x43264d), clears
+    // +0x20/+0x22 and +0x29. The +0x29 byte is not carried by the port.
+    if (!state.flag_4859cd && !state.records.empty()) {
+        for (auto& [id, record] : state.records) {
+            bool eligible = (record.flags & 0x20) != 0;
+            if (!eligible && id < state.actor_assets.size()) {
+                const auto type = state.actor_assets[id].type;
+                eligible = (type == 1 || type == 2) && (record.flags & 4) == 0;
+            }
+            if (!eligible) continue;
+            if (record.frame_index_20 == 0xffff) continue;  // +0x20 is NULL
+            const auto frame = static_cast<std::uint16_t>(record.frame_index_20);
+            if (draw_frame(id, record, frame, record.snap_x, record.snap_y, true)) {
+                ++result.snap_drawn;
+            }
+            // 0x43264d removes the trail node at the record's current position.
+            if (!record.trail.empty() &&
+                record.trail.back() == std::make_pair(record.x, record.y)) {
+                record.trail.pop_back();
+            }
+            record.frame_index_20 = 0xffff;
+        }
+    }
     // 0x43b216: `for (local_3c = 0; local_3c < 5; ++local_3c)` groups the table
     // by the +0x08 kind byte, and each group walks ids from the highest down.
     // The normal pass only reaches a record when `(+0x09 & 0x20) == 0` and
@@ -564,7 +622,7 @@ SceneCompose compose_scene(SceneState& state, Rgb16Surface& target) {
                 ++result.skipped_hidden;
                 continue;
             }
-            draw(it->first, record);
+            draw_frame(it->first, record, record.current_frame, record.x, record.y, false);
         }
     }
     for (const auto& [id, record] : state.records) {
@@ -1670,6 +1728,8 @@ static SceneTrace trace_scene_from(const std::vector<CcInstruction>& script,
                 record->field06 = 0;
                 // 0x4324b0 (objdump 0x432594): +0x1c = +0x18, +0x20/+0x22 = 0,
                 // +0x24/+0x26 = x/y — the frame list restarts at its head.
+                record->snap_x = record->x;
+                record->snap_y = record->y;
                 if (record->frame_count != 0) record->current_frame = 0;
                 ++record->frame_restart_requests;
             }
@@ -2377,6 +2437,10 @@ void load_save(SceneState& state, const SaveGame& save) {
             record.raw.at(0x14) | (record.raw.at(0x15) << 8));
         entry.frame_index_1c = record.frame_index_1c;
         entry.frame_index_20 = record.frame_index_20;
+        entry.snap_x = static_cast<std::int16_t>(
+            static_cast<std::uint16_t>(record.raw.at(0x24) | (record.raw.at(0x25) << 8)));
+        entry.snap_y = static_cast<std::int16_t>(
+            static_cast<std::uint16_t>(record.raw.at(0x26) | (record.raw.at(0x27) << 8)));
         // 0x426b9d feeds the first recovered dword to 0x40cf73(record, index):
         // 0xffff clears +0x1c, otherwise the head is advanced `index` times.
         if (record.frame_index_1c != 0xffff && entry.frame_count != 0) {
