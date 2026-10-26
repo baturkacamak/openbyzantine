@@ -908,9 +908,17 @@ struct Display {
     const Options* ui_options = nullptr;
     std::optional<UiImage> bottom_bar;
     std::map<std::string, UiImage> item_icons;
+    std::string cursor_key_;
+    SDL_Cursor* cursor_ = nullptr;
+    SDL_Cursor* default_cursor_ = nullptr;
     std::set<std::string> missing_ui;
     int logical_width = kScreenWidth;
     int logical_height = kScreenHeight;
+
+    ~Display() {
+        if (cursor_ != nullptr) SDL_FreeCursor(cursor_);
+        if (default_cursor_ != nullptr) SDL_FreeCursor(default_cursor_);
+    }
 
     void init(const Options& options) {
         ui_options = &options;
@@ -1193,7 +1201,67 @@ struct Display {
         SDL_RenderPresent(renderer);
     }
 
+    // 0x40df05's item cursor: while an inventory record is selected
+    // (DAT_0045d1c8), the item's inventor/<name>.tga is the pointer image
+    // (0x407bd7 returns record+4; 0x40df05 resolves that to +0x10's TGA). The
+    // original swaps to the hotitem variant when the hovered object accepts the
+    // item; that hover variant is not claimed here. A real SDL colour cursor is
+    // used so the "item in hand" state is visible without a redraw.
+    void update_item_cursor(const SceneView& view) {
+        std::string wanted;
+        if (view.state.current_dialogue_record) {
+            wanted = lower_ascii(
+                byzantine::inventory_name(view.state, *view.state.current_dialogue_record));
+        }
+        if (wanted == cursor_key_) return;
+        cursor_key_ = wanted;
+        if (cursor_ != nullptr) {
+            SDL_FreeCursor(cursor_);
+            cursor_ = nullptr;
+        }
+        if (default_cursor_ == nullptr) {
+            default_cursor_ = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW);
+        }
+        const UiImage* icon = wanted.empty() ? nullptr : item_icon(wanted);
+        if (icon != nullptr && icon->width > 0 && icon->height > 0) {
+            SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormat(
+                0, icon->width, icon->height, 32, SDL_PIXELFORMAT_ARGB8888);
+            if (surface != nullptr) {
+                for (int row = 0; row < icon->height; ++row) {
+                    for (int column = 0; column < icon->width; ++column) {
+                        const auto index = static_cast<std::size_t>(row) * icon->width + column;
+                        const auto pixel = icon->pixels[index];
+                        const auto r = static_cast<std::uint32_t>((pixel >> 11) & 0x1f);
+                        const auto g = static_cast<std::uint32_t>((pixel >> 5) & 0x3f);
+                        const auto b = static_cast<std::uint32_t>(pixel & 0x1f);
+                        const auto argb =
+                            (static_cast<std::uint32_t>(icon->alpha[index]) << 24) |
+                            (((r << 3) | (r >> 2)) << 16) |
+                            (((g << 2) | (g >> 4)) << 8) | ((b << 3) | (b >> 2));
+                        auto* row_pixels = reinterpret_cast<std::uint32_t*>(
+                            static_cast<std::uint8_t*>(surface->pixels) +
+                            static_cast<std::ptrdiff_t>(row) * surface->pitch);
+                        row_pixels[column] = argb;
+                    }
+                }
+                cursor_ = SDL_CreateColorCursor(surface, icon->width / 2, icon->height / 2);
+                SDL_FreeSurface(surface);
+            }
+        }
+        SDL_SetCursor(cursor_ != nullptr ? cursor_ : default_cursor_);
+        if (!wanted.empty()) {
+            std::cout << "item_cursor name=" << wanted
+                      << (icon != nullptr ? " size=" + std::to_string(icon->width) + "x" +
+                                                std::to_string(icon->height)
+                                          : " missing")
+                      << '\n';
+        } else {
+            std::cout << "item_cursor cleared\n";
+        }
+    }
+
     void present(const SceneView& view, bool overlay) {
+        update_item_cursor(view);
         build_screen(view);
         present_image(screen, view, overlay, kScreenPlayfieldTop);
     }
@@ -2398,6 +2466,7 @@ ClickPlan plan_hotspot(const SceneView& view, int slot) {
                 kind << std::hex << static_cast<unsigned>(entry_object.kind);
                 plan.message += kind.str();
             }
+            plan.message += " (item in hand; click its strip slot again to cancel)";
             return plan;
         }
     }
