@@ -184,8 +184,11 @@ struct ScenePanoramaLoad {
 // and writes +0x00 = 0, +0x04 = 0x20 + 2*id, +0x08 = id and +0x0c/+0x10/+0x14 = 0.
 // Only +0x00 is read or written by the dialogue opcodes; +0x0c/+0x14 hold the
 // inventor TGAs that 0x407254 loads, represented here as `inventory_loaded`.
+// One DAT_00486f90 record. The historical name comes from the first pass, but
+// 0x407254/0x40860e/0x4083d4 use the same table as the inventory items; the
+// record's name string comes from SHOW.LCI (dialogue_tables.names).
 struct SceneDialogueRecord {
-    std::uint8_t state = 0;         // +0x00, the byte 0xb0/0xb1 compare
+    std::uint8_t state = 0;         // +0x00, the byte 0xab/0xb0/0xb1 compare
     bool inventory_loaded = false;  // +0x0c after a successful 0x407254
 };
 
@@ -507,20 +510,24 @@ struct SceneState {
     // so neither value may be assumed here. Unset means "seed unknown" and
     // opcode 0x7d reports unresolved_random instead of inventing a stream.
     std::optional<std::uint32_t> random_state;
-    // Dialogue tables and per-id records behind DAT_00486f90 (see cc.cpp).
+    // Inventory tables and per-id records behind DAT_00486f90 (see cc.cpp).
+    // "dialogue" is retained in the field names for existing callers, but the
+    // shipped table is the item list; SHOW.LCI names and item state live here.
     SceneDialogueTables dialogue_tables;
     std::map<std::uint16_t, SceneDialogueRecord> dialogue_records;
-    // Per-channel active-line stacks: DAT_00468cc0 holds the count and
-    // DAT_00468d78 the entries with a 0x578-byte stride (0x15e per channel).
+    // Inventory pages: DAT_00468cc0 holds the per-page count and DAT_00468d78
+    // the item ids with a 0x578-byte stride (0x15e per page).
     std::array<std::vector<std::uint16_t>, 10> dialogue_channels;
-    // DAT_0045d1c4 / DAT_0045d1c8 are zero-initialised BSS. 0x408adc restores
-    // both from a save; that restore is outside this scene layer.
+    // DAT_0045d1c4 page / DAT_0045d1c8 selected item, restored by 0x408adc.
     std::uint16_t current_dialogue_channel = 0;
     std::optional<std::uint16_t> current_dialogue_record;
-    // DAT_0045d1bc: message-window scroll offset that 0x407933 decrements.
+    // DAT_0045d1cc: the item the examine button marked for use. 0x40860e
+    // derives inventor/examine/<stem>.jpg from this id; it is not saved.
+    std::optional<std::uint16_t> current_use_item;
+    // DAT_0045d1bc: first visible inventory item; 0x407527 changes it.
     std::int32_t dialogue_scroll = 0;
-    // DAT_0045d1c0: message-window visibility. BSS zero at startup; 0xb5 sets
-    // it, 0xb4 clears it, and 0x408adc restores it from a save.
+    // DAT_0045d1c0: inventory strip visibility. BSS zero at startup; 0xb5
+    // shows it, 0xb4 hides it, and 0x408adc restores it from a save.
     bool dialogue_visible = false;
     // DAT_00482460, filled from engine/<chapter>.lcx by 0x438173: 0x73 indexes
     // it with its raw operand and writes the result to DAT_00482428. The
@@ -553,6 +560,10 @@ struct SceneState {
 
 struct SceneTrace {
     std::optional<SceneBackground> background;
+    // 0x69 with transition code 4 loads inventor/examine/<stem>.jpg for the
+    // item in DAT_0045d1cc (0x40860e/0x41045b) instead of a CB background.
+    std::optional<std::uint16_t> examine_image;
+    bool missing_examine_item = false;
     std::vector<SceneHotspot> active_hotspots;
     std::size_t steps = 0;
     std::optional<std::uint8_t> unsupported_opcode;

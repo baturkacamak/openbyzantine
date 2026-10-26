@@ -127,6 +127,26 @@ int main(int argc, char** argv) {
                         named_object->second.name_id == 4,
                     "0x72 kind 0x13 did not keep the direct name id");
         }
+        // 0x69 with transition code 4 is the examine close-up: it requests
+        // inventor/examine/<item>.jpg from DAT_0045d1cc and must not require a
+        // CB background entry (EXAMINE's CB can be empty).
+        {
+            const std::vector<CcInstruction> examine_script{
+                {0x69, {word(2, 0), word(2, 4)}}, {0x6f, {}}};
+            byzantine::SceneState examine_state;
+            examine_state.current_use_item = 11;
+            const auto requested =
+                byzantine::trace_scene_entry(examine_script, {}, examine_state);
+            require(requested.examine_image && *requested.examine_image == 11 &&
+                        !requested.missing_examine_item && !requested.background,
+                    "0x69 transition 4 did not request the selected examine image");
+            byzantine::SceneState missing_state;
+            const auto missing =
+                byzantine::trace_scene_entry(examine_script, {}, missing_state);
+            require(missing.missing_examine_item &&
+                        byzantine::trace_blocker(missing) == "missing_examine_item",
+                    "0x69 transition 4 without DAT_0045d1cc was accepted");
+        }
         // A trace that stopped on missing data/settings is not a success. Every
         // such field must be classified, including the two the player used to
         // ignore (unresolved_dialogue_channel, unresolved_save_setting).

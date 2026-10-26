@@ -21,6 +21,7 @@
 #include "byzantine/cc.hpp"
 #include "byzantine/compose.hpp"
 #include "byzantine/conversation.hpp"
+#include "byzantine/inventory.hpp"
 #include "byzantine/jpeg.hpp"
 #include "byzantine/panorama.hpp"
 #include "byzantine/panorama_view.hpp"
@@ -130,6 +131,9 @@ struct Options {
     std::optional<int> click;                  // --click <slot>
     std::vector<std::pair<int, int>> click_ats;  // --click-at <x>,<y>, repeatable
     std::optional<int> staged_x;               // --staged-x <0..2495>
+    std::optional<int> bar_select;             // --bar-select <item id>
+    bool bar_use = false;                      // --bar-use: examine selected item
+    int bar_scroll = 0;                        // --bar-next/--bar-prev count
     bool overlay = true;
     bool print_audio = false;
     bool audio = true;
@@ -156,7 +160,8 @@ const std::set<std::string> kValued = {
     "--fonts", "--cd", "--ccb", "--ccf", "--byz", "--messages", "--dialog",
     "--dialog-cache",
     "--run-label", "--conversation-choices", "--conversation-shot",
-    "--conversation-object", "--conversation-video-shot", "--conversation-cancel"};
+    "--conversation-object", "--conversation-video-shot", "--conversation-cancel",
+    "--bar-select"};
 
 Options parse_options(int argc, char** argv) {
     Options options;
@@ -187,6 +192,18 @@ Options parse_options(int argc, char** argv) {
             options.print_hotspots = true;
             continue;
         }
+        if (token == "--bar-use") {
+            options.bar_use = true;
+            continue;
+        }
+        if (token == "--bar-next") {
+            ++options.bar_scroll;
+            continue;
+        }
+        if (token == "--bar-prev") {
+            --options.bar_scroll;
+            continue;
+        }
         if (token == "--entry") {
             options.entry = true;
             continue;
@@ -204,6 +221,7 @@ Options parse_options(int argc, char** argv) {
             else if (token == "--dialog") options.dialog = value;
             else if (token == "--dialog-cache") options.dialog_cache = value;
             else if (token == "--run-label") options.run_label = std::stoi(value);
+            else if (token == "--bar-select") options.bar_select = std::stoi(value);
             else if (token == "--conversation-choices") {
                 std::size_t at = 0;
                 while (at < value.size()) {
@@ -253,7 +271,8 @@ Options parse_options(int argc, char** argv) {
             "[--run-label <n>] [--conversation-choices <i,...>] "
             "[--conversation-object <slot>] [--conversation-cancel <n>] "
             "[--conversation-shot <ppm>] "
-            "[--conversation-video-shot <ppm>] [--no-video] "
+            "[--conversation-video-shot <ppm>] [--bar-select <id>] [--bar-use] "
+            "[--bar-next] [--bar-prev] [--no-video] "
             "[--no-hotspots] [--no-audio] [--print-audio] [--print-hotspots] "
             "[--selftest-events]");
     }
@@ -488,6 +507,77 @@ std::filesystem::path background_path(const Options& options, const std::string&
     return found ? *found : std::filesystem::path{};
 }
 
+// 0x40860e/0x41045b: selected item -> inventor\examine\<first 8 chars, first
+// replaced by 'e'>.jpg. The item name is not trimmed at eight characters
+// anywhere else, so this stays separate from the raw LCI record.
+std::filesystem::path examine_background_path(const Options& options,
+                                              const byzantine::SceneState& state) {
+    if (!state.current_use_item || options.backgrounds.empty()) return {};
+    const auto name = byzantine::inventory_name(state, *state.current_use_item);
+    if (name.empty()) return {};
+    const auto stem = byzantine::examine_image_stem(name);
+    auto root = options.backgrounds;
+    if (std::filesystem::is_directory(root / "inventor")) root /= "inventor";
+    const auto found = find_child(root / "examine", stem);
+    return found ? *found : std::filesystem::path{};
+}
+
+// The original UI art is TGA (TOP_BAR, INSTRIP and the inventor icons). A TGA
+// reader is not part of the port's image layer, so use the same FFmpeg already
+// required for the Indeo dialogue clips: decode once to RGB24 and keep the
+// RGB565/transparency result in memory. A missing FFmpeg is reported, never
+// hidden behind an invented icon.
+struct UiImage {
+    int width = 0;
+    int height = 0;
+    std::vector<std::uint16_t> pixels;
+    std::vector<std::uint8_t> alpha;
+};
+
+std::optional<UiImage> decode_ui_image(const std::filesystem::path& path,
+                                       bool key_magenta, bool verbose) {
+    std::ifstream input(path, std::ios::binary);
+    if (!input) return std::nullopt;
+    std::array<unsigned char, 18> header{};
+    input.read(reinterpret_cast<char*>(header.data()), header.size());
+    if (input.gcount() != static_cast<std::streamsize>(header.size())) return std::nullopt;
+    const int width = header[12] | (header[13] << 8);
+    const int height = header[14] | (header[15] << 8);
+    if (width <= 0 || height <= 0 || width > 4096 || height > 4096) return std::nullopt;
+    input.close();
+
+    std::string command = "ffmpeg -v error -i \"";
+    command += path.string();
+    command += "\" -f rawvideo -pix_fmt rgb24 -";
+    FILE* pipe = popen(command.c_str(), "r");
+    if (pipe == nullptr) return std::nullopt;
+    std::vector<unsigned char> rgb(static_cast<std::size_t>(width) * height * 3);
+    const auto read = std::fread(rgb.data(), 1, rgb.size(), pipe);
+    const auto status = pclose(pipe);
+    if (read != rgb.size() || status != 0) {
+        if (verbose) {
+            std::cout << "ui_asset_decode ERROR file=" << path.string()
+                      << " bytes=" << read << '/' << rgb.size() << '\n';
+        }
+        return std::nullopt;
+    }
+
+    UiImage image;
+    image.width = width;
+    image.height = height;
+    image.pixels.resize(static_cast<std::size_t>(width) * height);
+    image.alpha.assign(image.pixels.size(), 255);
+    for (std::size_t index = 0; index < image.pixels.size(); ++index) {
+        const auto r = rgb[index * 3 + 0];
+        const auto g = rgb[index * 3 + 1];
+        const auto b = rgb[index * 3 + 2];
+        image.pixels[index] = static_cast<std::uint16_t>(
+            ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));
+        if (key_magenta && r > 240 && g < 20 && b > 240) image.alpha[index] = 0;
+    }
+    return image;
+}
+
 // 0x40186e builds "nodes\\<first two characters>\\<name>.jpg"; the shipped tree
 // mixes .JPG/.jpg, so the lookup is case-insensitive like the background one.
 std::filesystem::path node_path(const Options& options, const std::string& entry_name) {
@@ -553,6 +643,24 @@ std::string pick_background(const SceneView& view) {
 }
 
 void refresh_background(const Options& options, SceneView& view) {
+    if (view.trace.examine_image) {
+        const auto name = byzantine::inventory_name(view.state, *view.trace.examine_image);
+        const auto stem = byzantine::examine_image_stem(name);
+        view.background_name = "examine/" + stem;
+        view.background_file = examine_background_path(options, view.state);
+        if (view.background_file.empty() &&
+            view.missing_background_logged != view.background_name) {
+            std::cout << "examine_image_missing scene=" << view.name
+                      << " item=" << *view.trace.examine_image
+                      << " name=" << name << " stem=" << stem
+                      << " root=" << options.backgrounds
+                      << " (extract inventor/examine with port/scene.sh; the "
+                         "close-up stays black until the asset exists)\n";
+            view.missing_background_logged = view.background_name;
+        }
+        if (!view.background_file.empty()) view.missing_background_logged.clear();
+        return;
+    }
     view.background_name = pick_background(view);
     view.background_file = background_path(options, view.background_name);
     if (!panorama_layer(view) && !view.background_name.empty() &&
@@ -836,15 +944,24 @@ struct Display {
     // Font slot 4 (fonts/CAPTIONS.SFN + CAPTIONS.TGA, fill 0x03eb). 0x424981
     // draws the conversation subtitle with this slot at (55, 420).
     std::optional<byzantine::SfnFont> caption_font;
-    int logical_width = kSceneWidth;
-    int logical_height = kSceneHeight;
+    // The original scene surface is 640x480: the playfield starts at row 0x14
+    // and the inventory strip occupies rows 0x1a4..0x1df. `surface` stays the
+    // 640x400 playfield and `screen` is the composed 640x480 frame.
+    byzantine::Rgb16Surface screen;
+    const Options* ui_options = nullptr;
+    std::optional<UiImage> bottom_bar;
+    std::map<std::string, UiImage> item_icons;
+    std::set<std::string> missing_ui;
+    int logical_width = kScreenWidth;
+    int logical_height = kScreenHeight;
 
-    void init() {
+    void init(const Options& options) {
+        ui_options = &options;
         if (SDL_Init(SDL_INIT_VIDEO) != 0) {
             throw std::runtime_error(std::string("SDL video init failed: ") + SDL_GetError());
         }
-        // 640x480 at 2x: the conversation screen fills the window exactly; the
-        // 640x400 playfield is letterboxed by SDL when it is presented.
+        // 640x480 at 2x: the original screen size, including the inventory
+        // strip. The conversation already uses the same geometry.
         window = SDL_CreateWindow("Byzantine: The Betrayal - scene player",
                                   SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                                   kScreenWidth * 2, kScreenHeight * 2,
@@ -853,11 +970,29 @@ struct Display {
         renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
         if (renderer == nullptr) renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
         if (renderer == nullptr) throw std::runtime_error(SDL_GetError());
-        SDL_RenderSetLogicalSize(renderer, kSceneWidth, kSceneHeight);
+        SDL_RenderSetLogicalSize(renderer, kScreenWidth, kScreenHeight);
         texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB565,
-                                    SDL_TEXTUREACCESS_STREAMING, kSceneWidth, kSceneHeight);
+                                    SDL_TEXTUREACCESS_STREAMING, kScreenWidth,
+                                    kScreenHeight);
         if (texture == nullptr) throw std::runtime_error(SDL_GetError());
         surface = byzantine::make_surface(kSceneWidth, kSceneHeight, 0);
+        screen = byzantine::make_surface(kScreenWidth, kScreenHeight, 0);
+
+        auto root = options.backgrounds;
+        if (std::filesystem::is_directory(root / "inventor")) root /= "inventor";
+        const auto strip = find_child(root, "instrip");
+        if (strip) {
+            bottom_bar = decode_ui_image(*strip, true, true);
+            if (!bottom_bar) {
+                std::cout << "ui_asset_missing file=" << strip->string()
+                          << " (inventory strip will be a plain block)\n";
+            }
+        } else if (!options.backgrounds.empty()) {
+            std::cout << "ui_asset_missing name=inventor/instrip.tga root="
+                      << options.backgrounds
+                      << " (extract setupart/inventor with port/scene.sh)\n";
+        }
+
         int window_width = 0;
         int window_height = 0;
         int output_width = 0;
@@ -935,6 +1070,108 @@ struct Display {
     // `hotspot_offset_y` maps the playfield-only hotspot coordinates into the
     // image (0 for the 640x400 playfield, kScreenPlayfieldTop for the
     // 640x480 conversation screen, whose playfield starts at row 0x14).
+    void fill_rect(int x, int y, int width, int height, std::uint16_t colour) {
+        for (int row = 0; row < height; ++row) {
+            const int screen_y = y + row;
+            if (screen_y < 0 || screen_y >= screen.height) continue;
+            for (int column = 0; column < width; ++column) {
+                const int screen_x = x + column;
+                if (screen_x < 0 || screen_x >= screen.width) continue;
+                screen.pixels[static_cast<std::size_t>(screen_y) * screen.width + screen_x] =
+                    colour;
+            }
+        }
+    }
+
+    void blit_ui(const UiImage& image, int x, int y) {
+        for (int row = 0; row < image.height; ++row) {
+            const int screen_y = y + row;
+            if (screen_y < 0 || screen_y >= screen.height) continue;
+            for (int column = 0; column < image.width; ++column) {
+                const int screen_x = x + column;
+                if (screen_x < 0 || screen_x >= screen.width) continue;
+                const auto source = static_cast<std::size_t>(row) * image.width + column;
+                if (image.alpha[source] == 0) continue;
+                screen.pixels[static_cast<std::size_t>(screen_y) * screen.width + screen_x] =
+                    image.pixels[source];
+            }
+        }
+    }
+
+    const UiImage* item_icon(const std::string& name) {
+        const auto key = lower_ascii(name);
+        const auto cached = item_icons.find(key);
+        if (cached != item_icons.end()) return &cached->second;
+        if (ui_options == nullptr || ui_options->backgrounds.empty()) return nullptr;
+        auto root = ui_options->backgrounds;
+        if (std::filesystem::is_directory(root / "inventor")) root /= "inventor";
+        const auto found = find_child(root, name);
+        if (!found) {
+            if (missing_ui.insert(key).second) {
+                std::cout << "ui_asset_missing name=inventor/" << name
+                          << ".tga root=" << ui_options->backgrounds << '\n';
+            }
+            return nullptr;
+        }
+        auto decoded = decode_ui_image(*found, true, false);
+        if (!decoded) {
+            if (missing_ui.insert(key).second) {
+                std::cout << "ui_asset_decode_failed file=" << found->string() << '\n';
+            }
+            return nullptr;
+        }
+        const auto inserted = item_icons.emplace(key, std::move(*decoded));
+        return &inserted.first->second;
+    }
+
+    // The original 640x480 scene surface: playfield at row 0x14, then the
+    // 0x4075fe strip at 0x1a4. 0x407420 draws at most six 60-pixel item slots
+    // (x = 0xa0 + 0x3c*i), 0x407f6a is the examine button and 0x407df9/0x407e74
+    // are the two page arrows. Only the entries present in the current page are
+    // drawn; nothing is enabled or invented.
+    void build_screen(const SceneView& view) {
+        std::fill(screen.pixels.begin(), screen.pixels.end(), 0);
+        for (int row = 0; row < surface.height; ++row) {
+            for (int column = 0; column < surface.width; ++column) {
+                screen.pixels[static_cast<std::size_t>(row + kScreenPlayfieldTop) *
+                                  screen.width + column] =
+                    surface.pixels[static_cast<std::size_t>(row) * surface.width + column];
+            }
+        }
+        if (!view.state.dialogue_visible) return;
+
+        if (bottom_bar) {
+            blit_ui(*bottom_bar, 0, kScreenBandTop);
+        } else {
+            fill_rect(0, kScreenBandTop, kScreenWidth,
+                      kScreenHeight - kScreenBandTop, 0x6a00);
+            fill_rect(0, kScreenBandTop, kScreenWidth, 1, 0xce79);
+        }
+
+        const auto page = byzantine::inventory_page(view.state);
+        for (std::size_t index = 0; index < page.items.size(); ++index) {
+            const auto id = page.items[index];
+            const int x = 0xa0 + static_cast<int>(index) * 0x3c;
+            const auto name = byzantine::inventory_name(view.state, id);
+            const auto* icon = name.empty() ? nullptr : item_icon(name);
+            if (icon != nullptr) {
+                blit_ui(*icon, x, 0x1a4 + 6);
+            } else {
+                // Keep the real slot geometry visible; report the missing asset
+                // instead of drawing an invented item picture.
+                fill_rect(x, 0x1a4 + 6, 0x3c, 0x36, 0x3186);
+                fill_rect(x + 1, 0x1a4 + 7, 0x3a, 0x34, 0x4208);
+            }
+            if (view.state.current_dialogue_record &&
+                *view.state.current_dialogue_record == id) {
+                fill_rect(x, 0x1a4 + 6, 0x3c, 2, 0xffe0);
+                fill_rect(x, 0x1a4 + 0x3b, 0x3c, 2, 0xffe0);
+                fill_rect(x, 0x1a4 + 6, 2, 0x36, 0xffe0);
+                fill_rect(x + 0x3a, 0x1a4 + 6, 2, 0x36, 0xffe0);
+            }
+        }
+    }
+
     void present_image(const byzantine::Rgb16Surface& image, const SceneView& view,
                        bool overlay, int hotspot_offset_y) {
         if (logical_width != image.width || logical_height != image.height) {
@@ -991,7 +1228,8 @@ struct Display {
     }
 
     void present(const SceneView& view, bool overlay) {
-        present_image(surface, view, overlay, 0);
+        build_screen(view);
+        present_image(screen, view, overlay, kScreenPlayfieldTop);
     }
 
     // SDL_RenderSetLogicalSize installs SDL_RendererEventWatch, which rewrites
@@ -1032,10 +1270,10 @@ struct Display {
     // right block; this draws the final block over the scene and says so.
     void draw_text_windows(const SceneView& view, bool verbose) {
         if (view.examine_text.active && examine_font) {
-            byzantine::draw_text(surface, *examine_font, view.examine_text.text, 5, 0x14a,
-                                 3, 3);
+            byzantine::draw_text(surface, *examine_font, view.examine_text.text, 5,
+                                 0x14a - kScreenPlayfieldTop, 3, 3);
             if (verbose) {
-                std::cout << "text_draw window=examine x=5 y=" << 0x14a
+                std::cout << "text_draw window=examine x=5 y=" << (0x14a - kScreenPlayfieldTop)
                           << " width=" << byzantine::text_width(*examine_font,
                                                                view.examine_text.text)
                           << '\n';
@@ -1044,10 +1282,11 @@ struct Display {
         if (view.message_text.active && message_font) {
             const auto width = byzantine::text_width(*message_font, view.message_text.text);
             byzantine::draw_text(surface, *message_font, view.message_text.text, 0x26e,
-                                 0x2d, 3, 4);
+                                 0x2d - kScreenPlayfieldTop, 3, 4);
             if (verbose) {
                 std::cout << "text_draw window=message x=" << (0x26e - width)
-                          << " y=" << 0x2d << " width=" << width << '\n';
+                          << " y=" << (0x2d - kScreenPlayfieldTop)
+                          << " width=" << width << '\n';
             }
         }
     }
@@ -1057,8 +1296,9 @@ struct Display {
     // SDL_RenderReadPixels is not used: it reads at the window/render-target
     // resolution (the logical 640x400 is a scaled viewport), so the composed
     // surface is the only exact 640x400 image.
-    void write_shot(const std::string& path) {
-        if (!byzantine::write_ppm(surface, path)) {
+    void write_shot(const SceneView& view, const std::string& path) {
+        build_screen(view);
+        if (!byzantine::write_ppm(screen, path)) {
             throw std::runtime_error("cannot write " + path);
         }
         std::cout << "shot=" << path << '\n';
@@ -1093,6 +1333,12 @@ struct Session {
     // Set by a 0xfffe conversation exit: the scene session has ended. The user
     // must explicitly choose R to reload; nothing is reloaded silently.
     bool reload_available = false;
+    // DAT_004603d0: entering an examine close-up snapshots the parent scene;
+    // a 0x73 inside the close-up restores it instead of loading its operand.
+    // The port stores the whole SceneView (script, state, camera, background)
+    // and carries the examine scene's inventory edits back into it.
+    SceneView return_view;
+    bool return_armed = false;
     // Set by the interactive branch: a scene entry may then wait on audio like
     // any other script. --shot stays deterministic and never waits.
     bool interactive = false;
@@ -1417,8 +1663,44 @@ void show_message_text(Session& session, bool verbose) {
 // freed on each load (0x40f3f0 clears objects/sounds/dialogue chains/media,
 // 0x40fd7b the DAT_004649e8 records), and DAT_0047e2f0 is cleared only ONCE
 // before the loop, so the carried variable pool is the state that crosses.
+// The inventory strip is process-global in the original (DAT_00468cc0/
+// DAT_00468d78/DAT_00486f90); it is not reloaded from the save on a 0x73.
+// Keep the current page, stack, item states and examine selection across a
+// scene switch.
+void carry_inventory(const byzantine::SceneState& from, byzantine::SceneState& to) {
+    to.dialogue_channels = from.dialogue_channels;
+    to.dialogue_records = from.dialogue_records;
+    to.dialogue_visible = from.dialogue_visible;
+    to.dialogue_scroll = from.dialogue_scroll;
+    to.current_dialogue_channel = from.current_dialogue_channel;
+    to.current_dialogue_record = from.current_dialogue_record;
+    to.current_use_item = from.current_use_item;
+}
+
 bool travel_to(Session& session, std::uint16_t index, bool verbose) {
     auto& options = session.options;
+    if (session.return_armed && !session.return_view.name.empty()) {
+        // 0x42db22 case 0x73: when DAT_004603d0 is non-NULL, the operand is
+        // ignored and the close-up returns to its parent scene. 0x439349 then
+        // restores the captured subsystem state. The inventory strip is not in
+        // that snapshot, so keep the examine scene's item state.
+        const auto from = session.view.name;
+        const auto current = session.view.state;
+        session.view = std::move(session.return_view);
+        session.return_view = SceneView{};
+        session.return_armed = false;
+        carry_inventory(current, session.view.state);
+        session.view.state.random_state = current.random_state;
+        refresh_background(options, session.view);
+        session.display.compose(session.view, verbose);
+        session.display.present(session.view, options.overlay);
+        std::cout << "closeup_return scene=" << session.view.name << " from=" << from
+                  << " requested_index=" << index
+                  << " hotspots=" << session.view.trace.active_hotspots.size()
+                  << " bar=" << (session.view.state.dialogue_visible ? "visible" : "hidden")
+                  << '\n';
+        return session.running;
+    }
     if (!session.metadata) {
         std::cout << "travel index=" << index
                   << " skipped: --engine (SHOW.LCC) is required to resolve a scene index\n";
@@ -1483,6 +1765,7 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose) {
     next_view.name = std::filesystem::path(next_view.cc_path).stem().string();
     auto setup = byzantine::load_scene_setup(next_view.cc_path, next);
     byzantine::apply_variable_pool(setup.state, pool, to_layout);
+    carry_inventory(session.view.state, setup.state);
     // 0x40fd7b: the scene load pre-loads the CA type 2/3 records before the
     // script runs (the save path is not used here, so nothing replaces them).
     const auto preload = byzantine::preload_scene_records(setup.state);
@@ -1560,6 +1843,168 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose) {
               << " locals_digest=0x" << std::hex << locals_digest(session.view.state)
               << std::dec << '\n';
     return session.running;
+}
+
+// 0x43c8d2 case 2 + 0x408076 + 0x438c80: the examine button on the inventory
+// strip opens the matching close-up scene and snapshots the parent. The scene
+// mapping is the original data table (0x438afa/0x438173), not a per-scene port
+// branch. A click on the close-up's exit runs 0x73 and travel_to restores the
+// snapshot instead of loading the requested index.
+bool enter_examine(Session& session, bool verbose) {
+    if (!session.metadata) {
+        std::cout << "bar_examine skipped: --engine (SHOW.LCC) is required\n";
+        return false;
+    }
+    const auto wanted = byzantine::examine_scene_for(session.view.name);
+    if (!wanted) {
+        std::cout << "bar_examine skipped: scene=" << session.view.name
+                  << " has the original's out-of-range va group\n";
+        return false;
+    }
+    if (lower_ascii(session.view.name) == *wanted) {
+        std::cout << "bar_examine skipped: scene=" << session.view.name
+                  << " is already the close-up\n";
+        return false;
+    }
+    std::size_t target_index = 0;
+    bool found = false;
+    for (std::size_t index = 0; index < session.metadata->scenes.size(); ++index) {
+        if (lower_ascii(session.metadata->scenes[index].scene) == *wanted) {
+            target_index = index;
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        std::cout << "bar_examine skipped: close-up scene " << *wanted
+                  << " is not in SHOW.LCC\n";
+        return false;
+    }
+    const auto parent_name = session.view.name;
+    const auto use = session.view.state.current_use_item;
+    SceneView parent = session.view;
+    if (!travel_to(session, static_cast<std::uint16_t>(target_index), verbose)) {
+        return false;
+    }
+    session.return_view = std::move(parent);
+    session.return_armed = true;
+    std::cout << "closeup_enter scene=" << session.view.name << " parent=" << parent_name
+              << " item=" << (use ? std::to_string(*use) : "none")
+              << " index=" << target_index << '\n';
+    return true;
+}
+
+// 0x4083d4/0x408076: bottom-strip hit test and actions. The coordinates are
+// the shipped DAT_0045f548/DAT_00468d00 tables: six slots at x=0xa0+0x3c*i,
+// y=0x1aa; examine button 0x2..0x3a, page arrows 0x23b..0x259 and
+// 0x25d..0x27b. A click outside those stays inside the strip and is consumed,
+// so it can never start a scene hotspot through the 60-pixel band.
+bool handle_bar_click(Session& session, int x, int y, bool verbose) {
+    if (y < kScreenPlayfieldTop) {
+        std::cout << "ui_click top_bar x=" << x << " y=" << y
+                  << " consumed (top menu is not modelled)\n";
+        return true;
+    }
+    if (y < kScreenBandTop) return false;
+    auto& state = session.view.state;
+    if (!state.dialogue_visible) {
+        std::cout << "ui_click bar_hidden x=" << x << " y=" << y << " consumed\n";
+        return true;
+    }
+    const auto page = byzantine::inventory_page(state);
+    if (y >= 0x1a4 + 6 && y <= kScreenHeight) {
+        for (std::size_t index = 0; index < page.items.size(); ++index) {
+            const int left = 0xa0 + static_cast<int>(index) * 0x3c;
+            if (x < left || x > left + 0x3c) continue;
+            const auto id = page.items[index];
+            const auto name = byzantine::inventory_name(state, id);
+            const bool selected = byzantine::inventory_select(state, id);
+            std::cout << "bar_item slot=" << index << " id=" << id
+                      << " name=" << name << " selected=" << (selected ? "yes" : "no")
+                      << " current="
+                      << (state.current_dialogue_record
+                              ? std::to_string(*state.current_dialogue_record)
+                              : "none")
+                      << '\n';
+            if (verbose) {
+                std::cout << "bar_page page=" << page.page << " scroll=" << page.scroll
+                          << " count=" << page.items.size() << '\n';
+            }
+            session.display.present(session.view, session.options.overlay);
+            return true;
+        }
+    }
+    if (x >= 2 && x <= 0x3a && y >= 0x1a8 && y <= 0x1dc) {
+        if (!state.current_dialogue_record) {
+            std::cout << "bar_examine skipped: no selected item\n";
+            return true;
+        }
+        const auto id = *state.current_dialogue_record;
+        if (!byzantine::inventory_mark_using(state, id)) {
+            std::cout << "bar_examine skipped: item=" << id
+                      << " is not on the current page\n";
+            return true;
+        }
+        std::cout << "bar_use id=" << id
+                  << " name=" << byzantine::inventory_name(state, id) << '\n';
+        enter_examine(session, verbose);
+        return true;
+    }
+    if (x >= 0x23b && x <= 0x259 && y >= 0x1b1 && y <= 0x1cb) {
+        byzantine::inventory_scroll(state, 1);
+        std::cout << "bar_scroll direction=next scroll=" << state.dialogue_scroll
+                  << " page=" << state.current_dialogue_channel << '\n';
+        session.display.present(session.view, session.options.overlay);
+        return true;
+    }
+    if (x >= 0x25d && x <= 0x27b && y >= 0x1b1 && y <= 0x1cb) {
+        byzantine::inventory_scroll(state, -1);
+        std::cout << "bar_scroll direction=prev scroll=" << state.dialogue_scroll
+                  << " page=" << state.current_dialogue_channel << '\n';
+        session.display.present(session.view, session.options.overlay);
+        return true;
+    }
+    std::cout << "ui_click bar_empty x=" << x << " y=" << y << " consumed\n";
+    return true;
+}
+
+void apply_bar_options(Session& session, const Options& options, bool verbose) {
+    if (!options.bar_select && options.bar_scroll == 0 && !options.bar_use) return;
+    if (options.bar_scroll != 0) {
+        byzantine::inventory_scroll(session.view.state, options.bar_scroll);
+        std::cout << "bar_scroll delta=" << options.bar_scroll
+                  << " scroll=" << session.view.state.dialogue_scroll
+                  << " page=" << session.view.state.current_dialogue_channel << '\n';
+    }
+    if (options.bar_select) {
+        const auto inventory = byzantine::inventory_page(session.view.state);
+        std::cout << "bar_page page=" << inventory.page
+                  << " scroll=" << inventory.scroll << " count="
+                  << inventory.items.size() << " ids=";
+        for (const auto id : inventory.items) std::cout << id << ',';
+        std::cout << '\n';
+        const auto id = static_cast<std::uint16_t>(*options.bar_select);
+        const auto selected = byzantine::inventory_select(session.view.state, id);
+        std::cout << "bar_select id=" << id
+                  << " name=" << byzantine::inventory_name(session.view.state, id)
+                  << " selected=" << (selected ? "yes" : "no") << '\n';
+    }
+    session.display.compose(session.view, verbose);
+    session.display.present(session.view, options.overlay);
+    if (!options.bar_use) return;
+    if (!session.view.state.current_dialogue_record) {
+        std::cout << "bar_use skipped: no selected item\n";
+        return;
+    }
+    const auto id = *session.view.state.current_dialogue_record;
+    if (!byzantine::inventory_mark_using(session.view.state, id)) {
+        std::cout << "bar_use skipped: item=" << id
+                  << " is not on the current page\n";
+        return;
+    }
+    std::cout << "bar_use id=" << id
+              << " name=" << byzantine::inventory_name(session.view.state, id) << '\n';
+    enter_examine(session, verbose);
 }
 
 constexpr std::size_t kTravelHopLimit = 8;
@@ -2846,6 +3291,8 @@ bool restart_scene(Session& session,
     // Reload this scene from its arrival entry_state, not from the global save:
     // a 0x73 travel removed --save and carries its own pool. The startup scene's
     // entry_state is the save state, so this is the same fresh load there.
+    session.return_armed = false;
+    session.return_view = SceneView{};
     SceneView fresh;
     fresh.name = session.view.name;
     fresh.cc_path = session.view.cc_path;
@@ -2917,6 +3364,12 @@ bool execute_plan(Session& session, const ClickPlan& plan,
     // The conversation screen is local to run_conversation; stop showing it (and
     // with it the last subtitle) before the game scene returns.
     session.conversation_frame = nullptr;
+    // The conversation UI may have left the last media frame in the playfield.
+    // Restore the scene layer immediately so the normal 640x480 view (with the
+    // inventory strip) is what the caller and the player see on return.
+    refresh_background(session.options, session.view);
+    session.display.compose(session.view, false);
+    session.display.present(session.view, session.options.overlay);
     if (!outcome.ok) {
         refresh_background(session.options, session.view);
         session.display.compose(session.view, false);
@@ -3064,7 +3517,7 @@ int main(int argc, char** argv) {
         session.metadata = byzantine::read_variable_metadata(options.scene);
         load_scene_text(session, false);
         load_messages(session, true);
-        session.display.init();
+        session.display.init(options);
         if (!options.fonts.empty()) {
             const auto sfn = find_child(options.fonts, "klio");
             const auto gr = find_child(options.fonts, "gr_klio");
@@ -3254,6 +3707,7 @@ int main(int argc, char** argv) {
                 SDL_Quit();
                 return 0;
             }
+            apply_bar_options(session, options, true);
             if (options.run_label) {
                 // The CLI counterpart of a committed hotspot action: run the
                 // label (and its conversation) on the current scene state.
@@ -3415,6 +3869,7 @@ int main(int argc, char** argv) {
             bool dragging = false;
             bool dragged = false;
             int drag_x = 0;
+            int drag_y = 0;
             while (session.running) {
                 SDL_Event event;
                 while (SDL_PollEvent(&event)) {
@@ -3451,32 +3906,50 @@ int main(int argc, char** argv) {
                         if (event.key.keysym.sym == SDLK_UP) pitch = 5;
                         if (event.key.keysym.sym == SDLK_DOWN) pitch = -5;
                         turn(yaw, pitch);
+                    } else if (event.type == SDL_MOUSEWHEEL) {
+                        // Wheel is the second mouse path for the original's
+                        // up/down look; the arrow keys keep working.
+                        if (event.wheel.y != 0 && panorama_layer(session.view)) {
+                            turn(0, event.wheel.y > 0 ? 5.0 : -5.0);
+                        }
                     } else if (event.type == SDL_MOUSEBUTTONDOWN &&
                                event.button.button == SDL_BUTTON_LEFT) {
                         // SDL_RendererEventWatch already converted button.x/y
                         // to the renderer's logical size; use them as they are.
+                        // The screen is 640x480: rows 0x14..0x1a3 are the
+                        // playfield, rows 0x1a4..0x1df the inventory strip.
                         const float logical_x = static_cast<float>(event.button.x);
                         const float logical_y = static_cast<float>(event.button.y);
-                        if (panorama_layer(session.view)) {
+                        if (handle_bar_click(session, static_cast<int>(logical_x),
+                                             static_cast<int>(logical_y), true)) {
+                            // The strip and the top band are not scene clicks.
+                        } else if (panorama_layer(session.view)) {
                             dragging = true;
                             dragged = false;
                             drag_x = static_cast<int>(logical_x);
+                            drag_y = static_cast<int>(logical_y);
                         } else {
                             session.display.log_mouse_click(logical_x, logical_y, "down");
                             handle_click(static_cast<int>(logical_x),
-                                         static_cast<int>(logical_y));
+                                         static_cast<int>(logical_y) - kScreenPlayfieldTop);
                         }
                     } else if (event.type == SDL_MOUSEMOTION && dragging) {
                         const float logical_x = static_cast<float>(event.motion.x);
+                        const float logical_y = static_cast<float>(event.motion.y);
                         const int delta = static_cast<int>(logical_x) - drag_x;
-                        if (delta != 0) {
+                        const int delta_y = static_cast<int>(logical_y) - drag_y;
+                        if (delta != 0 || delta_y != 0) {
                             // One source column per screen pixel, the same
-                            // degrees-per-column that 0x402285 uses.
+                            // degrees-per-column that 0x402285 uses. The
+                            // vertical scale is a port input decision; the
+                            // original's 0x4013ae used cursor edge bands.
                             const double degrees =
                                 static_cast<double>(delta) / session.view.panorama->source_width() *
                                 360.0;
-                            turn(degrees, 0);
+                            const double pitch = -static_cast<double>(delta_y) * 0.15;
+                            turn(degrees, pitch);
                             drag_x = static_cast<int>(logical_x);
+                            drag_y = static_cast<int>(logical_y);
                             dragged = true;
                         }
                     } else if (event.type == SDL_MOUSEBUTTONUP &&
@@ -3487,7 +3960,7 @@ int main(int argc, char** argv) {
                         if (!dragged) {
                             session.display.log_mouse_click(logical_x, logical_y, "up");
                             handle_click(static_cast<int>(logical_x),
-                                         static_cast<int>(logical_y));
+                                         static_cast<int>(logical_y) - kScreenPlayfieldTop);
                         } else {
                             std::cout << "click suppressed: the drag turned the view\n";
                         }
@@ -3577,6 +4050,7 @@ int main(int argc, char** argv) {
                 }
             }
         }
+        apply_bar_options(session, options, true);
         if (options.click) {
             const auto plan = plan_hotspot(session.view, *options.click);
             std::cout << "click " << plan.message
@@ -3639,7 +4113,7 @@ int main(int argc, char** argv) {
         session.display.compose(session.view);
         session.display.present(session.view, options.overlay);
         if (options.print_hotspots) print_hotspot_screens(session.view);
-        session.display.write_shot(options.shot);
+        session.display.write_shot(session.view, options.shot);
         std::cout << "scene=" << session.view.name
                   << " background=" << session.view.background_name
                   << " hotspots=" << session.view.trace.active_hotspots.size() << " slots=";

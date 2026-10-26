@@ -169,15 +169,18 @@ struct SaveGame {
     std::uint16_t scene_index = 0;  // DAT_00482428, index into engine/SHOW.LCC
     std::vector<SaveSceneRecord> scene_records;   // present slots, in file order
     std::vector<std::uint16_t> node_values;        // DAT_0047e2f0, 3000 words
-    // 0x408adc preamble (FUN_00408a1e writes the same three dwords).
-    std::uint32_t field_45d1c0 = 0;  // 0x4075fe/0x4083d4: dialog visibility
-    std::uint32_t field_45d1c4 = 0;  // 0x4073f0: selected channel
-    std::uint32_t field_45d1bc = 0;  // 0x407527: scroll position in the channel
-    std::array<std::uint32_t, kSaveDialogueChannels> dialogue_depths{};  // 42
+    // 0x408adc preamble (FUN_00408a1e writes the same three dwords). Despite
+    // the historical "dialogue" names, 0x4083d4/0x407420/0x408076 use these as
+    // the bottom inventory strip: visibility, page and scroll.
+    std::uint32_t field_45d1c0 = 0;  // 0x4075fe/0x4083d4: inventory strip visible
+    std::uint32_t field_45d1c4 = 0;  // 0x4073f0: inventory page 0..9
+    std::uint32_t field_45d1bc = 0;  // 0x407527: first visible item in the page
+    std::array<std::uint32_t, kSaveDialogueChannels> dialogue_depths{};  // item count per page
     std::array<std::uint32_t, kSaveDialogueChannels * kSaveDialogueStackDepth>
-        dialogue_stacks{};  // DAT_00468d78
-    std::int32_t dialogue_index = -1;  // DAT_0045d1c8 (0xffffffff = none)
+        dialogue_stacks{};  // DAT_00468d78: item ids per page
+    std::int32_t dialogue_index = -1;  // DAT_0045d1c8 item selection (-1 = none)
     // 0x4089b0: (flag, value) pairs while flag != 0xff, at most 0x15e.
+    // value is the first byte of each DAT_00486f90 item record (state).
     std::vector<std::pair<std::uint8_t, std::uint8_t>> dialogue_marks;
     std::uint32_t field_45f210 = 0;
     std::uint32_t field_460668 = 0;

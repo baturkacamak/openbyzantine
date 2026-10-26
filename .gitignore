@@ -40,3 +40,4 @@ port/input-test
 *.a
 *.so
 build/
+port/inventory-test

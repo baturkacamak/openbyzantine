@@ -720,6 +720,28 @@ static SceneTrace trace_scene_from(const std::vector<CcInstruction>& script,
         }
         case 0x69: {
             const auto id = constant_word(instruction.arguments.at(0));
+            // 0x431ec2 passes operand 1 to 0x41045b. Code 4 is the examine
+            // close-up: the image is inventor/examine/<stem>.jpg derived from
+            // DAT_0045d1cc, not a CB background.
+            std::uint16_t transition = 0xffff;
+            if (instruction.arguments.size() > 1) {
+                const auto& argument = instruction.arguments[1];
+                if ((argument.type == 2 || argument.type == 64) &&
+                    argument.encoded_value.size() == 2) {
+                    transition = encoded_word(argument);
+                }
+            }
+            if (transition == 4) {
+                if (!state.current_use_item) {
+                    trace.missing_examine_item = true;
+                    trace.stopped_at = current;
+                    pc = script.size();
+                    break;
+                }
+                trace.examine_image = *state.current_use_item;
+                trace.background.reset();
+                break;
+            }
             if (id >= entries.size()) {
                 throw std::runtime_error("CC background ID outside CB record");
             }
@@ -2208,6 +2230,7 @@ std::string trace_blocker(const SceneTrace& trace) {
         return "unresolved_sound_name=" + std::to_string(*trace.unresolved_sound_name);
     }
     if (trace.missing_object) return "missing_object=" + std::to_string(*trace.missing_object);
+    if (trace.missing_examine_item) return "missing_examine_item";
     if (trace.unresolved_object_label) {
         return "unresolved_object_label=" + std::to_string(*trace.unresolved_object_label);
     }

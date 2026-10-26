@@ -61,6 +61,22 @@ extract_panorama_nodes() {
     rm -rf "$tmp"
 }
 
+# The inventory strip needs inventor/INSTRIP.TGA and the six icons, and every
+# close-up needs inventor/examine/<item>.jpg. The original top-bar assets live
+# under copy2hd/setupart; flatten them to setupart/ for the same lookup.
+extract_ui_assets() {
+    local iso="$1" tmp="$data/.ui-tmp"
+    rm -rf "$tmp"
+    7z x -y "$iso" "copy2hd/setupart/*" -o"$tmp" >/dev/null 2>&1 || true
+    if [ -d "$tmp/copy2hd/setupart" ]; then
+        mkdir -p "$data/setupart"
+        cp -r "$tmp/copy2hd/setupart/." "$data/setupart/"
+    fi
+    rm -rf "$tmp"
+    7z x -y "$iso" "inventor/*" "inventor/examine/*" "inventor/hotitems/*" \
+        -o"$data" >/dev/null 2>&1 || true
+}
+
 command -v 7z >/dev/null 2>&1 || { echo "7z is required" >&2; exit 1; }
 iso1="$(find_iso 1)" || { echo "cannot find Byzantine_1.iso under $game_dir" >&2; exit 1; }
 
@@ -76,8 +92,10 @@ if [ ! -f "$data/.prepared" ]; then
         iso="$(find_iso "$index")" || continue
         7z x -y "$iso" "backs/*" "nodes/*" "anims/*" "sounds/*" -o"$data" >/dev/null 2>&1 || true
         extract_panorama_nodes "$iso"
+        extract_ui_assets "$iso"
     done
     touch "$data/.media_v2"
+    touch "$data/.ui_v1"
     # 0x407254 decides the inventory media from the shipped TGA names (they are
     # spread over the CDs, so the listing is the union).
     listing=""
@@ -129,6 +147,15 @@ if [ ! -f "$data/.media_v2" ]; then
         extract_panorama_nodes "$iso"
     done
     touch "$data/.media_v2"
+fi
+
+# An older prepared dir may lack the inventory/close-up assets; fetch them once.
+if [ ! -f "$data/.ui_v1" ]; then
+    for index in 1 2 3 4 5 6; do
+        iso="$(find_iso "$index")" || continue
+        extract_ui_assets "$iso"
+    done
+    touch "$data/.ui_v1"
 fi
 
 # A data dir prepared before the text step has neither the fonts nor the split
