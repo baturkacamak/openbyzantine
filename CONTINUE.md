@@ -26,6 +26,8 @@ character's real conversation (AM curator) exercised the shared interpreter and
 exposed a missing generic opcode pair. Report:
 `analysis/rea/INPUT_AND_CANCEL.md`; mouse report: `analysis/rea/MOUSE_INPUT.md`.
 
+- **Commits:** `197e97e` mouse fix + tests; `7e7808c` shared 0x45/0x46;
+  `dad129a` ESC dialog/explicit reload (docs follow-up `c5ef1fb`).
 - **Commit `197e97e` — mouse fix + tests.** SDL_RenderSetLogicalSize's event
   watch already delivers logical mouse events; the old `window_to_logical`
   multiplied by `output/window` and applied dpi_scale twice. Events use their
