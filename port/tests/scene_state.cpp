@@ -568,6 +568,7 @@ int main(int argc, char** argv) {
             {0x65, {word(2, 3), word(64, 0), word(64, 7), word(64, 20), word(64, 30),
                     word(64, 40), word(2, 9)}},
             {0xc4, {word(2, 3), absent, absent, absent, absent, absent, absent, absent}},
+            {0xbc, {word(2, 3), absent, absent, absent, absent, absent, absent, absent}},
             {0x6f, {}}
         };
         byzantine::SceneState sound_state;
@@ -584,9 +585,34 @@ int main(int argc, char** argv) {
                 sound_state.sounds.at(3).field08 == 30 &&
                 sound_state.sounds.at(3).field18 == 40 &&
                 sound_state.sounds.at(3).enabled == 9 &&
-                sound_state.sounds.at(3).active &&
-                sound_state.endgame_requested,
+                !sound_state.sounds.at(3).active && sound_state.endgame_requested,
                 "0x65/0xc4 sound state mismatch");
+        // 0xc4 queues an ambient start (0x427de1, non-blocking) with the +0x14
+        // loop flag; 0xbc queues the matching stop. Use a non-endgame record so
+        // the start is not diverted to the endgame flag.
+        byzantine::SceneState ambient_state;
+        ambient_state.sound_records = {{"ambient", "AM.CCG", 0}};
+        ambient_state.sound_table_known = true;
+        byzantine::SceneSoundState ambient_sound;
+        ambient_sound.defined = true;
+        ambient_sound.field14 = 1;
+        ambient_sound.field18 = 1;
+        ambient_state.sounds[3] = ambient_sound;
+        const auto ambient_trace = byzantine::trace_scene_label(
+            {{0xe1, {word(2, 10)}},
+             {0xc4, {word(2, 3), absent, absent, absent, absent, absent, absent, absent}},
+             {0xbc, {word(2, 3), absent, absent, absent, absent, absent, absent, absent}},
+             {0x6f, {}}},
+            {}, ambient_state, 10);
+        require(ambient_trace.sound_starts.size() == 1 &&
+                    ambient_trace.sound_starts[0].opcode == 0xc4 &&
+                    ambient_trace.sound_starts[0].id == 3 &&
+                    ambient_trace.sound_starts[0].loop &&
+                    ambient_trace.sound_starts[0].record_present &&
+                    ambient_trace.sound_stops.size() == 1 &&
+                    ambient_trace.sound_stops[0].id == 3 &&
+                    !ambient_state.sounds.at(3).active,
+                "0xc4 ambient start / 0xbc stop trace mismatch");
 
         // Without the per-scene CS table the "endgame" comparison is not
         // evaluable and must stop instead of being skipped.
@@ -1069,7 +1095,10 @@ int main(int argc, char** argv) {
                 release_trace.sound_releases[0].id == 1 &&
                 release_trace.sound_releases[0].record_present &&
                 release_trace.sound_releases[0].field14 == 1 &&
+                release_trace.sound_releases[0].step != 0 &&
                 release_trace.sound_stop_all_requests == 1 &&
+                release_trace.sound_stop_alls.size() == 1 &&
+                release_trace.sound_stop_alls[0].step != 0 &&
                 !release_trace.unsupported_opcode,
                 "0xcf/0xd0 sound release mismatch");
 

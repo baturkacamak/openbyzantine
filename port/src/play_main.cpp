@@ -17,6 +17,7 @@
 // same loader byzantine-cc --trace-save uses) and every click runs a label of
 // the shipped script and reports what the VM actually did.
 
+#include "byzantine/ambient_audio.hpp"
 #include "byzantine/cb.hpp"
 #include "byzantine/cc.hpp"
 #include "byzantine/compose.hpp"
@@ -64,7 +65,6 @@ constexpr int kScreenWidth = 640;
 constexpr int kScreenHeight = 480;
 constexpr int kScreenPlayfieldTop = byzantine::kPlayfieldTop;
 constexpr int kScreenBandTop = 0x1a4;
-constexpr Uint32 kAudioRate = 22050;
 
 std::string lower_ascii(std::string value) {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char character) {
@@ -298,134 +298,6 @@ Options parse_options(int argc, char** argv) {
 }
 
 // ---------------------------------------------------------------------------
-// WAV playback through SDL2's audio device (the ready-made library part).
-// ---------------------------------------------------------------------------
-struct WavClip {
-    std::vector<std::uint8_t> bytes;
-    int channels = 0;
-    int sample_rate = 0;
-    std::uint64_t duration_ms = 0;
-};
-
-std::uint32_t read_le32(const std::vector<std::uint8_t>& data, std::size_t at) {
-    return static_cast<std::uint32_t>(data.at(at)) |
-           (static_cast<std::uint32_t>(data.at(at + 1)) << 8) |
-           (static_cast<std::uint32_t>(data.at(at + 2)) << 16) |
-           (static_cast<std::uint32_t>(data.at(at + 3)) << 24);
-}
-
-std::uint16_t read_le16(const std::vector<std::uint8_t>& data, std::size_t at) {
-    return static_cast<std::uint16_t>(data.at(at) | (data.at(at + 1) << 8));
-}
-
-// Strict RIFF/WAVE walk: PCM 16-bit only, which is what every shipped
-// sounds/*.WAV is (analysis/rea/LIBRARY_STRATEGY.md §5).
-WavClip parse_wav(const std::vector<std::uint8_t>& data, const std::string& path) {
-    if (data.size() < 12 || std::memcmp(data.data(), "RIFF", 4) != 0 ||
-        std::memcmp(data.data() + 8, "WAVE", 4) != 0) {
-        throw std::runtime_error("not a RIFF/WAVE file: " + path);
-    }
-    WavClip clip;
-    std::size_t at = 12;
-    int bits = 0;
-    int format = 0;
-    std::size_t data_at = 0;
-    std::size_t data_size = 0;
-    while (at + 8 <= data.size()) {
-        const std::string id(reinterpret_cast<const char*>(data.data() + at), 4);
-        const auto size = static_cast<std::size_t>(read_le32(data, at + 4));
-        const std::size_t body = at + 8;
-        if (body + size > data.size()) throw std::runtime_error("truncated WAVE chunk: " + path);
-        if (id == "fmt ") {
-            if (size < 16) throw std::runtime_error("short fmt chunk: " + path);
-            format = read_le16(data, body);
-            clip.channels = read_le16(data, body + 2);
-            clip.sample_rate = static_cast<int>(read_le32(data, body + 4));
-            bits = read_le16(data, body + 14);
-        } else if (id == "data") {
-            data_at = body;
-            data_size = size;
-        }
-        at = body + size + (size & 1);
-    }
-    if (format != 1) throw std::runtime_error("WAV is not PCM: " + path);
-    if (bits != 16) throw std::runtime_error("WAV is not 16-bit: " + path);
-    if (clip.channels < 1 || clip.channels > 2 || clip.sample_rate <= 0) {
-        throw std::runtime_error("unsupported WAV channel layout: " + path);
-    }
-    if (data_size == 0) throw std::runtime_error("WAV has no samples: " + path);
-    clip.bytes.assign(data.begin() + static_cast<std::ptrdiff_t>(data_at),
-                      data.begin() + static_cast<std::ptrdiff_t>(data_at + data_size));
-    const auto frames = data_size / (static_cast<std::size_t>(clip.channels) * 2);
-    clip.duration_ms =
-        static_cast<std::uint64_t>(frames) * 1000 / static_cast<std::uint64_t>(clip.sample_rate);
-    return clip;
-}
-
-class SoundPlayer {
-public:
-    ~SoundPlayer() {
-        if (stream_ != nullptr) SDL_FreeAudioStream(stream_);
-        if (device_ != 0) SDL_CloseAudioDevice(device_);
-    }
-
-    void open() {
-        if (SDL_InitSubSystem(SDL_INIT_AUDIO) != 0) {
-            throw std::runtime_error(std::string("SDL audio init failed: ") + SDL_GetError());
-        }
-        SDL_AudioSpec wanted{};
-        wanted.freq = static_cast<int>(kAudioRate);
-        wanted.format = AUDIO_S16SYS;
-        wanted.channels = 2;
-        wanted.samples = 1024;
-        device_ = SDL_OpenAudioDevice(nullptr, 0, &wanted, &obtained_, 0);
-        if (device_ == 0) {
-            throw std::runtime_error(std::string("no audio device: ") + SDL_GetError());
-        }
-        SDL_PauseAudioDevice(device_, 0);
-        name_ = "SDL2 " + std::to_string(obtained_.freq) + "Hz " +
-                std::to_string(static_cast<int>(obtained_.channels)) + "ch";
-        std::cout << "audio device freq=" << obtained_.freq
-                  << " format=0x" << std::hex << static_cast<int>(obtained_.format)
-                  << std::dec << " channels=" << static_cast<int>(obtained_.channels)
-                  << " samples=" << obtained_.samples << '\n';
-    }
-
-    bool ready() const { return device_ != 0; }
-    const std::string& device_name() const { return name_; }
-
-    // Queues the clip; the caller keeps the window alive while `queued()` drains.
-    void queue(const WavClip& clip) {
-        if (device_ == 0) return;
-        if (stream_ != nullptr) SDL_FreeAudioStream(stream_);
-        stream_ = SDL_NewAudioStream(AUDIO_S16SYS, static_cast<Uint8>(clip.channels),
-                                     clip.sample_rate, AUDIO_S16SYS, 2,
-                                     static_cast<int>(kAudioRate));
-        if (stream_ == nullptr) throw std::runtime_error(SDL_GetError());
-        if (SDL_AudioStreamPut(stream_, clip.bytes.data(),
-                               static_cast<int>(clip.bytes.size())) != 0) {
-            throw std::runtime_error(std::string("audio stream put failed: ") + SDL_GetError());
-        }
-        SDL_AudioStreamFlush(stream_);
-        const int available = SDL_AudioStreamAvailable(stream_);
-        std::vector<std::uint8_t> converted(static_cast<std::size_t>(std::max(0, available)));
-        if (available > 0) SDL_AudioStreamGet(stream_, converted.data(), available);
-        if (!converted.empty() &&
-            SDL_QueueAudio(device_, converted.data(), static_cast<Uint32>(converted.size())) != 0) {
-            throw std::runtime_error(std::string("audio queue failed: ") + SDL_GetError());
-        }
-    }
-
-    std::uint32_t queued() const { return device_ == 0 ? 0 : SDL_GetQueuedAudioSize(device_); }
-
-private:
-    SDL_AudioDeviceID device_ = 0;
-    SDL_AudioSpec obtained_{};
-    SDL_AudioStream* stream_ = nullptr;
-    std::string name_ = "closed";
-};
-
-// ---------------------------------------------------------------------------
 // Scene state
 // ---------------------------------------------------------------------------
 // The visible scene layer: the last of 0x69 (background) and 0xb9 (node) the
@@ -484,17 +356,35 @@ struct SceneView {
 
 // One sound the label queues, in script order.
 struct SoundEvent {
+    enum class Kind { start, stop, release, stop_all };
     std::size_t step = 0;
     std::size_t instruction = 0;
     std::uint16_t id = 0;
     std::optional<bool> allowed;
     std::uint64_t cap_ms = 0;
+    Kind kind = Kind::start;
+    bool blocking = false;  // 0xd1 mode 0 dialogue or a 0xd3 session
+    bool loop = false;      // DAT_00486220[id]+0x14
+    std::uint8_t opcode = 0;
 };
 
+// The script's sound requests in execution order. 0xc4 starts an ambient voice
+// without blocking; 0xd1 blocks only in interactive mode 0 (0x428cbd's loop);
+// 0xd3 is a timed session; 0xbc/0xcf/0xd0 stop voices. A caller that replays the
+// label with a step budget stops exactly at these instructions.
 std::vector<SoundEvent> sound_events(const byzantine::SceneTrace& trace) {
     std::vector<SoundEvent> events;
     for (const auto& start : trace.sound_starts) {
-        events.push_back({start.step, start.instruction, start.id, start.allowed, 0});
+        SoundEvent event;
+        event.step = start.step;
+        event.instruction = start.instruction;
+        event.id = start.id;
+        event.allowed = start.allowed;
+        event.kind = SoundEvent::Kind::start;
+        event.opcode = start.opcode;
+        event.loop = start.loop;
+        event.blocking = start.opcode == 0xd1 && start.mode == 0;
+        events.push_back(std::move(event));
     }
     for (const auto& session : trace.sound_sessions) {
         std::uint64_t cap = 0;
@@ -504,7 +394,39 @@ std::vector<SoundEvent> sound_events(const byzantine::SceneTrace& trace) {
                 break;
             }
         }
-        events.push_back({session.step, session.instruction, session.id, session.allowed, cap});
+        SoundEvent event;
+        event.step = session.step;
+        event.instruction = session.instruction;
+        event.id = session.id;
+        event.allowed = session.allowed;
+        event.cap_ms = cap;
+        event.kind = SoundEvent::Kind::start;
+        event.opcode = 0xd3;
+        event.blocking = true;
+        events.push_back(std::move(event));
+    }
+    for (const auto& stop : trace.sound_stops) {
+        SoundEvent event;
+        event.step = stop.step;
+        event.instruction = stop.instruction;
+        event.id = stop.id;
+        event.kind = SoundEvent::Kind::stop;
+        events.push_back(std::move(event));
+    }
+    for (const auto& release : trace.sound_releases) {
+        SoundEvent event;
+        event.step = release.step;
+        event.instruction = release.instruction;
+        event.id = release.id;
+        event.kind = SoundEvent::Kind::release;
+        events.push_back(std::move(event));
+    }
+    for (const auto& stop : trace.sound_stop_alls) {
+        SoundEvent event;
+        event.step = stop.step;
+        event.instruction = stop.instruction;
+        event.kind = SoundEvent::Kind::stop_all;
+        events.push_back(std::move(event));
     }
     std::stable_sort(events.begin(), events.end(), [](const SoundEvent& left,
                                                       const SoundEvent& right) {
@@ -612,9 +534,17 @@ std::optional<std::filesystem::path> sound_path(const std::filesystem::path& roo
     if (root.empty() || entry_name.empty()) return std::nullopt;
     auto base = root;
     if (std::filesystem::is_directory(base / "sounds")) base /= "sounds";
-    const std::array<std::filesystem::path, 3> candidates = {
+    std::vector<std::filesystem::path> candidates = {
         base, base / lower_ascii(scene),
         base / lower_ascii(entry_name.substr(0, std::min<std::size_t>(2, entry_name.size())))};
+    // copy2hd/sounds holds endGame/Emre2/Pxstart on the shipped CDs and
+    // scene.sh flattens it into sounds/; also accept a data dir that keeps the
+    // original layout.
+    const auto original = root / "copy2hd" / "sounds";
+    if (std::filesystem::is_directory(original)) {
+        candidates.push_back(original);
+        candidates.push_back(original / lower_ascii(scene));
+    }
     for (const auto& directory : candidates) {
         const auto found = find_child(directory, entry_name);
         if (found) return found;
@@ -863,6 +793,9 @@ void apply_panorama_events(SceneView& view, Options& options, bool verbose) {
             view.panorama.emplace(key, image.width, image.height,
                                   byzantine::rgb_to_rgb565(image), kSceneWidth,
                                   kSceneHeight);
+            std::cout << "panorama_view load=" << key << " viewport="
+                      << view.panorama->viewport_width() << 'x'
+                      << view.panorama->viewport_height() << "\n";
             loaded = true;
         }
         const bool alternate_mode = false;  // DAT_00464878 == 0 outside a transition
@@ -1048,7 +981,14 @@ struct Display {
         std::fill(surface.pixels.begin(), surface.pixels.end(), 0);
         // The scene layer is whichever of 0x69 (background) / 0xb9 (node) ran
         // LAST (see panorama_layer).
-        const bool show_panorama = panorama_layer(view);
+        // A gated replay composes a frame at the instruction that queued a
+        // sound, before the committed trace's panorama node has been loaded by
+        // apply_panorama_events. Do not dereference an empty optional: fall
+        // back to the background for that intermediate frame and report it.
+        const bool show_panorama = panorama_layer(view) && view.panorama.has_value();
+        if (panorama_layer(view) && !view.panorama.has_value()) {
+            if (verbose) std::cout << "panorama_pending (node not loaded yet)\n";
+        }
         if (show_panorama) {
             // 0x4242bd samples the current node through the camera map; the
             // record pass then draws on top, exactly like the background path.
@@ -1346,7 +1286,7 @@ struct Session {
     Options options;
     SceneView view;
     Display display;
-    SoundPlayer audio;
+    byzantine::AudioMixer audio;
     // SHOW.LCC/LCV/LVM from --engine: the scene list that turns a 0x73 index
     // into a scene name, and the per-scene local->global variable rows.
     std::optional<byzantine::VariableMetadata> metadata;
@@ -1415,7 +1355,7 @@ void pump_window(Session& session) {
 }
 
 // Queues the clip, then keeps the window alive until the device drains it.
-void play_and_wait(Session& session, const WavClip& clip, std::uint64_t cap_ms) {
+void play_and_wait(Session& session, const byzantine::WavClip& clip, std::uint64_t cap_ms) {
     session.audio.queue(clip);
     if (session.options.selftest_events && !session.wait.injected) {
         // Test hook: prove that the wait loop still processes input. H must
@@ -1468,6 +1408,32 @@ bool play_events(Session& session, const SceneView& view, const std::vector<Soun
     };
     for (std::size_t index = from; index < to; ++index) {
         const auto& event = events[index];
+        if (event.kind == SoundEvent::Kind::stop) {
+            session.audio.stop(event.id);
+            if (verbose) {
+                std::cout << "ambient_stop step=" << event.step << " id=" << event.id
+                          << " " << session.audio.describe() << '\n';
+            }
+            continue;
+        }
+        if (event.kind == SoundEvent::Kind::release) {
+            // 0x427a01: only a loop is queued on the persisted chain; the voice
+            // is stopped either way.
+            session.audio.stop(event.id);
+            if (verbose) {
+                std::cout << "ambient_release step=" << event.step << " id=" << event.id
+                          << " " << session.audio.describe() << '\n';
+            }
+            continue;
+        }
+        if (event.kind == SoundEvent::Kind::stop_all) {
+            session.audio.stop_all();
+            if (verbose) {
+                std::cout << "ambient_stop_all step=" << event.step << " "
+                          << session.audio.describe() << '\n';
+            }
+            continue;
+        }
         if (event.allowed && !*event.allowed) {
             if (verbose) {
                 std::cout << "audio step=" << event.step << " id=" << event.id
@@ -1492,23 +1458,57 @@ bool play_events(Session& session, const SceneView& view, const std::vector<Soun
             }
             continue;
         }
-        WavClip clip;
+        byzantine::WavClip clip;
         try {
-            clip = parse_wav(read_file(*file), file->string());
+            clip = byzantine::parse_wav(read_file(*file), file->string());
         } catch (const std::exception& error) {
             std::cout << "audio " << error.what() << '\n';
             continue;
         }
         if (verbose) {
             std::cout << "audio step=" << event.step << " instruction=" << event.instruction
-                      << " id=" << event.id << " name=" << *name
+                      << " opcode=0x" << std::hex << static_cast<unsigned>(event.opcode)
+                      << std::dec << " id=" << event.id << " name=" << *name
                       << " file=" << file->filename().string()
-                      << " duration_ms=" << clip.duration_ms;
+                      << " duration_ms=" << clip.duration_ms
+                      << " loop=" << (event.loop ? 1 : 0)
+                      << " blocking=" << (event.blocking ? 1 : 0);
             if (event.cap_ms) std::cout << " session_cap_ms=" << event.cap_ms;
             std::cout << std::flush;
         }
+        if (!session.audio.ready()) {
+            if (verbose) std::cout << " skipped: no audio device\n";
+            continue;
+        }
+        try {
+            if (!session.audio.start(event.id, clip, event.loop)) {
+                if (verbose) std::cout << " skipped: mixer rejected the clip\n";
+                continue;
+            }
+        } catch (const std::exception& error) {
+            std::cout << "audio " << error.what() << '\n';
+            continue;
+        }
+        if (!event.blocking) {
+            // 0xc4 is an ambient activation: the script continues immediately.
+            if (verbose) {
+                std::cout << " (ambient started) " << session.audio.describe() << '\n';
+            }
+            continue;
+        }
         const auto before = std::chrono::steady_clock::now();
-        play_and_wait(session, clip, event.cap_ms);
+        const std::uint64_t limit =
+            event.cap_ms == 0 ? clip.duration_ms + 50 : event.cap_ms;
+        while (session.running && session.audio.playing(event.id)) {
+            pump_window(session);
+            if (!session.running) break;
+            const auto waited = static_cast<std::uint64_t>(
+                std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::steady_clock::now() - before)
+                    .count());
+            if (waited >= limit) break;
+            SDL_Delay(4);
+        }
         const auto waited = static_cast<std::uint64_t>(
             std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::steady_clock::now() - before)
@@ -1568,6 +1568,50 @@ bool run_label_gated(Session& session, EntryPoint point,
 bool audio_gated(const Session& session) {
     return session.audio.ready() && !session.options.sounds.empty() &&
            session.view.state.sound_table_known;
+}
+
+// 0x425ab4 / 0x439349 restore DAT_00486220 including +0x14 (loop) and +0x34
+// (active). The original's saved loop chain (DAT_0046019c) is not modelled, but
+// every active looping record of the arrival state is a sound the original
+// keeps playing, so the mixer starts them here.
+void resume_ambient(Session& session, bool verbose) {
+    if (!audio_gated(session)) return;
+    std::size_t started = 0;
+    std::size_t active_loops = 0;
+    for (const auto& [id, sound] : session.view.state.sounds) {
+        if (!sound.defined || !sound.active || sound.field14 == 0) continue;
+        ++active_loops;
+        if (session.audio.playing(id)) continue;
+        if (id >= session.view.state.sound_records.size()) continue;
+        const auto& name = session.view.state.sound_records[id].name;
+        if (name.empty() || name == "endgame") continue;
+        const auto file = sound_path(session.options.sounds, name, session.view.name);
+        if (!file) {
+            if (verbose) {
+                std::cout << "ambient_resume id=" << id << " name=" << name
+                          << " skipped: no such WAV under "
+                          << session.options.sounds.string() << '\n';
+            }
+            continue;
+        }
+        try {
+            const auto clip = byzantine::parse_wav(read_file(*file), file->string());
+            if (session.audio.start(id, clip, true)) {
+                ++started;
+                if (verbose) {
+                    std::cout << "ambient_resume id=" << id << " name=" << name
+                              << " file=" << file->filename().string()
+                              << " duration_ms=" << clip.duration_ms << " loop=1\n";
+                }
+            }
+        } catch (const std::exception& error) {
+            std::cout << "ambient_resume " << error.what() << '\n';
+        }
+    }
+    if (verbose) {
+        std::cout << "ambient_resume loops=" << active_loops
+                  << " started=" << started << '\n';
+    }
 }
 
 // Compact stop reason for the new scene's entry line: the shared blocker
@@ -1731,6 +1775,7 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose) {
             session.view.state.current_use_item.reset();
         }
         session.view.state.random_state = current.random_state;
+        resume_ambient(session, verbose);
         refresh_background(options, session.view);
         session.display.compose(session.view, verbose);
         session.display.present(session.view, options.overlay);
@@ -1738,8 +1783,17 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose) {
                   << " requested_index=" << index
                   << " hotspots=" << session.view.trace.active_hotspots.size()
                   << " bar=" << (session.view.state.dialogue_visible ? "visible" : "hidden")
-                  << '\n';
+                  << " ambient=" << session.audio.ambient() << '\n';
         return session.running;
+    }
+    // 0x40f3f0 frees the per-scene sound table and its handles on a scene load;
+    // the target entry starts its own ambience. The original's saved loop chain
+    // (DAT_0046019c) is not modelled, so no loop crosses the 0x73.
+    if (session.audio.ready() && session.audio.ambient() != 0) {
+        const auto voices = session.audio.ambient();
+        session.audio.stop_all();
+        std::cout << "ambient_scene_stop from=" << session.view.name
+                  << " voices=" << voices << '\n';
     }
     if (!session.metadata) {
         std::cout << "travel index=" << index
@@ -1867,6 +1921,7 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose) {
     update_layer(session.view, true);
     show_message_text(session, verbose);
     apply_panorama_events(session.view, options, verbose);
+    resume_ambient(session, verbose);
     refresh_background(options, session.view);
     session.display.compose(session.view, verbose);
     session.display.present(session.view, options.overlay);
@@ -3107,7 +3162,7 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                         std::cout << "conversation_media clip=" << event.line.clip
                                   << " unavailable (text stays)\n";
                     } else {
-                        std::optional<WavClip> sound;
+                        std::optional<byzantine::WavClip> sound;
                         if (!decoded->audio) {
                             std::cout << "conversation_audio clip=" << event.line.clip
                                       << " no audio stream in the AVI\n";
@@ -3122,7 +3177,7 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                                          "open (see the startup error)\n";
                         } else {
                             try {
-                                sound = parse_wav(read_file(*decoded->audio),
+                                sound = byzantine::parse_wav(read_file(*decoded->audio),
                                                   decoded->audio->string());
                             } catch (const std::exception& error) {
                                 ++outcome.audio_failures;
@@ -3910,12 +3965,23 @@ int main(int argc, char** argv) {
         if (options.print_audio) {
             for (const auto& event : sound_events(probe)) {
                 std::cout << "audio step=" << event.step << " instruction=" << event.instruction
-                          << " id=" << event.id;
+                          << " kind="
+                          << (event.kind == SoundEvent::Kind::start
+                                  ? "start"
+                                  : (event.kind == SoundEvent::Kind::stop
+                                         ? "stop"
+                                         : (event.kind == SoundEvent::Kind::release
+                                                ? "release"
+                                                : "stop_all")))
+                          << " opcode=0x" << std::hex << static_cast<unsigned>(event.opcode)
+                          << std::dec << " id=" << event.id;
                 if (session.view.state.sound_table_known &&
                     event.id < session.view.state.sound_records.size()) {
                     std::cout << " name=" << session.view.state.sound_records[event.id].name;
                 }
-                std::cout << " allowed="
+                std::cout << " loop=" << (event.loop ? 1 : 0)
+                          << " blocking=" << (event.blocking ? 1 : 0)
+                          << " allowed="
                           << (event.allowed ? (*event.allowed ? "true" : "false") : "unknown")
                           << '\n';
             }
@@ -3960,6 +4026,7 @@ int main(int argc, char** argv) {
                 show_message_text(session, true);
             }
             log_entry_summary(session);
+            resume_ambient(session, true);
             if (options.selftest_events && !options.click && options.click_ats.empty() &&
                 !options.run_label) {
                 push_quit();
@@ -4295,6 +4362,7 @@ int main(int argc, char** argv) {
             show_message_text(session, true);
         }
         log_entry_summary(session);
+        resume_ambient(session, true);
         if (options.run_label) {
             ClickPlan plan;
             plan.ok = true;

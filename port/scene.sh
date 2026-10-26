@@ -75,6 +75,14 @@ extract_ui_assets() {
     rm -rf "$tmp"
     7z x -y "$iso" "inventor/*" "inventor/examine/*" "inventor/hotitems/*" \
         -o"$data" >/dev/null 2>&1 || true
+    # A few sounds (endgame/Emre2/Pxstart) live under copy2hd/sounds, not under
+    # the flat sounds/ tree. Flatten them so the player's lookup finds them.
+    7z x -y "$iso" "copy2hd/sounds/*" -o"$tmp" >/dev/null 2>&1 || true
+    if [ -d "$tmp/copy2hd/sounds" ]; then
+        mkdir -p "$data/sounds"
+        cp -r "$tmp/copy2hd/sounds/." "$data/sounds/"
+    fi
+    rm -rf "$tmp"
 }
 
 command -v 7z >/dev/null 2>&1 || { echo "7z is required" >&2; exit 1; }

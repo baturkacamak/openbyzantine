@@ -56,7 +56,11 @@ bool PanoramaView::advance(double horizontal_degrees, double vertical_degrees,
 
 void PanoramaView::render(Rgb16Surface& target) const {
     if (target.width != viewport_width_ || target.height != viewport_height_) {
-        throw std::runtime_error("panorama viewport does not match the destination");
+        throw std::runtime_error("panorama viewport " + std::to_string(viewport_width_) +
+                                 "x" + std::to_string(viewport_height_) +
+                                 " does not match the destination " +
+                                 std::to_string(target.width) + "x" +
+                                 std::to_string(target.height));
     }
     sample_panorama_rgb16(padded_, projection_.mapping(),
                           projection_.yaw_word_offset(), target.pixels,

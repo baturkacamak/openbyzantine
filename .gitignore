@@ -41,3 +41,4 @@ port/input-test
 *.so
 build/
 port/inventory-test
+port/audio-test

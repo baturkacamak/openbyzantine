@@ -1165,8 +1165,9 @@ static SceneTrace trace_scene_from(const std::vector<CcInstruction>& script,
             break;
         }
         case 0xc4: {
-            // 0x42db22 case 0xc4: activate every type-2 sound operand and flag
-            // the "endgame" record by name.
+            // 0x42db22 case 0xc4: activate every type-2 sound operand, start it
+            // through 0x427de1(id, 1) (non-blocking; +0x14 selects Play loop)
+            // and flag the "endgame" record by name.
             for (std::size_t i = 0; i < instruction.arguments.size(); ++i) {
                 const auto& argument = instruction.arguments.at(i);
                 if (argument.type != 2) {
@@ -1186,7 +1187,23 @@ static SceneTrace trace_scene_from(const std::vector<CcInstruction>& script,
                 if (id < state.sound_records.size() &&
                     state.sound_records[id].name == "endgame") {
                     state.endgame_requested = true;
+                    continue;
                 }
+                SceneSoundStart start;
+                start.instruction = current;
+                start.step = trace.steps;
+                start.opcode = 0xc4;
+                start.id = id;
+                start.record_present = sound.defined;
+                start.loop = sound.field14 != 0;
+                if (sound.defined) {
+                    if (sound.field18 != 0) {
+                        start.allowed = true;
+                    } else if (state.gameprefs) {
+                        start.allowed = (*state.gameprefs)[2] != 0;
+                    }
+                }
+                trace.sound_starts.push_back(std::move(start));
             }
             break;
         }
@@ -1366,14 +1383,22 @@ static SceneTrace trace_scene_from(const std::vector<CcInstruction>& script,
         case 0xbc: {
             // 0x42db22 case 0xbc: deactivate every type-2 sound operand. The
             // original splits on +0x2c before calling 0x4281b1/0x4277ed; that
-            // renderer/audio distinction is not modelled, only the flag.
+            // renderer/audio distinction is not modelled, only the flag and the
+            // voice stop the player applies.
             for (std::size_t i = 0; i < instruction.arguments.size(); ++i) {
                 const auto& argument = instruction.arguments.at(i);
                 if (argument.type != 2) {
                     continue;
                 }
-                auto& sound = state.sounds[encoded_word(argument)];
+                const auto id = encoded_word(argument);
+                auto& sound = state.sounds[id];
                 sound.active = false;
+                SceneSoundStop stop;
+                stop.instruction = current;
+                stop.step = trace.steps;
+                stop.id = id;
+                stop.record_present = sound.defined;
+                trace.sound_stops.push_back(stop);
             }
             break;
         }
@@ -1424,6 +1449,7 @@ static SceneTrace trace_scene_from(const std::vector<CcInstruction>& script,
                 if (argument.type != 2) continue;
                 SceneSoundRelease release;
                 release.instruction = current;
+                release.step = trace.steps;
                 release.id = encoded_word(argument);
                 const auto record = state.sounds.find(release.id);
                 release.record_present =
@@ -1439,6 +1465,7 @@ static SceneTrace trace_scene_from(const std::vector<CcInstruction>& script,
             // has no session list, so the request is counted instead of being
             // treated as a no-op.
             ++trace.sound_stop_all_requests;
+            trace.sound_stop_alls.push_back(SceneSoundStopAll{current, trace.steps});
             break;
         }
         case 0xd3: {

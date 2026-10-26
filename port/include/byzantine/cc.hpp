@@ -256,12 +256,24 @@ struct SceneSoundStart {
     // (trace.steps). A caller that runs the label with a step budget can replay
     // to exactly this point, play the sound, and continue from there.
     std::size_t step = 0;
+    std::uint8_t opcode = 0xd1;        // 0xc4 = activate (ambient), 0xd1 = session
     std::uint16_t id = 0;              // raw operand 0
     std::uint16_t mode = 0;            // raw operand 1; 0 = interactive dialogue
     std::optional<std::uint16_t> text;  // operand 2 when its type is 2
     bool record_present = false;       // DAT_00486220[id] != NULL
+    // DAT_00486220[id]+0x14: 0x427de1 calls Play(...,1) for a loop.
+    bool loop = false;
     // 0x428cbd's +0x18/gamepref[2] gate; nullopt when gameprefs were not supplied.
     std::optional<bool> allowed;
+};
+
+// One 0xbc deactivation (0x4281b1/0x4277ed): stop the record's voice. 0xcf's
+// release list (0x427a01) and 0xd0's stop-all are separate trace fields.
+struct SceneSoundStop {
+    std::size_t instruction = 0;
+    std::size_t step = 0;
+    std::uint16_t id = 0;
+    bool record_present = false;
 };
 
 // One 0x6a media definition (DAT_00464f60).
@@ -313,9 +325,17 @@ struct SceneNodeWrite {
 // record fields it would copy are retained instead.
 struct SceneSoundRelease {
     std::size_t instruction = 0;
+    std::size_t step = 0;
     std::uint16_t id = 0;
     bool record_present = false;   // DAT_00486220[id] != NULL
     std::uint16_t field14 = 0;     // +0x14, the last 0x427a01 gate
+};
+
+// One 0xd0 stop-all request (0x4278ab). Kept per request so a budgeted replay
+// can stop the mixer at the exact instruction.
+struct SceneSoundStopAll {
+    std::size_t instruction = 0;
+    std::size_t step = 0;
 };
 
 // One 0xd3 timed sound session. 0x428cbd is called as
@@ -641,6 +661,8 @@ struct SceneTrace {
     std::size_t sound_refresh_requests = 0;
     // 0xd1 starts playback through 0x428cbd; retained as a request.
     std::vector<SceneSoundStart> sound_starts;
+    std::vector<SceneSoundStop> sound_stops;
+    std::vector<SceneSoundStopAll> sound_stop_alls;
     // 0x6a media definitions. timeGetTime() is not reproducible, so the saved
     // timestamp stays 0 and this counter records the unavailable field.
     std::vector<SceneMediaDefinition> media_definitions;
