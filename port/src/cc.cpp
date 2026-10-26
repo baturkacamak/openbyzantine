@@ -672,20 +672,33 @@ static SceneTrace trace_scene_from(const std::vector<CcInstruction>& script,
                             object.kind = static_cast<std::uint8_t>(found->second.mode);
                             object.label = found->second.action;
                             object.argument = 0xffffffffu;
-                            // 0x42db22 reads operand 7 only when its type
-                            // byte is 2; kinds 0x13/0x14 store the value
-                            // directly, others go through FUN_00408bb2's
-                            // string-list resolution (DAT_00485400), which
-                            // this port does not model. No current consumer
-                            // reads object.name_id, so it stays the original
-                            // "unset" marker instead of a guessed id.
+                            object.name_id = 0xffffffffu;
+                            // 0x42db22 case 0x72 reads operand 7 only when its
+                            // type byte is 2. Kinds 0x13/0x14 store that word as
+                            // a dialogue-chain id; every other kind passes it
+                            // through 0x408bb2 (the per-scene CI name table) and
+                            // stores the resulting dialogue-record id in +0x10.
+                            // 0x407c5a then compares +0x10 with the selected
+                            // inventory record. Without the CI table the id stays
+                            // "unset" instead of being guessed.
                             const auto& name_argument = instruction.arguments[7];
-                            if ((object.kind == 0x13 || object.kind == 0x14) &&
-                                name_argument.type == 2 &&
+                            if (name_argument.type == 2 &&
                                 name_argument.encoded_value.size() == 2) {
-                                object.name_id = encoded_word(name_argument);
-                            } else {
-                                object.name_id = 0xffffffffu;
+                                const auto name_id = encoded_word(name_argument);
+                                if (object.kind == 0x13 || object.kind == 0x14) {
+                                    object.name_id = name_id;
+                                } else if (state.dialogue_tables.scene_names_known &&
+                                           name_id <
+                                               state.dialogue_tables.scene_names.size()) {
+                                    const auto resolved = resolve_name_index(
+                                        state.dialogue_tables.names,
+                                        state.dialogue_tables.scene_names, true, name_id,
+                                        "CI", 0x15e);
+                                    if (resolved.id) {
+                                        object.name_id = *resolved.id;
+                                        if (resolved.fallback) ++trace.dialogue_name_fallbacks;
+                                    }
+                                }
                             }
                             state.objects.emplace(slot, object);
                         }

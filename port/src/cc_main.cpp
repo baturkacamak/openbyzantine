@@ -124,6 +124,18 @@ void dump_save(const std::vector<std::uint8_t>& bytes,
         std::cout << (index == 0 ? "" : ",") << save.dialogue_depths[index];
     }
     std::cout << " stack_entries=" << save.dialogue_stacks.size() << '\n';
+    // The counts index DAT_00468d78; printing the live ids makes the inventory
+    // strip's data (selection/examine/use evidence) readable from a save.
+    for (std::size_t channel = 0; channel < save.dialogue_depths.size(); ++channel) {
+        const auto depth = static_cast<std::size_t>(save.dialogue_depths[channel]);
+        if (depth == 0) continue;
+        std::cout << "dialogue_channel channel=" << channel << " count=" << depth << " ids=";
+        for (std::size_t at = 0; at < depth; ++at) {
+            std::cout << (at == 0 ? "" : ",")
+                      << save.dialogue_stacks[channel * byzantine::kSaveDialogueStackDepth + at];
+        }
+        std::cout << '\n';
+    }
     std::cout << "dialogue_index=" << save.dialogue_index
               << " dialogue_marks=" << save.dialogue_marks.size() << '\n';
     std::cout << "dialogue_selectors visibility=" << save.field_45d1c0

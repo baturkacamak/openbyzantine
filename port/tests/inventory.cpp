@@ -60,6 +60,78 @@ int main() {
         require(!examine_scene_for("va"), "va's out-of-range original group was guessed");
         require(examine_scene_for("examine") == "examine", "examine self mapping changed");
 
+        // 0x407c5a: the item-on-object gate. The real CLOCK object 26 is kind
+        // 0x12 with name id 21 (ISTAR); HSTMED's crowbar objects are kind 0x12
+        // with name id 72 (icrwbar); close-up exits are kind 2 with name id -1.
+        {
+            SceneObjectState star;
+            star.kind = 0x12;
+            star.name_id = 21;
+            require(item_use_compatible(state, star, std::uint16_t{21}),
+                    "0x407c5a rejected the object's own item");
+            require(!item_use_compatible(state, star, std::uint16_t{6}),
+                    "0x407c5a accepted the wrong item");
+            require(!item_use_compatible(state, star, std::nullopt),
+                    "0x407c5a accepted an empty selection for kind 0x12");
+
+            SceneObjectState exit_object;
+            exit_object.kind = 0x02;
+            exit_object.name_id = 0xffffffffu;
+            require(item_use_compatible(state, exit_object, std::uint16_t{21}),
+                    "0x407c5a blocked a kind-2 exit while an item was selected");
+            require(item_use_compatible(state, exit_object, std::nullopt),
+                    "0x407c5a blocked a kind-2 exit without a selection");
+
+            SceneObjectState named_exit;
+            named_exit.kind = 0x02;
+            named_exit.name_id = 7;
+            require(item_use_compatible(state, named_exit, std::uint16_t{7}) &&
+                        !item_use_compatible(state, named_exit, std::uint16_t{21}),
+                    "0x407c5a kind-2 name compare is wrong");
+
+            SceneObjectState item_only;
+            item_only.kind = 0x0d;
+            item_only.name_id = 0xffffffffu;
+            require(item_use_compatible(state, item_only, std::nullopt) &&
+                        !item_use_compatible(state, item_only, std::uint16_t{21}),
+                    "0x407c5a kind 0x0d 'no item' rule is wrong");
+
+            SceneObjectState never;
+            never.kind = 0x03;
+            never.name_id = 21;
+            require(!item_use_compatible(state, never, std::uint16_t{21}) &&
+                        !item_use_compatible(state, never, std::nullopt),
+                    "0x407c5a kind 0x03 accepted a selection");
+
+            SceneObjectState hidden;
+            hidden.kind = 0x18;
+            hidden.name_id = 21;
+            require(!item_use_compatible(state, hidden, std::uint16_t{21}),
+                    "0x407c5a kind 0x18 accepted a selection");
+
+            // Kind 0x13/0x14 name a dialogue chain; the selected record must be
+            // one of the chain's ids (0x407c5a's 0x486a10 walk).
+            SceneDialogueChain chain;
+            chain.count = 2;
+            chain.ids[0] = 21;
+            chain.ids[1] = 7;
+            state.dialogue_chains[5] = chain;
+            SceneObjectState chain_object;
+            chain_object.kind = 0x13;
+            chain_object.name_id = 5;
+            require(item_use_compatible(state, chain_object, std::uint16_t{21}) &&
+                        item_use_compatible(state, chain_object, std::uint16_t{7}),
+                    "0x407c5a kind 0x13 did not search the chain");
+            require(!item_use_compatible(state, chain_object, std::uint16_t{3}),
+                    "0x407c5a kind 0x13 accepted an item outside the chain");
+            chain_object.kind = 0x14;
+            require(item_use_compatible(state, chain_object, std::uint16_t{7}),
+                    "0x407c5a kind 0x14 did not search the chain");
+            chain_object.name_id = 0xffffffffu;
+            require(!item_use_compatible(state, chain_object, std::uint16_t{7}),
+                    "0x407c5a kind 0x14 accepted a missing chain");
+        }
+
         std::cout << "inventory tests passed\n";
         return 0;
     } catch (const std::exception& error) {

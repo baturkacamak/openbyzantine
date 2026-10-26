@@ -140,6 +140,8 @@ struct Options {
     bool video = true;                         // --no-video disables FFmpeg decodes
     bool selftest_events = false;              // --selftest-events (see README)
     bool print_hotspots = false;               // --print-hotspots
+    bool print_objects = false;                // --print-objects
+    bool print_variables = false;              // --print-variables
 
     // --conversation-choices 1,0,...: deterministic answers for --shot/tests.
     // The interactive player never uses this: an answer is a real mouse click.
@@ -190,6 +192,14 @@ Options parse_options(int argc, char** argv) {
         }
         if (token == "--print-hotspots") {
             options.print_hotspots = true;
+            continue;
+        }
+        if (token == "--print-objects") {
+            options.print_objects = true;
+            continue;
+        }
+        if (token == "--print-variables") {
+            options.print_variables = true;
             continue;
         }
         if (token == "--bar-use") {
@@ -274,7 +284,7 @@ Options parse_options(int argc, char** argv) {
             "[--conversation-video-shot <ppm>] [--bar-select <id>] [--bar-use] "
             "[--bar-next] [--bar-prev] [--no-video] "
             "[--no-hotspots] [--no-audio] [--print-audio] [--print-hotspots] "
-            "[--selftest-events]");
+            "[--print-objects] [--print-variables] [--selftest-events]");
     }
     options.cc_path = positional[0];
     options.cb_path = positional[1];
@@ -2032,6 +2042,8 @@ struct ClickPlan {
     bool ok = false;
     bool travel = false;
     bool conversation = false;
+    bool item_use_checked = false;   // the strip had a selected item
+    bool item_use_ok = false;        // 0x407c5a accepted it
     std::uint16_t switch_index = 0;
     std::string message;
     std::uint16_t action = 0;
@@ -2114,6 +2126,80 @@ void print_hotspot_screens(const SceneView& view) {
     }
 }
 
+// Diagnostic for the common item-use/content layers: every live object of the
+// current scene together with the fields 0x40c329/0x407c5a consume. `active`
+// is DAT_00464300[id]+0x08, `kind` +0x09, `name` +0x10 and `argument` +0x14.
+void print_objects(const SceneView& view) {
+    const auto page = byzantine::inventory_page(view.state);
+    std::size_t page_count = 0;
+    if (!view.state.dialogue_channels.empty()) {
+        page_count = view.state.dialogue_channels[
+                         page.page % view.state.dialogue_channels.size()]
+                         .size();
+    }
+    std::cout << "bar_state page=" << page.page << " scroll=" << page.scroll
+              << " count=" << page_count
+              << " visible=" << (view.state.dialogue_visible ? 1 : 0)
+              << " selected="
+              << (view.state.current_dialogue_record
+                      ? std::to_string(*view.state.current_dialogue_record)
+                      : "none")
+              << " examined="
+              << (view.state.current_use_item ? std::to_string(*view.state.current_use_item)
+                                              : "none")
+              << " ids=";
+    for (const auto id : page.items) std::cout << id << ',';
+    std::cout << '\n';
+    for (const auto& [slot, object] : view.state.objects) {
+        std::cout << "object slot=" << slot << " x=" << object.x << " y=" << object.y
+                  << " w=" << object.width << " h=" << object.height
+                  << " active=" << static_cast<unsigned>(object.active)
+                  << " kind=0x" << std::hex << static_cast<unsigned>(object.kind)
+                  << std::dec << " label=" << object.label
+                  << " name_id=" << object.name_id
+                  << " argument=" << object.argument;
+        if (object.name_id != 0xffffffffu) {
+            std::cout << " name=" << byzantine::inventory_name(
+                                        view.state,
+                                        static_cast<std::uint16_t>(object.name_id));
+        }
+        std::cout << '\n';
+    }
+    for (const auto& hotspot : view.trace.active_hotspots) {
+        const auto found = view.state.objects.find(
+            static_cast<std::uint16_t>(hotspot.slot));
+        std::cout << "hotspot slot=" << hotspot.slot << " action=" << hotspot.action
+                  << " state="
+                  << (found == view.state.objects.end()
+                          ? "no_object"
+                          : (found->second.active ? "active" : "inactive"))
+                  << '\n';
+    }
+}
+
+// Diagnostic: the scene's local variables (DAT_0047e2f0 projection) and, when
+// the engine tables are loaded, their global id and declared name. This is the
+// state a scene entry rebuilds its visible objects from.
+void print_variables(const Session& session) {
+    const auto* layout =
+        session.metadata ? &byzantine::scene_variable_layout(*session.metadata,
+                                                            session.view.name)
+                         : nullptr;
+    for (const auto& [local, value] : session.view.state.variables) {
+        std::cout << "variable local=" << local << " value=" << value;
+        if (layout != nullptr && local < layout->global_ids.size()) {
+            const auto global = layout->global_ids[local];
+            std::cout << " global=" << global;
+            if (session.metadata.has_value() &&
+                global < session.metadata->names.size() &&
+                !session.metadata->names[global].empty()) {
+                std::cout << " name=" << session.metadata->names[global];
+            }
+        }
+        std::cout << '\n';
+    }
+}
+
 // A hotspot whose action reaches 0x73 is a scene switch: 0x42db22 writes
 // DAT_00482428 and ends the script, so the port commits the action's state and
 // then performs the scene reload the engine's outer loop would.
@@ -2131,6 +2217,41 @@ ClickPlan plan_hotspot(const SceneView& view, int slot) {
     if (found->action == 0) {
         plan.message = "slot " + std::to_string(slot) + " has no action label";
         return plan;
+    }
+    // 0x40c329: while an inventory record is selected (DAT_0045d1c8 != 0), the
+    // clicked object's kind/name id must satisfy 0x407c5a before its action
+    // label runs; otherwise the dispatcher's result is 0xfffe and 0x43c8d2
+    // never reaches the label. This is the common item-on-object gate, not a
+    // scene rule: the data comes from the object table and the strip.
+    if (const auto selected = view.state.current_dialogue_record; selected.has_value()) {
+        plan.item_use_checked = true;
+        const auto object = view.state.objects.find(static_cast<std::uint16_t>(slot));
+        if (object == view.state.objects.end()) {
+            plan.message = "slot " + std::to_string(slot) +
+                           " item_use rejected: no object record for the clicked slot";
+            return plan;
+        }
+        const auto& entry_object = object->second;
+        const bool compatible =
+            byzantine::item_use_compatible(view.state, entry_object, selected);
+        plan.item_use_ok = compatible;
+        std::cout << "item_use slot=" << slot << " item=" << *selected
+                  << " name=" << byzantine::inventory_name(view.state, *selected)
+                  << " object_kind=0x" << std::hex
+                  << static_cast<unsigned>(entry_object.kind) << std::dec
+                  << " object_name=" << entry_object.name_id
+                  << " compatible=" << (compatible ? "yes" : "no") << '\n';
+        if (!compatible) {
+            plan.message = "slot " + std::to_string(slot) + " action " +
+                           std::to_string(found->action) + " item_use rejected item=" +
+                           std::to_string(*selected) + " kind=0x";
+            {
+                std::ostringstream kind;
+                kind << std::hex << static_cast<unsigned>(entry_object.kind);
+                plan.message += kind.str();
+            }
+            return plan;
+        }
     }
     plan.entry = view.state;
     plan.entry_before = view.state;
@@ -2177,6 +2298,22 @@ ClickPlan plan_hotspot(const SceneView& view, int slot) {
     plan.message = "slot " + std::to_string(slot) + " action " +
                    std::to_string(plan.action);
     return plan;
+}
+
+// 0x40c329 calls 0x4177c7(0) before it evaluates the item gate, so even a
+// rejected item use blanks the examine window. No other scene state changes:
+// the label never ran, so variables, objects, records and the strip stay.
+void clear_text_after_rejected_use(Session& session, const ClickPlan& plan,
+                                   bool verbose) {
+    if (!plan.item_use_checked || plan.item_use_ok) return;
+    const bool had = session.view.examine_text.active;
+    session.view.examine_text = {};
+    if (verbose) {
+        std::cout << "item_use_text window=examine cleared="
+                  << (had ? "true" : "false") << '\n';
+    }
+    session.display.compose(session.view, false);
+    session.display.present(session.view, session.options.overlay);
 }
 
 // FNV-1a over the parts of SceneState a label can change. Used to prove that the
@@ -3757,6 +3894,8 @@ int main(int argc, char** argv) {
             session.display.compose(session.view);
             session.display.present(session.view, options.overlay);
             if (options.print_hotspots) print_hotspot_screens(session.view);
+            if (options.print_objects) print_objects(session.view);
+            if (options.print_variables) print_variables(session);
             SDL_SetWindowTitle(session.display.window,
                                ("Byzantine - " + session.view.name + " label " +
                                 std::to_string(session.view.label)).c_str());
@@ -3775,7 +3914,10 @@ int main(int argc, char** argv) {
                 std::cout << "click at " << hit.test_x << ',' << hit.test_y
                           << (hit.panorama_mapped ? " (panorama)" : "") << ' '
                           << plan.message << '\n';
-                if (!plan.ok) return;
+                if (!plan.ok) {
+                    clear_text_after_rejected_use(session, plan, true);
+                    return;
+                }
                 const auto before_state = session.view.state;
                 const auto before_trace = session.view.trace;
                 bool ended = false;
@@ -3858,10 +4000,19 @@ int main(int argc, char** argv) {
                     session.display.present(session.view, options.overlay);
                     std::cout << "click not committed\n";
                 }
+                if (!plan.ok) clear_text_after_rejected_use(session, plan, true);
                 if (options.selftest_events) push_quit();
             }
             for (const auto& point : options.click_ats) {
-                handle_click(point.first, point.second);
+                if (point.second >= kScreenBandTop) {
+                    // A playfield coordinate can never reach the strip, so a
+                    // stored y >= 0x1a4 is the 640x480 screen's bottom band. Use
+                    // the same handler the real mouse uses (strip slots, examine,
+                    // page arrows), not the scene hit test.
+                    handle_bar_click(session, point.first, point.second, true);
+                } else {
+                    handle_click(point.first, point.second);
+                }
                 if (options.selftest_events) push_quit();
             }
 
@@ -4055,6 +4206,7 @@ int main(int argc, char** argv) {
             const auto plan = plan_hotspot(session.view, *options.click);
             std::cout << "click " << plan.message
                       << " handled=" << (plan.ok ? "true" : "false") << '\n';
+            if (!plan.ok) clear_text_after_rejected_use(session, plan, true);
             if (plan.ok) {
                 const auto before_trace = session.view.trace;
                 bool ended = false;
@@ -4076,6 +4228,10 @@ int main(int argc, char** argv) {
             }
         }
         for (const auto& point : options.click_ats) {
+            if (point.second >= kScreenBandTop) {
+                handle_bar_click(session, point.first, point.second, true);
+                continue;
+            }
             const auto hit = hotspot_at(session.view, point.first, point.second);
             std::cout << "click_at " << point.first << ',' << point.second << " -> "
                       << hit.test_x << ',' << hit.test_y;
@@ -4086,6 +4242,7 @@ int main(int argc, char** argv) {
             const auto plan = plan_hotspot(session.view, *hit.slot);
             std::cout << ' ' << plan.message;
             if (!plan.ok) {
+                clear_text_after_rejected_use(session, plan, true);
                 std::cout << '\n';
                 continue;
             }
@@ -4113,6 +4270,8 @@ int main(int argc, char** argv) {
         session.display.compose(session.view);
         session.display.present(session.view, options.overlay);
         if (options.print_hotspots) print_hotspot_screens(session.view);
+        if (options.print_objects) print_objects(session.view);
+        if (options.print_variables) print_variables(session);
         session.display.write_shot(session.view, options.shot);
         std::cout << "scene=" << session.view.name
                   << " background=" << session.view.background_name

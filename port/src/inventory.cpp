@@ -74,6 +74,81 @@ std::optional<std::uint16_t> inventory_using(const SceneState& state) {
     return state.current_use_item;
 }
 
+namespace {
+
+// DAT_0045d1c8 == 0 means nothing is selected; the original compares the item
+// record pointer, which is exactly the selected record id.
+bool record_is_selected(const std::optional<std::uint16_t>& selected,
+                        std::uint32_t name_id) {
+    if (!selected) return false;
+    return name_id == *selected;
+}
+
+bool chain_contains(const SceneState& state, std::uint32_t chain_id,
+                    const std::optional<std::uint16_t>& selected) {
+    if (chain_id > 0xffffu) return false;
+    const auto chain = state.dialogue_chains.find(static_cast<std::uint16_t>(chain_id));
+    if (chain == state.dialogue_chains.end()) return false;
+    for (std::uint32_t index = 0; index < chain->second.count; ++index) {
+        const auto id = chain->second.ids[index];
+        if (id == 0xffffffffu) continue;
+        if (record_is_selected(selected, id)) return true;
+    }
+    return false;
+}
+
+}  // namespace
+
+bool item_use_compatible(const SceneState& state, const SceneObjectState& object,
+                         std::optional<std::uint16_t> selected) {
+    constexpr std::uint32_t kNoName = 0xffffffffu;
+    const auto name_id = object.name_id;
+    switch (object.kind) {
+    case 0x00:
+    case 0x01:
+    case 0x02:
+    case 0x05:
+    case 0x08:
+    case 0x09:
+    case 0x0c:
+        if (name_id == kNoName) return true;
+        break;
+    case 0x03:
+    case 0x04:
+    case 0x06:
+    case 0x07:
+        return false;
+    case 0x0a:
+    case 0x0b:
+    case 0x0d:
+    case 0x0e:
+    case 0x10:
+        if (name_id == kNoName) return !selected.has_value();
+        break;
+    case 0x0f:
+    case 0x11:
+    case 0x1d:
+    case 0x1e:
+        return false;
+    case 0x12:
+    case 0x13:
+    case 0x14:
+        if (name_id == kNoName) return false;
+        // 0x13/0x14 name a dialogue chain whose records may contain the item;
+        // 0x12 names the record directly and falls through to the compare.
+        if (object.kind != 0x12) return chain_contains(state, name_id, selected);
+        break;
+    case 0x18:
+    case 0x19:
+    case 0x1a:
+    case 0x1b:
+        return false;
+    default:
+        break;
+    }
+    return record_is_selected(selected, name_id);
+}
+
 std::string inventory_name(const SceneState& state, std::uint16_t id) {
     if (id >= state.dialogue_tables.names.size()) return {};
     return state.dialogue_tables.names[id].name;

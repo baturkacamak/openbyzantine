@@ -126,6 +126,41 @@ int main(int argc, char** argv) {
                         named_object->second.kind == 0x13 &&
                         named_object->second.name_id == 4,
                     "0x72 kind 0x13 did not keep the direct name id");
+            // Every other kind passes operand 7 through 0x408bb2: the per-scene
+            // CI name id resolves to the SHOW.LCI record index stored in +0x10.
+            // CLOCK's object 26 is kind 0x12 with CI id 0 ("ISTAR" at record 21).
+            const std::vector<CcInstruction> resolved_script{
+                {0x72, {word(2, 6), word(64, 1), word(64, 2), word(64, 3),
+                        word(64, 4), word(2, 9), word(2, 0x12), word(2, 0)}},
+                {0x6f, {}}
+            };
+            byzantine::SceneState resolved_state;
+            resolved_state.dialogue_tables.scene_names.resize(1);
+            resolved_state.dialogue_tables.scene_names[0].name = "ISTAR";
+            resolved_state.dialogue_tables.scene_names_known = true;
+            resolved_state.dialogue_tables.names.resize(22);
+            for (std::size_t index = 0; index < 21; ++index) {
+                resolved_state.dialogue_tables.names[index].name =
+                    "other" + std::to_string(index);
+            }
+            resolved_state.dialogue_tables.names[21].name = "ISTAR";
+            const auto resolved =
+                byzantine::trace_scene_entry(resolved_script, {}, resolved_state);
+            const auto resolved_object = resolved_state.objects.find(6);
+            require(!resolved.unsupported_opcode &&
+                        resolved_object != resolved_state.objects.end() &&
+                        resolved_object->second.kind == 0x12 &&
+                        resolved_object->second.name_id == 21,
+                    "0x72 kind 0x12 did not resolve the CI name id to a record id");
+            // Without the CI table the id must stay unset, never guessed.
+            byzantine::SceneState unresolved_state;
+            const auto unresolved =
+                byzantine::trace_scene_entry(resolved_script, {}, unresolved_state);
+            const auto unresolved_object = unresolved_state.objects.find(6);
+            require(!unresolved.unsupported_opcode &&
+                        unresolved_object != unresolved_state.objects.end() &&
+                        unresolved_object->second.name_id == 0xffffffffu,
+                    "0x72 guessed a name id without the CI table");
         }
         // 0x69 with transition code 4 is the examine close-up: it requests
         // inventor/examine/<item>.jpg from DAT_0045d1cc and must not require a
