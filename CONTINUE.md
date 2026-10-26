@@ -18,7 +18,86 @@ game ISOs/archives, `analysis/rea/BETRAYAL.EXE`, `tools/rea`, `upscale_ornek` an
 needs `port/output/`: recreate it from your own copy with `port/byzantine-all`
 (and `port/scene.sh` for the extracted media) before running the suites.
 
-## Latest step — mouse fix committed, ESC dialog, explicit session end
+## Latest step — one AM conversation end to end; map destinations and RNG
+
+The four-record AM interpreter sweep is no longer the end-to-end claim. One
+conversation is played from a real AM save with normal panorama input and the
+shipped AVI/PCM, and the conversation's script continuation runs to its return.
+Map destinations now get their backgrounds/panorama nodes and start with the
+original startup RNG seed; the exact old stream from a save is explicitly not
+claimed.
+
+- **Start state and normal clicks.** Save `62.btb` at AM (`AM03`, entry yaw
+  180) enables slots 82..88,90. Rotate toward source x1470 until slot 88
+  (`action 324`) is visible; click it (tested at playfield `(55,248)`) to run
+  `click_result steps=21 … active_slots=2` (slots 91/92). Rotate back toward
+  yaw 150; slot 92 (`action 397`, source `50,70 550x250`) appears at screen
+  `(630,47)`; click it and reach `0x70` at instruction 466:
+  `conversation record=0 name=Inuam3a`. No `--run-label`/`--click`/forced label
+  is used in this path.
+- **Real media.** Record 0 is `Inuam3a` (`stem=INuAM3a`, speaker `nur`, 11
+  clips/texts). The first line `NA1nur01` is textless/media-less; the first
+  answer list has 3 choices; choice 0 (real click at `(304,310)` in the 640x480
+  screen) leads to line 4 `NA1nur04`, whose shipped
+  `dialog/inuam3a/na1nur04.avi` (Indeo 4 + PCM16 22050 Hz stereo, 320x200,
+  44.849 s) is decoded by the existing FFmpeg cache and played through SDL2:
+  `conversation_audio … duration_ms=44849`, `media=1`, `audio_failures=0`.
+- **Continuation.** Result 0xffff resumes at 467; the two instructions are
+  `0xb7` (restore) and `0x6f` (return):
+  `conversation_resume_probe steps=2 stopped_at=468 switch=none blocker=` and
+  `click_result steps=2 … active_slots=0`. There is no random call here. The
+  action's own `0x6e`/called labels run before `0xb8`, so the state at the
+  conversation has `enabled=0/0 suspended=0/0`; the `0xb7` snapshot is empty
+  and the post scene has 0 active hotspots. That is the shipped script's
+  outcome, not a skipped continuation; the original out-of-script close-up/
+  cursor-zone UI is not modelled and no hotspots are invented.
+- **Map destinations.** The black TK window was reproduced from MAP
+  `travel index=33 scene=tk`: the entry ran but `composed background=none`
+  because the partial data dir lacked `backs/tk/TKXA.jpg`. With the shipped
+  asset the same travel composes `TKXA.jpg` and hotspots 1/2. Two generic
+  fixes: `port/scene.sh` now extracts `copy2hd/nodes/<scene>` and flattens it
+  to `nodes/<scene>/` (the player's `--backgrounds` layout), and a `.media_v2`
+  marker backfills all `backs/nodes/anims/sounds` once for older data dirs.
+  `refresh_background` now logs
+  `background_missing scene=… name=… root=…` instead of leaving a silently
+  black window. A 17-destination MAP census
+  (`port/output/recordings/map_destinations.txt`) resolves and composes every
+  target background/panorama; 16 entries run clean, VB stops on
+  `missing_object=4` (remaining state/data gap). GT is a panorama + 1 hotspot
+  (its final `background=` is empty by design).
+- **RNG: original startup seed, not a guess.** `0x41535a` calls `0x415a4e`
+  (game/render init) before `0x42c8a0`; `0x415a4e` calls
+  `FUN_0044d060(0xbeef)` (`_srand`). The player now seeds
+  `SceneState::random_state = 0xbeef` at startup and carries it across `0x73`
+  travel. Saves do not carry `DAT_00462ef8`; `0x42d594` also draws `_rand()`
+  once per instruction-fetch loop, which the static trace does not add. The
+  exact old stream from a mid-game save therefore cannot be reproduced; the
+  player applies the established startup initialization and reports the
+  limitation (`random_seed=0xbeef source=0x415a4e
+  note=save_does_not_carry_DAT_00462ef8`). The `0x42a6aa` local-time reseed is
+  a separate host-dependent path and remains an explicit unresolved stop.
+- **Recording.** `port/output/recordings/am_nuray_end_to_end.mp4` (60.73 s,
+  1280x960 H.264 30 fps + AAC 48 kHz stereo, mean -20.3 dB, max -0.7 dB):
+  normal camera turns and the two clicks, the answer list, the real Nuray AVI
+  and voice, then the post-conversation continuation. Log:
+  `port/output/recordings/am_nuray_end_to_end.log`.
+- **General vs example.** General: scene travel/load, `copy2hd/nodes`
+  flattening and media backfill, `background_missing`, startup RNG seed/carry,
+  the conversation media/answer/continuation path. Only this AM example: the
+  two action/camera positions, the `Inuam3a` text/choices/media, and the empty
+  post-conversation hotspot set (the script disables its view before `0xb8`).
+  The previous four-record AM sweep is retained only as an interpreter
+  regression (`7e7808c`), not as the end-to-end claim.
+- Try: `BYZ_DATA=/tmp/byz-conv ./port/scene.sh . AM 0 62.btb --entry` (or use
+  `/tmp/byz-scene` after the media backfill); rotate with Left/Right, click the
+  slot 88 view then the slot 92 hotspot, and choose the first answer. For MAP:
+  `BYZ_DATA=/tmp/byz-conv ./port/scene.sh . MAP 0 39.btb --entry`, click a
+  location; TK/AM etc. now load their real backgrounds/panoramas.
+- Still not modelled: the original out-of-script close-up/cursor-zone UI after
+  this conversation; VB's `missing_object=4`; the exact per-instruction
+  `_rand()` draw count from a save; the local-time reseed path.
+
+## Previous step — mouse fix committed, ESC dialog, explicit session end
 
 The mouse-coordinate fix is now its own commit and the ESC path models the
 original dialog instead of silently reloading the scene. A different

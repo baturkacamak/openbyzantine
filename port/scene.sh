@@ -47,6 +47,20 @@ find_iso() {
     return 1
 }
 
+# Panorama nodes are stored inside CD1 as copy2hd/nodes/<scene>/..., while the
+# player's --backgrounds root expects nodes/<scene>/... . Flatten them so a MAP
+# destination panorama is not black. (Backgrounds are already at backs/... .)
+extract_panorama_nodes() {
+    local iso="$1" tmp="$data/.nodes-tmp"
+    rm -rf "$tmp"
+    7z x -y "$iso" "copy2hd/nodes/*" -o"$tmp" >/dev/null 2>&1 || true
+    if [ -d "$tmp/copy2hd/nodes" ]; then
+        mkdir -p "$data/nodes"
+        cp -r "$tmp/copy2hd/nodes/." "$data/nodes/"
+    fi
+    rm -rf "$tmp"
+}
+
 command -v 7z >/dev/null 2>&1 || { echo "7z is required" >&2; exit 1; }
 iso1="$(find_iso 1)" || { echo "cannot find Byzantine_1.iso under $game_dir" >&2; exit 1; }
 
@@ -60,8 +74,10 @@ if [ ! -f "$data/.prepared" ]; then
     # Every CD: backgrounds, panorama nodes, animation assets, sounds.
     for index in 1 2 3 4 5 6; do
         iso="$(find_iso "$index")" || continue
-        7z x -y "$iso" "backs/*" "nodes/*" "anims/*" "sounds/*" -o"$data" >/dev/null
+        7z x -y "$iso" "backs/*" "nodes/*" "anims/*" "sounds/*" -o"$data" >/dev/null 2>&1 || true
+        extract_panorama_nodes "$iso"
     done
+    touch "$data/.media_v2"
     # 0x407254 decides the inventory media from the shipped TGA names (they are
     # spread over the CDs, so the listing is the union).
     listing=""
@@ -101,6 +117,18 @@ if [ ! -d "$data/ccb" ] || [ ! -d "$data/ccf" ] || [ ! -d "$data/byz" ] || \
     done
     mkdir -p "$data/byz"
     "$here/byzantine-all" "$data/copy2hd/engine/Byz.all" "$data/byz" >/dev/null
+fi
+
+# An older data dir can have .prepared while missing some map destinations'
+# media (the scene then composes black). Backfill every backs/nodes/anims/sounds
+# tree once and mark it, so selecting a place from MAP has its assets.
+if [ ! -f "$data/.media_v2" ]; then
+    for index in 1 2 3 4 5 6; do
+        iso="$(find_iso "$index")" || continue
+        7z x -y "$iso" "backs/*" "nodes/*" "anims/*" "sounds/*" -o"$data" >/dev/null 2>&1 || true
+        extract_panorama_nodes "$iso"
+    done
+    touch "$data/.media_v2"
 fi
 
 # A data dir prepared before the text step has neither the fonts nor the split

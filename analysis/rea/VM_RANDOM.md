@@ -78,14 +78,35 @@ and 15 on `unresolved_random`; none previously completed, because the command
 was unimplemented. Aggregate after the change: 7,693 labels, 2,357 completed,
 1,799 unresolved variable, 15 unresolved RNG seed, 3,522 unsupported opcode.
 
+## Startup seed applied by the player (26 October 2026)
+
+The normal startup path is now established: `0x41535a` calls `0x415a4e`
+(the game/render init) before the `0x42c8a0` scene loop, and `0x415a4e` calls
+`FUN_0044d060(0xbeef)` (`_srand`) after `0x406cfe`/`0x401256`. The player
+therefore seeds `SceneState::random_state = 0xbeef` at startup and carries it
+across a `0x73` scene travel. The map-destination entries that use `0x7d` can
+run with the original startup seed instead of stopping on `unresolved_random`.
+
+This is not a claim that a save reproduces the original stream:
+
+- The save format does not carry `DAT_00462ef8`. A save made during an original
+  session has an unknown RNG state.
+- `0x42d594` calls `_rand()` once per instruction-fetch loop, in addition to
+  the script's `0x7d` calls. The port's static trace does not add those
+  per-fetch draws. A sequence comparison from a save is therefore not
+  reproducible; only the original startup initialization is applied.
+- `0x42a6aa`'s `GetLocalTime`-derived reseed (`0xc8` sub-command `0x1e`) is a
+  separate, host-dependent path and is still an explicit unresolved stop.
+
 ## Not claimed
 
-- Which startup path `0x415a4e` represents is not established, so `0xbeef` is
-  not applied automatically; the local-time seed is host-dependent and not
-  reproduced.
 - The CRT implementation is recovered from its export and header, not from a
   runtime trace. `_rand` sequence equality with an original session is not
   verified.
 - `0x7d`'s per-scene variable mapping is modelled by the raw operand key, like
   the existing `0x67`; the original process-global remap is still outside this
   VM layer.
+- The exact old flow from a mid-game save cannot be reproduced because the
+  save has no RNG state and the per-instruction `_rand()` draws are not in the
+  static trace. The player applies the established startup seed and reports the
+  limitation; it does not guess a save-time seed.

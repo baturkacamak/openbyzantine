@@ -110,27 +110,14 @@ H.264 30 fps, silent (`--no-video --no-audio` so the dialog text/state are the
 focus). The 1024x768 door click and 1280x960 seller click are both real X11
 pointer events.
 
-## 3. Same interpreter, different character (AM curator)
+## 3. Same interpreter, different character: one end-to-end AM conversation
 
-The common conversation VM was exercised on the shipped AM conversations using
-save `62.btb` (AM) and the real script action labels, not a scene-specific
-branch:
-
-| action | record | name | lines | answer lists | instructions | resume |
-| --- | --- | --- | --- | --- | --- | --- |
-| 1512 | 6 | `icuam1a` | 8 | 7 | 44 | 1898 |
-| 1530 | 7 | `ICuAm3a` | 8 | 6 | 18 | 1918 |
-| 1546 | 8 | `icuam5a` | 11 | 10 | 30 | 1937 |
-| 1633 | 10 | `INuTK3a` | 7 | 4 | 20 | 2051 |
-
-All four reach `result=0xffff` with no unsupported opcode. `icuam1a` initially
-stopped at `unsupported conversation opcode 0x46`; that was a real gap in the
-shared interpreter, not an AM special case.
-
-The same exit dialog was also exercised on the AM curator's first answer list:
-`conversation_answers record=6 group=3` → ESC opens the menu → ESC resumes the
-same list (`conversation_menu result=2 action=resume`). Log/screenshot:
-`port/output/recordings/am_curator_menu.log`, `am_curator_menu.png`.
+The end-to-end target is **one** conversation, not the four-record sweep:
+`AM_NURAY.md` documents record 0 `Inuam3a` (speaker `nur`), started from save
+`62.btb` with normal panorama clicks and played with the shipped
+`dialog/inuam3a/na1nur04.avi` + PCM. The previous four-record run
+(`icuam1a/ICuAm3a/icuam5a/INuTK3a`) is retained only as an interpreter
+regression for the shared 0x45/0x46 gap, not as the end-to-end claim.
 
 ### 0x45 / 0x46
 
@@ -150,17 +137,11 @@ one; it executes the writes instead of skipping the opcodes. Regression test:
 `conversation-test`'s `test_slot_opcodes` (synthetic CCB, both selectors, both
 10-slot tables, persistence on re-entry).
 
-The AM **resumed** segments stop at `unresolved_random` (instruction 1777 for
-records 6/7/8; 2005 for record 10) because the CRT `_rand` seed is not in the
-save. That is the documented general data blocker, not a conversation opcode.
-The AM start used `--run-label <action>` as a development entry: the save's
-active hotspot set does not contain those slots. This is explicitly **not**
-claimed as physical-mouse verification; the dialog/session-end/re-talk flow was
-verified with X11 pointer events (XTEST) on MR.
-
-Media note: the AM conversation AVI folders are not in the prepared test data
-dir, so `conversation_media clip=… missing`; text/VM/choice behaviour is what
-was verified for AM. The MR recording uses the real MR video where present.
+The AM record 0 continuation has no random call and completes at 467
+(`0xb7`/return, steps=2). The startup RNG seed (`0xbeef`) and the
+save-time-stream limitation are in `VM_RANDOM.md`; the map destinations now
+run their entries with the original startup seed instead of stopping on
+`unresolved_random`. The exact old sequence from a save is not claimed.
 
 ## 4. General support vs example-only observations
 
@@ -171,6 +152,9 @@ General (no scene/character/label condition in the code):
   terminate, preserved choices/memory/variables.
 - `0xfffe` scene-session end, explicit `R` reload, no silent rollback.
 - Conversation opcodes 0x45/0x46 and the persistent slot tables.
+- Scene travel/load, `copy2hd/nodes` flattening, the `.media_v2` media
+  backfill, `background_missing`, the startup RNG seed/carry, and the
+  conversation media/answer/continuation path.
 
 Only verified in the MR example:
 
@@ -179,8 +163,10 @@ Only verified in the MR example:
 
 Only verified in the AM example:
 
-- The four AM records and their line/answer counts.
-- The missing AM media folders (video not verified there).
+- The two action/camera positions to reach `Inuam3a` record 0, its
+  text/choices/media, and its post-conversation empty hotspot set.
+- The four-record sweep is an interpreter regression only; it is not the
+  end-to-end claim.
 
 ## 5. Map return (prior verified result, unchanged)
 
@@ -215,6 +201,9 @@ First 16 hex digits of each SHA-256 from `pseudocode/decompile-index.json`:
 | `0x41de4b` | `6a7d8fe78b3a8317` | returns 6 from `DAT_0045f058` |
 | `0x41e289` | `a89ac0f7d4449865` | mode 6 returns 1 on `DAT_0045f48c` |
 | `0x41535a` | `902ca0771bb0bb4a` | game session loop |
+| `0x415a4e` | `2eb658d9c5d4dc9f` | game/render init; calls `_srand(0xbeef)` |
+| `0x44d060` | `a2ad7fec38ea0c58` | `_srand` writes `DAT_00462ef8` |
+| `0x44d070` | `0f3e322e81915145` | `_rand` LCG |
 | `0x438cf9` | `7014e4f6df47bf9e` | 0xb8 snapshot + clear |
 | `0x438d78` | `b47bd5f7a4400eb1` | 0xb7 restore |
 | `0x4119e3` | `beac71ca47ce006c` | CCB loader: list0/list1 + two group arrays |
@@ -232,9 +221,13 @@ make -C port -j2 all test
 Xephyr :8 -screen 1280x960 -no-host-grab -ac -br &
 python3 /tmp/opencode/record_menu.py
 
-# AM curator conversations (development entry via real script labels)
-./port/byzantine-play ... --entry --run-label 1512 --conversation-choices 0,... \
-  --no-video --no-audio --shot /tmp/am_1512.ppm
+# AM Nuray end to end (normal controls; record 0 Inuam3a)
+BYZ_DATA=/tmp/byz-conv ./port/scene.sh . AM 0 62.btb --entry
+# rotate Left/Right, click slot 88 then slot 92, click the first answer
+# (full media/audio; the recording script is /tmp/opencode/record_nuray.py)
+
+# MAP destination census (headless, generic travel)
+python3 /tmp/opencode/map_census.py
 ```
 
 ## 8. Remaining boundaries
@@ -244,7 +237,11 @@ python3 /tmp/opencode/record_menu.py
   port's; the button ids/actions are the original's.
 - The menus/dialog do not implement Save/Load actions for buttons 1/2/7; the
   original caller also only resumes the answer loop for those results.
-- AM dialog media is missing from the prepared data dir; the AM VM/text/choices
-  are verified, not its video.
-- The AM resumed segments need the CRT random seed (`unresolved_random`), which
-  the save does not carry.
+- `Inuam3a`'s `dialog/inuam3a/na1nur04.avi` was extracted from CD5 and played;
+  the other AM records' media folders are not claimed.
+- The player applies the original startup seed `0xbeef`; the save does not
+  carry `DAT_00462ef8`, and the per-instruction `_rand()` draws are not in the
+  static trace, so the exact old stream from a mid-game save is not
+  reproducible. The `0x42a6aa` local-time reseed remains an explicit stop.
+- The 17-destination MAP census composes every background/panorama; VB's
+  `missing_object=4` is a remaining state/data gap.

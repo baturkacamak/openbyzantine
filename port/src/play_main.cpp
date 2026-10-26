@@ -443,6 +443,9 @@ struct SceneView {
     std::uint16_t label = 0;
     // The point an explicit reload restarts this scene from.
     SceneReloadPoint reload_point;
+    // The last missing background name logged for this scene, so a missing
+    // asset is reported once instead of on every click.
+    std::string missing_background_logged;
 };
 
 // One sound the label queues, in script order.
@@ -552,6 +555,19 @@ std::string pick_background(const SceneView& view) {
 void refresh_background(const Options& options, SceneView& view) {
     view.background_name = pick_background(view);
     view.background_file = background_path(options, view.background_name);
+    if (!panorama_layer(view) && !view.background_name.empty() &&
+        view.background_file.empty()) {
+        if (view.missing_background_logged != view.background_name) {
+            std::cout << "background_missing scene=" << view.name
+                      << " name=" << view.background_name
+                      << " root=" << options.backgrounds
+                      << " (extract/backfill backs/ with port/scene.sh; the scene "
+                         "stays black until the asset exists)\n";
+            view.missing_background_logged = view.background_name;
+        }
+    } else {
+        view.missing_background_logged.clear();
+    }
 }
 
 SceneView open_scene(const std::map<std::string, std::string>& scene_options,
@@ -575,6 +591,13 @@ SceneView open_scene(const std::map<std::string, std::string>& scene_options,
                       << " failed=" << preload.failed << '\n';
         }
     }
+    // 0x41535a -> 0x415a4e calls FUN_0044d060(0xbeef) (srand) on the normal
+    // startup path. The save does not carry DAT_00462ef8, so the exact stream
+    // of a save made during an original session cannot be reconstructed; the
+    // original startup seed is still the correct initialization, not a guess.
+    setup.state.random_state = 0xbeefu;
+    std::cout << "random_seed=0xbeef source=0x415a4e "
+                 "note=save_does_not_carry_DAT_00462ef8\n";
     view.entry_state = setup.state;
     view.state = std::move(setup.state);
     std::cout << "scene=" << view.name << " label=" << label << ' ' << setup.summary << '\n';
@@ -1464,7 +1487,9 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose) {
     // script runs (the save path is not used here, so nothing replaces them).
     const auto preload = byzantine::preload_scene_records(setup.state);
     next_view.entry_state = setup.state;
-    next_view.state = setup.state;
+    // DAT_00462ef8 is process-global and is not reset by a scene load.
+    next_view.entry_state.random_state = session.view.state.random_state;
+    next_view.state = next_view.entry_state;
     next_view.pool_on_arrival = pool;
     // 0x401256 fixed the node size once at startup; the current node stays in
     // DAT_00464880 until the new scene's own 0x69/0xb9 replaces it, but the
@@ -1874,6 +1899,14 @@ std::optional<DecodedClip> dialog_clip_cache(const Options& options,
         const auto audio = directory / "audio.wav";
         if (std::filesystem::is_regular_file(audio)) decoded.audio = audio;
         if (!decoded.frames.empty() && decoded.width > 0 && decoded.height > 0) {
+            if (verbose) {
+                std::cout << "conversation_media clip=" << clip << " cached=yes source="
+                          << avi.filename().string()
+                          << " frames=" << decoded.frames.size()
+                          << " fps=" << decoded.fps << " size=" << decoded.width << 'x'
+                          << decoded.height
+                          << (decoded.audio ? " audio=pcm" : " audio=none") << '\n';
+            }
             return decoded;
         }
         // A half-written cache is rebuilt rather than used.
@@ -2906,12 +2939,24 @@ bool execute_plan(Session& session, const ClickPlan& plan,
                 ++changed;
             }
         }
+        const auto enabled_count = [](const byzantine::SceneState& state) {
+            std::size_t count = 0;
+            for (const auto& [slot, enabled] : state.hotspot_enabled) {
+                (void)slot;
+                if (enabled) ++count;
+            }
+            return count;
+        };
         std::cout << "conversation_state locals=" << before_conversation.variables.size()
                   << " changed_locals=" << changed
                   << " objects=" << before_conversation.objects.size() << '/'
                   << session.view.state.objects.size()
                   << " hotspots=" << before_conversation.hotspot_enabled.size() << '/'
                   << session.view.state.hotspot_enabled.size()
+                  << " enabled=" << enabled_count(before_conversation) << '/'
+                  << enabled_count(session.view.state)
+                  << " suspended=" << before_conversation.suspended_hotspots.size() << '/'
+                  << session.view.state.suspended_hotspots.size()
                   << " records=" << before_conversation.records.size() << '/'
                   << session.view.state.records.size() << '\n';
     }
