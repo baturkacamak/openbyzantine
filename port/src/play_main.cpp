@@ -2521,7 +2521,7 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                 outcome.result = 0xfffe;
                 std::cout << "conversation_cancel record=" << record_index
                           << " answer_list=" << outcome.answer_lists
-                          << " result=0xfffe (control returns to the scene)\n";
+                          << " result=0xfffe (scene session ends; no automatic reload)\n";
                 std::cout << "conversation_memory_after record=" << record_index
                           << " asked=" << conversation_memory.unspeak.size()
                           << " disabled=" << conversation_memory.disabled.size()
