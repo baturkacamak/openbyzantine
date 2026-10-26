@@ -57,9 +57,11 @@ the first common inventory/close-up layer, not a scene-specific patch. Report:
   `EBEERING.jpg`; click exit playfield `589,370`: `closeup_return scene=AM …
   bar=visible`; click another item (`slot=2 id=6 IHOMER`). Normal input
   continues.
-- **Different scene (headless).** VT `73.btb` item 11 -> `examvt`, entry
-  steps=38, `EBEERING.jpg`; exit `589,349` -> `closeup_return scene=VT …
-  hotspots=2, bar=visible`. Same code/data path, not a second physical run.
+- **Different scene (physical).** EA `26.btb` item 30 (`iridnote`) on page 0:
+  click slot 0, examine -> `closeup_enter scene=EXAMINE parent=EA item=30`,
+  `ERIDNOTE.JPG`; exit playfield `589,349` -> `closeup_return scene=EA …
+  hotspots=2, bar=visible`. Recording `ea_bar_examine_exit.mp4` (12 s). VT
+  `73.btb` item 11 -> `EXAMVT`/`EBEERING.jpg` is a third headless check.
 - **Still open / prioritised by subsystem.** Inventory: top menu
   (`0x408e3f`/`0x408f32`/`0x408fe7`/`0x4090c4`), item-on-object compatibility
   (`0x407c5a`) and consume (`0x407bd7`), remaining page tabs. Close-up: exact

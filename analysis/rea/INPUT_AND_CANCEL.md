@@ -176,8 +176,10 @@ Only verified in the AM example:
   end-to-end claim.
 - Item 11 (`ibeering`) -> `EXAMINE`/`EBEERING.jpg` and the close-up exit
   coordinates in the AM example.
-- VT `73.btb` item 11 -> `EXAMVT`/`EBEERING.jpg` and exit `589,349` in the
-  second headless check (same common path, not a second physical-mouse run).
+- EA `26.btb` item 30 -> `EXAMINE`/`ERIDNOTE.jpg` and exit `589,349` in a
+  second physical-mouse run (recording `ea_bar_examine_exit.mp4`).
+- VT `73.btb` item 11 -> `EXAMVT`/`EBEERING.jpg` and exit `589,349` in a
+  headless check of the same common path.
 
 ## 5. Map selection (real clicks in both directions)
 
@@ -250,7 +252,9 @@ BYZ_DATA=/tmp/byz-conv ./port/scene.sh . AM 0 62.btb --entry
 
 # inventory strip -> examine close-up -> parent return (AM 62.btb)
 ./port/byzantine-play ... --entry --bar-select 11 --bar-use --click-at 589,370
-# same common path on VT 73.btb -> EXAMVT, exit at 589,349
+# same common path on EA 26.btb -> EXAMINE (item 30), exit at 589,349
+./port/byzantine-play ... --entry --bar-select 30 --bar-use --click-at 589,349
+# same common path on VT 73.btb -> EXAMVT (item 11), exit at 589,349
 ./port/byzantine-play ... --entry --bar-select 11 --bar-use --click-at 589,349
 
 # MAP destination census (headless, generic travel)

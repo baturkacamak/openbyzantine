@@ -122,7 +122,21 @@ Recording: `port/output/recordings/am_bar_examine_exit.mp4` — 68.03 s,
 1280x960 H.264 30 fps + AAC 48 kHz stereo (mean −20.8 dB, max −0.6 dB);
 `am_bar_examine_exit.log` is the player log, `_contact.png` a frame sheet.
 
-Same system in a different scene, headless (not physical mouse):
+Same system in a different scene, also physical mouse:
+
+EA `26.btb`, item 30 (`iridnote`), which is on page 0:
+
+1. click slot 0 (`(190,450)`), examine button (`(30,450)`);
+2. `closeup_enter scene=EXAMINE parent=EA item=30 index=8`, background
+   `ERIDNOTE.JPG`;
+3. click the exit hotspot at playfield `(589,349)` -> `closeup_return scene=EA
+   from=EXAMINE`, `hotspots=2`, `bar=visible`.
+
+Recording: `port/output/recordings/ea_bar_examine_exit.mp4` (12 s), log
+`ea_bar_examine_exit.log`, frames `ea_bar_examine.png`, `ea_closeup.png`,
+`ea_returned.png`.
+
+A third scene was checked headless:
 
 ```
 VT 73.btb + bar item 11 -> travel index=12 scene=examvt
@@ -132,7 +146,7 @@ hotspots=2, bar=visible
 ```
 
 Commands: `--bar-select 11 --bar-use --click-at 589,349` (the close-up exit
-coordinates are playfield coordinates; the physical run adds the 0x14 row).
+coordinates are playfield coordinates; the physical runs add the 0x14 row).
 
 ## Subsystem status
 
@@ -185,5 +199,6 @@ approximation), and the map/exit UI beyond the strip.
 - `inventor/examine` files are read from the extracted data root; `scene.sh`
   now extracts them from every CD and the inventory TGAs, with `.ui_v1`
   backfill. The AM test data was manually backfilled before the script change.
-- Physical verification is only the AM run. VT/EXAMVT is a headless engine-path
-  check with the same code and original data, not a second physical-mouse run.
+- Physical verification is the AM conversation/bar/examine flow and the EA
+  bar/examine flow. VT/EXAMVT is a headless engine-path check with the same code
+  and original data.
