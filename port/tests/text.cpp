@@ -103,6 +103,31 @@ int main() {
         require(byzantine::text_width(font, " !\n!!") == 4 + 3,
                 "text width did not stop at the newline");
 
+        // 0x4061e7/0x4063e0 call FUN_00405bf4 for bytes above 0x7f: the
+        // non-English branch maps the Turkish text byte by -0x41, not -0x20.
+        // 0xa7 (the shipped 'ç') must select glyph index 0x66, 0xa8 ('ş')
+        // index 0x67; the direct -0x20 indices (0x87/0x88) must stay unused.
+        {
+            std::vector<std::array<unsigned, 4>> metrics(0x68, {0, 0, 0, 0});
+            metrics[0] = {0, 0, 4, 4};
+            metrics[0x66] = {0, 0, 3, 3};
+            metrics[0x67] = {4, 0, 3, 3};
+            write_file(root / "turkish.SFN", make_sfn(8, 8, metrics));
+            write_file(root / "TGR.TGA", make_tga(8, 8, gr));
+            write_file(root / "TBK.TGA", make_tga(8, 8, bk));
+            const auto turkish = byzantine::load_sfn_font(
+                (root / "turkish.SFN").string(), (root / "TGR.TGA").string(),
+                (root / "TBK.TGA").string(), 0x0360);
+            require(turkish.glyph('\xa7') == &turkish.glyphs[0x66],
+                    "Turkish high byte 0xa7 did not map to glyph 0x66");
+            require(turkish.glyph('\xa8') == &turkish.glyphs[0x67],
+                    "Turkish high byte 0xa8 did not map to glyph 0x67");
+            require(turkish.glyph('\x87') != &turkish.glyphs[0x67],
+                    "high byte used the direct -0x20 glyph index");
+            require(byzantine::text_width(turkish, "\xa7\xa8") == 6,
+                    "Turkish high-byte advances are wrong");
+        }
+
         // 0x4067e2: the bk mask blends black, the gr mask the fill colour.
         {
             byzantine::Rgb16Surface surface = byzantine::make_surface(8, 8, 0xffff);

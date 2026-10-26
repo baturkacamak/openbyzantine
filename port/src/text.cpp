@@ -80,7 +80,14 @@ std::uint16_t blend(std::uint16_t fore, std::uint16_t back, std::uint8_t alpha) 
 const SfnGlyph* SfnFont::glyph(char code) const {
     const auto index = static_cast<std::uint8_t>(code);
     if (index < 0x20) return nullptr;
-    const auto glyph_index = static_cast<std::size_t>(index - 0x20);
+    // 0x4061e7/0x4063e0 call FUN_00405bf4 for bytes above 0x7f. In the
+    // non-English branch that function returns `byte - 0x21`, and the drawer
+    // then subtracts the usual 0x20, so the Turkish glyph index is
+    // `byte - 0x41` (the shipped Turkish text bytes 0xa6..0xad land on the
+    // font's 0x85..0x8c glyphs). Bytes 0x20..0x7f keep `byte - 0x20`.
+    const auto glyph_index = index > 0x7f
+                                 ? static_cast<std::size_t>(index - 0x41)
+                                 : static_cast<std::size_t>(index - 0x20);
     if (glyph_index >= glyphs.size()) return nullptr;
     return &glyphs[glyph_index];
 }

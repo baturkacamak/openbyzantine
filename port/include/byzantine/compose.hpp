@@ -73,6 +73,14 @@ ImageBlit blit_image(Rgb16Surface& target, std::int32_t image_width,
                      const std::uint16_t* pixels, std::int32_t x,
                      std::int32_t y);
 
+// 0x43a248 mode 2 for an Indeo IV41 AVI: the destination rectangle is exactly
+// twice the decoded 320x200 frame and starts at the playfield origin (the
+// original passes x=0, y=0x14 in the 640x480 surface). This is an exact 2x
+// pixel doubling, not a resampling filter. Returns false when the doubled
+// source does not equal the target surface.
+bool blit_image_2x(Rgb16Surface& target, std::int32_t image_width,
+                   std::int32_t image_height, const std::uint16_t* pixels);
+
 // Writes a binary PPM (P6): RGB565 -> RGB888 with bit replication, which is
 // enough to inspect a composed frame. Returns false when the file cannot be
 // opened.

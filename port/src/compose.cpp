@@ -75,6 +75,29 @@ ImageBlit blit_image(Rgb16Surface& target, std::int32_t image_width,
     return result;
 }
 
+bool blit_image_2x(Rgb16Surface& target, std::int32_t image_width,
+                   std::int32_t image_height, const std::uint16_t* pixels) {
+    if (image_width <= 0 || image_height <= 0 || pixels == nullptr) return false;
+    if (image_width * 2 != target.width || image_height * 2 != target.height) {
+        return false;
+    }
+    for (std::int32_t row = 0; row < image_height; ++row) {
+        for (std::int32_t column = 0; column < image_width; ++column) {
+            const auto pixel =
+                pixels[static_cast<std::size_t>(row) *
+                           static_cast<std::size_t>(image_width) +
+                       static_cast<std::size_t>(column)];
+            const auto tx = column * 2;
+            const auto ty = row * 2;
+            target.at(tx, ty) = pixel;
+            target.at(tx + 1, ty) = pixel;
+            target.at(tx, ty + 1) = pixel;
+            target.at(tx + 1, ty + 1) = pixel;
+        }
+    }
+    return true;
+}
+
 bool write_ppm(const Rgb16Surface& surface, const std::string& path) {
     std::ofstream out(path, std::ios::binary);
     if (!out) return false;

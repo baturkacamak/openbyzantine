@@ -18,7 +18,50 @@ game ISOs/archives, `analysis/rea/BETRAYAL.EXE`, `tools/rea`, `upscale_ornek` an
 needs `port/output/`: recreate it from your own copy with `port/byzantine-all`
 (and `port/scene.sh` for the extracted media) before running the suites.
 
-## Latest step — one real MR conversation end to end (`0x70`)
+## Latest step — conversation screen fixes (text, video, audio)
+
+The IMhMR2a screen had three real defects; this step fixes only those.
+
+- **Turkish glyphs:** the shipped `.byz`/`CE.ALL` bytes are **not CP1254**. The
+  text drawer's high-byte path `0x4061e7`/`0x4063e0` calls `FUN_00405bf4`
+  (`898ae1b9123f325e`); in the non-English branch (`0x406cbf`, language string
+  check) it returns `byte - 0x21`, so the glyph index is **`byte - 0x41`**
+  (not `byte - 0x20`). `0xa7 -> ç`, `0xa8 -> ş`, `0xaa -> ı`, `0xab -> ğ`,
+  `0xac -> ü`, `0xad -> ö`; capitals `0xa1..0xa6` = Ç Ş İ Ğ Ü Ö. `SfnFont::glyph`
+  now applies that index so width and drawing agree; no re-encoding table was
+  invented. The DIALOG glyphs are at 0x80..0x8c (Ç Ş İ Ğ Ü Ö ç ş gap ı ğ ü ö).
+  The window titles are ASCII now (no em dash). The same fix repairs the
+  CE/examine window ("ARAŞTIRMACIYA UYARI…", "AHŞAP").
+- **Conversation video:** the old port drew a centred 320x200 rectangle. The
+  shipped `GAMEPREF.000` has gamepref[1] = 1; `0x40d3af` type 4 therefore keeps
+  mode 2, `0x43a248` calls `0x43d9c7(codec, 2)` and sets the destination to
+  **source*2 = 640x400** at x=0, y=0x14 in the 640x480 surface — the whole ported
+  playfield. `blit_image_2x` doubles the 320x200 frame exactly (nearest 2x); the
+  frame is opaque (no key/mask/background blend in this path). If gamepref[1] is
+  0 the original's other branch is mode 0, 320x200 at (160,120), which the port
+  also implements. The exact DirectDraw stretch filter is not recovered. The subtitle scrollback stays a
+  documented port adaptation (top of the 640x400 surface; the original's bottom
+  60-px band is not part of it).
+- **Audio:** the voice is inside the AVI (PCM16 stereo 22050 Hz; `ffprobe` for
+  every IMhMR2a `meh` clip), not a separate file. The cached `audio.wav` is
+  parsed and queued through SDL2 before the frame loop and drained after it.
+  A real-window/real-device 10 s recording (`/tmp/opencode/
+  mr_conversation_record.mp4`, AAC 48 kHz, mean -26.7 dB) shows the fullscreen
+  video and Turkish subtitle; the recording's audio envelope correlates **0.98**
+  with `Mr2meh03`'s PCM at the video start (correct clip, time-aligned). A
+  second recording `/tmp/opencode/mr_answers_record.mp4` shows the three Turkish
+  answer rows. Device/`--no-audio`/WAV/queue failures now print
+  `conversation_audio … ERROR …` per clip and a summary; nothing is silent.
+- Tests: `text-test` now locks the `0x41` high-byte index (0xa7 -> glyph 0x66,
+  0xa8 -> 0x67; the direct 0x87 index must not be used); `compose-test` locks
+  the exact 2x pixel doubling and rejects a non-doubled surface. `make -C port
+  -j2 all test` passes all eleven suites. `analysis/rea/TEXT_WINDOW.md` §3 and
+  `analysis/rea/CONVERSATION.md` were corrected.
+- Try: `./port/scene.sh . MR 0 30.btb --entry --run-label 413` (real window;
+  answer rows at logical y≈274/302/350). The first clip's voice and the
+  fullscreen frame are in the recording above.
+
+## Previous step — one real MR conversation end to end (`0x70`)
 
 MR label 413 now runs the shipped conversation instead of treating operand 0 as
 an object. **Correction:** `0x70` operand 0 is the **`engine/<scene>cd` record
@@ -53,9 +96,10 @@ ESC/stop.
 - Media: Indeo 4 + PCM16 AVIs are decoded once by FFmpeg (`ffprobe` fps,
   `ffmpeg` JPEG frames + WAV) into a per-clip cache; playback uses the port's
   JPEG decoder and SDL2 audio. Missing FFmpeg/AVI keeps the text and reports the
-  gap. Video is centred at 320x200 (original placement unrecovered); the
-  original's bottom 60-px dialogue band is not in the 640x400 surface, so the
-  3-line scrollback is drawn over the playfield top (real text, changed layout).
+  gap. Video fills the 640x400 playfield at source*2 (the latest fix step;
+  the earlier centred 320x200 rectangle was wrong). The original's bottom 60-px
+  dialogue band is not in the 640x400 surface, so the 3-line scrollback is drawn
+  over the playfield top (real text, changed layout).
 - Real MR `30.btb` entry + label 413 result (headless): 8 lines, 4 answer lists,
   7 media clips, 43 instructions, `result=0xffff`, `resume_instruction=524`;
   only locals 14..17 of 300 changed (`0x67/0x74`), objects/hotspots/records
@@ -120,7 +164,9 @@ table (`CE.ALL`), the font is `klio.SFN` + `GR_KLIO.TGA`/`BK_KLIO.TGA` with
 - Text pipeline: `--ce <file>` (per scene, so travel reloads it) and
   `--fonts <dir>` are new; `text.{hpp,cpp}` parses the SFN metrics (223 glyphs,
   `0xcdcd` filler entries), the 8-bit TGA masks (row flip) and draws with the
-  exact blend. The CP1254 bytes index the font directly. An unterminated entry,
+  exact blend. The CP1254 bytes index the font directly (superseded: the
+  shipped bytes are the Turkish font encoding with the high-byte `byte - 0x41`
+  index; see the latest fix step). An unterminated entry,
   a wrong version, a glyph outside the atlas or a non-8-bit TGA is rejected.
 - Wire-up: after a committed click the object's `+0x14` selects the examine
   text (a text-less object clears it, as `0x40c329`'s `0x4177c7(0)` does); a

@@ -305,9 +305,16 @@ public:
             throw std::runtime_error(std::string("no audio device: ") + SDL_GetError());
         }
         SDL_PauseAudioDevice(device_, 0);
+        name_ = "SDL2 " + std::to_string(obtained_.freq) + "Hz " +
+                std::to_string(static_cast<int>(obtained_.channels)) + "ch";
+        std::cout << "audio device freq=" << obtained_.freq
+                  << " format=0x" << std::hex << static_cast<int>(obtained_.format)
+                  << std::dec << " channels=" << static_cast<int>(obtained_.channels)
+                  << " samples=" << obtained_.samples << '\n';
     }
 
     bool ready() const { return device_ != 0; }
+    const std::string& device_name() const { return name_; }
 
     // Queues the clip; the caller keeps the window alive while `queued()` drains.
     void queue(const WavClip& clip) {
@@ -337,6 +344,7 @@ private:
     SDL_AudioDeviceID device_ = 0;
     SDL_AudioSpec obtained_{};
     SDL_AudioStream* stream_ = nullptr;
+    std::string name_ = "closed";
 };
 
 // ---------------------------------------------------------------------------
@@ -754,7 +762,7 @@ struct Display {
         if (SDL_Init(SDL_INIT_VIDEO) != 0) {
             throw std::runtime_error(std::string("SDL video init failed: ") + SDL_GetError());
         }
-        window = SDL_CreateWindow("Byzantine: The Betrayal — scene player",
+        window = SDL_CreateWindow("Byzantine: The Betrayal - scene player",
                                   SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                                   kSceneWidth * 2, kSceneHeight * 2,
                                   SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
@@ -1324,7 +1332,7 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose) {
     session.display.present(session.view, options.overlay);
     if (session.display.window != nullptr) {
         SDL_SetWindowTitle(session.display.window,
-                           ("Byzantine — " + session.view.name + " entry").c_str());
+                           ("Byzantine - " + session.view.name + " entry").c_str());
     }
     std::cout << "entry scene=" << session.view.name
               << " steps=" << session.view.trace.steps
@@ -1725,8 +1733,7 @@ struct DialogUi {
         }
     }
 
-    void draw(Session& session, bool answers) const {
-        restore(session);
+    void draw_text_overlay(Session& session) const {
         // The original's dialogue is row 0x1a4 of the 640x480 surface, inside
         // the 60-px band below the playfield. The port has no band, so the same
         // lines are drawn over the top of the playfield with a black panel.
@@ -1742,6 +1749,11 @@ struct DialogUi {
                 y += line_height;
             }
         }
+    }
+
+    void draw(Session& session, bool answers) const {
+        restore(session);
+        draw_text_overlay(session);
         (void)answers;
     }
 };
@@ -1797,6 +1809,7 @@ struct ConversationOutcome {
     std::size_t lines = 0;
     std::size_t answer_lists = 0;
     std::size_t media = 0;
+    std::size_t audio_failures = 0;
 };
 
 // Runs the conversation until 0x39/0x436b01 end it. An answer is a real mouse
@@ -1863,6 +1876,14 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
     bool answer_shot_written = false;
     bool object_click_used = false;
     bool video_shot_written = false;
+    // 0x40d3af type 4 reads FUN_0041d440(1) = gamepref[1]: 0 keeps mode 0
+    // (320x200 at x=160, y=120 in the 640x480 surface), nonzero keeps mode 2
+    // (source*2 at x=0, y=0x14). The shipped GAMEPREF.000 has 1.
+    const bool fullscreen_video = state.gameprefs ? (*state.gameprefs)[1] != 0 : false;
+    if (!state.gameprefs) {
+        std::cout << "conversation_video mode=unknown (no --gameprefs; using the "
+                     "BSS mode 0, 320x200)\n";
+    }
     const auto wrap = [&ui](const std::string& text) {
         if (ui.font != nullptr) return wrap_dialog_text(*ui.font, text, 520);
         std::vector<std::string> lines{text};
@@ -1907,6 +1928,7 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                           << " lines=" << outcome.lines
                           << " answer_lists=" << outcome.answer_lists
                           << " media=" << outcome.media
+                          << " audio_failures=" << outcome.audio_failures
                           << " instructions=" << conversation.executed_instructions() << '\n';
             }
             return outcome;
@@ -1960,16 +1982,43 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                                   << " unavailable (text stays)\n";
                     } else {
                         std::optional<WavClip> sound;
-                        if (decoded->audio && options.audio && session.audio.ready()) {
+                        if (!decoded->audio) {
+                            std::cout << "conversation_audio clip=" << event.line.clip
+                                      << " no audio stream in the AVI\n";
+                        } else if (!options.audio) {
+                            ++outcome.audio_failures;
+                            std::cout << "conversation_audio clip=" << event.line.clip
+                                      << " ERROR not played: --no-audio\n";
+                        } else if (!session.audio.ready()) {
+                            ++outcome.audio_failures;
+                            std::cout << "conversation_audio clip=" << event.line.clip
+                                      << " ERROR not played: the SDL2 audio device is not "
+                                         "open (see the startup error)\n";
+                        } else {
                             try {
                                 sound = parse_wav(read_file(*decoded->audio),
                                                   decoded->audio->string());
                             } catch (const std::exception& error) {
-                                std::cout << "conversation_media clip=" << event.line.clip
-                                          << " audio_error=" << error.what() << '\n';
+                                ++outcome.audio_failures;
+                                std::cout << "conversation_audio clip=" << event.line.clip
+                                          << " ERROR WAV: " << error.what() << '\n';
                             }
                         }
-                        if (sound) session.audio.queue(*sound);
+                        if (sound) {
+                            try {
+                                session.audio.queue(*sound);
+                                std::cout << "conversation_audio clip=" << event.line.clip
+                                          << " wav=" << decoded->audio->filename().string()
+                                          << " duration_ms=" << sound->duration_ms
+                                          << " queued_bytes=" << session.audio.queued()
+                                          << " device=" << session.audio.device_name()
+                                          << '\n';
+                            } catch (const std::exception& error) {
+                                ++outcome.audio_failures;
+                                std::cout << "conversation_audio clip=" << event.line.clip
+                                          << " ERROR queue: " << error.what() << '\n';
+                            }
+                        }
                         const auto frame_time = std::chrono::microseconds(
                             1000000 / std::max(1, decoded->fps));
                         auto next_frame = std::chrono::steady_clock::now();
@@ -1984,11 +2033,31 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                                 break;
                             }
                             const auto pixels = byzantine::rgb_to_rgb565(image);
-                            ui.draw(session, false);
-                            const int x = (kSceneWidth - image.width) / 2;
-                            const int y = (kSceneHeight - image.height) / 2;
-                            byzantine::blit_image(session.display.surface, image.width,
-                                                  image.height, pixels.data(), x, y);
+                            ui.restore(session);
+                            bool placed = false;
+                            if (fullscreen_video) {
+                                placed = byzantine::blit_image_2x(
+                                    session.display.surface, image.width, image.height,
+                                    pixels.data());
+                                if (!placed) {
+                                    std::cout << "conversation_video clip="
+                                              << event.line.clip << " size="
+                                              << image.width << 'x' << image.height
+                                              << " unsupported: 0x43a248 mode 2 requires "
+                                                 "2x the 640x400 playfield\n";
+                                }
+                            } else {
+                                // Mode 0 destination is (160, 120) in the 640x480
+                                // surface; the port surface starts at row 0x14.
+                                placed = byzantine::blit_image(
+                                             session.display.surface, image.width,
+                                             image.height, pixels.data(),
+                                             (kSceneWidth - image.width) / 2,
+                                             (kSceneHeight - image.height) / 2)
+                                             .placed;
+                            }
+                            if (!placed) break;
+                            ui.draw_text_overlay(session);
                             session.display.present(session.view, false);
                             if (!options.conversation_video_shot.empty() &&
                                 !video_shot_written) {
@@ -2279,7 +2348,12 @@ bool execute_plan(Session& session, const ClickPlan& plan,
     std::cout << "conversation record=" << request.record << " name=" << outcome.name
               << " result=" << outcome.result << " lines=" << outcome.lines
               << " answer_lists=" << outcome.answer_lists << " media=" << outcome.media
+              << " audio_failures=" << outcome.audio_failures
               << " resume_instruction=" << resume << '\n';
+    if (outcome.audio_failures != 0) {
+        std::cout << "conversation_audio ERROR " << outcome.audio_failures
+                  << " clip(s) had no playable audio; see the per-clip errors above\n";
+    }
     if (outcome.result == 0xffff) {
         std::cout << "conversation_branch none (0xffff: script continues after the 0x70)\n";
     } else {
@@ -2509,7 +2583,7 @@ int main(int argc, char** argv) {
             session.display.compose(session.view);
             session.display.present(session.view, options.overlay);
             SDL_SetWindowTitle(session.display.window,
-                               ("Byzantine — " + session.view.name + " label " +
+                               ("Byzantine - " + session.view.name + " label " +
                                 std::to_string(session.view.label)).c_str());
 
             // One click at a logical playfield coordinate, shared by the mouse,

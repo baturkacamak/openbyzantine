@@ -120,6 +120,26 @@ int main() {
             require(!empty.placed && empty.written == 0, "a zero-size image is a no-op");
         }
 
+        // 0x43a248 mode 2: the 320x200 conversation frame fills the 640x400
+        // playfield by exact 2x pixel doubling, at the playfield origin.
+        {
+            auto target = byzantine::make_surface(4, 4, 0x0000);
+            const std::vector<std::uint16_t> source{0x1111, 0x2222, 0x3333, 0x4444};
+            require(byzantine::blit_image_2x(target, 2, 2, source.data()),
+                    "2x image blit rejected a doubled target");
+            require(target.at(0, 0) == 0x1111 && target.at(1, 0) == 0x1111 &&
+                        target.at(0, 1) == 0x1111 && target.at(1, 1) == 0x1111,
+                    "2x image blit did not double the top-left pixel");
+            require(target.at(2, 0) == 0x2222 && target.at(3, 1) == 0x2222 &&
+                        target.at(0, 2) == 0x3333 && target.at(1, 3) == 0x3333 &&
+                        target.at(2, 2) == 0x4444 && target.at(3, 3) == 0x4444,
+                    "2x image blit pixel order");
+            require(!byzantine::blit_image_2x(target, 2, 3, source.data()),
+                    "2x image blit accepted a non-doubled size");
+            require(!byzantine::blit_image_2x(target, 0, 2, source.data()),
+                    "2x image blit accepted a zero-size source");
+        }
+
         // PPM output: 8x6 -> a P6 header plus 3 bytes per pixel.
         const auto path = std::filesystem::temp_directory_path() / "byz-compose.ppm";
         require(byzantine::write_ppm(surface, path.string()), "PPM write failed");

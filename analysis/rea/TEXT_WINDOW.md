@@ -25,7 +25,8 @@ All hashes are the first 16 hex digits of the indexed export SHA-256.
 at a line starting with `$`, drops CR and joins the lines with `\n`
 (`DAT_00483640[i]`). The shipped `CE.ALL` has 16 records: CLOCK 4, EXAMVB 10,
 EXAMVC 10, EXAMVH 8, EXAMVT 13, HSTED 4, LINTEL 3, MORRIS 3, MZ2 2, STAR 3,
-VA 28, VB 30, VC 35, VH 32, VOICE 11, VT 62 entries, all Turkish CP1254.
+VA 28, VB 30, VC 35, VH 32, VOICE 11, VT 62 entries, all in the game's Turkish
+single-byte font encoding (see §3; not CP1254).
 
 ## 2. The two windows
 
@@ -55,8 +56,16 @@ VA 28, VB 30, VC 35, VH 32, VOICE 11, VT 62 entries, all Turkish CP1254.
   so the fills are 0x0360 (examine) and 0x5b82 (message) in RGB565.
 - `0x4063e0` (`a321c3e91c9b99e1`) is the drawer: alignment 1 centres, 2/4
   right-align, 3 left-aligns; `\n` starts a line at `+line_height`; `param_8`
-  bounds the line count; every byte is glyph `byte - 0x20` (`0x4061e7` width,
-  `0x4062bc` line width, `0x406358` per-glyph width).
+  bounds the line count. The glyph index is `byte - 0x20` for 0x20..0x7f; for
+  bytes above 0x7f `0x4061e7`/`0x4063e0` call `FUN_00405bf4`, which (in the
+  non-English branch) returns `byte - 0x21`, so the drawer uses `byte - 0x41`.
+  That is the shipped Turkish font encoding: e.g. 0xa7 -> glyph 0x66 (ç),
+  0xa8 -> 0x67 (ş), 0xaa -> 0x69 (ı), 0xab -> 0x6a (ğ), 0xac -> 0x6b (ü),
+  0xad -> 0x6c (ö), with the capitals at 0xa1..0xa6 (Ç Ş İ Ğ Ü Ö). `0x4061e7`
+  width and `0x4062bc` line width use the same mapping. `DAT_0045d0ac` is set
+  by `0x406cbf` only when the language string contains "English"; in that
+  branch the high byte keeps its direct `byte - 0x20` index. The port models the
+  shipped Turkish path.
 - `0x4067e2` (`99488c31c78b9447`) blends each glyph pixel: with the `bk` mask
   black (`0x4066c6(0, dest, a)`), then with the `gr` mask the fill colour
   (`0x4066c6(fill, dest, a)`), where `0x4066c6` (`fbcc5640b962cc1c`) is
@@ -78,8 +87,9 @@ VA 28, VB 30, VC 35, VH 32, VOICE 11, VT 62 entries, all Turkish CP1254.
   atlas size with row flipping, line height = first glyph's height.
 - `draw_text(surface, font, text, x, y, max_lines, alignment)`: the `0x4063e0`
   rules above and the exact `0x4067e2` blend. Bytes outside the font's glyph
-  range are skipped, never substituted; the shipped CP1254 bytes index the font
-  directly (no transcoding).
+  range are skipped, never substituted; the shipped Turkish bytes use the
+  `FUN_00405bf4` high-byte index (`byte - 0x41`), so ç/ş/ı/ğ/ü/ö and their
+  capitals reach the font's own glyphs without a re-encoding step.
 - `parse_scene_text(bytes)`: `0x412206`'s `$`-separated entries; an unterminated
   entry is rejected.
 - Player: `--fonts <dir>` loads klio slot 1 and 3; `--ce <file>` (a per-scene
@@ -152,6 +162,8 @@ all test` passes all ten suites.
 | 0x405e7e | 74e5b2941030af57 | slot setup (metrics, two colours) |
 | 0x406041 | f0955510ba79a92d | TGA reader (18-byte header, 16-bit 555) |
 | 0x4061e7 | 53d847dfc7e31e96 | text width |
+| 0x405bf4 | 898ae1b9123f325e | high-byte font index (`byte - 0x41`) |
+| 0x406cbf | 62ebc4ffc90d31f4 | language gate (`DAT_0045d0ac`) |
 | 0x4062bc | 6b7e8f71d8177b7b | line width |
 | 0x406358 | c9a49e33b97cea8d | per-glyph advance |
 | 0x4063e0 | a321c3e91c9b99e1 | glyph drawer (align/newline/max lines) |

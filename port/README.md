@@ -117,8 +117,11 @@ etiket kümesinde bulunuyor. Kanıt ve bilinmeyen listesi:
   `0x39`/cevap sonunda `0xffff` dönerse betik `0x70`'ten sonraki komutta sürer,
   bir sahne nesnesine tıklanırsa o nesnenin `+0x0c` etiketi çalışır. Değişken
   yazımları `SceneState` üzerinden taşınır; yarım kalan konuşma commit edilmez.
-  İndeo 4 videosu FFmpeg ile bir kez JPEG+PCM önbelleğine çözülür (FFmpeg yoksa
-  metin kalır ve eksiklik bildirilir). Deneme:
+  İndeo 4 videosu FFmpeg ile bir kez JPEG+PCM önbelleğine çözülür; oynatma
+  **640×400 tam oyun alanına 2×** (kaynak 320×200, `0x43a248` mod 2) ve PCM
+  AVI içinden SDL2'ye verilir. Türkçe metin `0x405bf4`'ün `byte - 0x41` font
+  indeksiyle çizilir (CP1254 dönüşümü yok); ses aygıtı/klip hatası açıkça
+  bildirilir, sessizce yutulmaz. Deneme:
   `./port/scene.sh . MR 0 30.btb --entry --run-label 413` (cevap satırlarına
   tıklayın). Ayrıntı, opcode tablosu ve doğrulama:
   [`CONVERSATION.md`](../analysis/rea/CONVERSATION.md).

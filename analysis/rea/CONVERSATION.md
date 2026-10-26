@@ -172,16 +172,41 @@ media opcodes are outside this one-conversation slice.
   **not committed** (the pre-click state is restored).
 - UI: `fonts/DIALOG.SFN + GR_DLG/BK_DLG`, fill `0xe2c0` (slot 0). The NPC lines go
   into a 3-line scrollback and the answers are drawn as click targets at the
-  bottom. The original's bottom 60-px band is not part of the ported 640x400
+  bottom. The text is the shipped Turkish single-byte font encoding, not
+  CP1254: `0x4061e7`/`0x4063e0` call `FUN_00405bf4` for bytes above 0x7f, which
+  maps them by `byte - 0x41` (`0xa7` -> ç, `0xa8` -> ş, `0xaa` -> ı, `0xab` ->
+  ğ, `0xac` -> ü, `0xad` -> ö, with capitals at `0xa1..0xa6`). The port applies
+  that mapping in `SfnFont::glyph`, so width and drawing use the same index; no
+  re-encoding table is invented. `0x406cbf`'s English branch (`DAT_0045d0ac`)
+  would keep the direct `byte - 0x20` index; the shipped build uses the Turkish
+  path. The original's bottom 60-px band is not part of the ported 640x400
   surface, so the scrollback is drawn over the top of the playfield (documented
-  adaptation, not different text).
+  adaptation, not different text). Window titles are ASCII.
 - Media: Indeo 4 is a standard codec the port must not reimplement. The player
   asks the available FFmpeg tools (`ffprobe` for the stream fps, `ffmpeg` for
   `f%04d.jpg` + PCM `audio.wav`) to materialise a per-clip cache once; playback
   uses the port's existing JPEG decoder and WAV/SDL2 audio path. If FFmpeg or the
   AVI is absent the line's text still shows and the failure is reported
   (`conversation_media … missing/…`), never hidden. The talking-head video is
-  centred at 320x200; its original window position is not recovered.
+  **not** a centred 320x200 rectangle: `0x40d3af` type 4 passes
+  `FUN_0041d440(1)` = gamepref[1] = 1 (shipped `GAMEPREF.000`), so mode 2 is
+  kept, `0x43a248` calls `0x43d9c7(codec, 2)` and sets the destination to
+  **source*2 = 640x400** at x=0, y=0x14 in the 640x480 surface, i.e. the whole
+  ported playfield. The port doubles the 320x200 frame exactly (nearest 2x,
+  `blit_image_2x`); the original's exact stretch filter is a
+  DirectDraw/driver detail that is not recovered. A decoded frame is opaque, so
+  there is no key/mask or background blend in this path. If gamepref[1] is 0,
+  `0x40d3af` takes the other branch: mode 0, 320x200 at x=160, y=0x14+100=120
+  in the 640x480 surface (the old centred rectangle); the port implements both
+  branches from `--gameprefs` and reports when that file is absent.
+- Audio: the AVI carries PCM16 stereo 22050 Hz (verified with `ffprobe` for all
+  IMhMR2a `meh` clips); there is no separate voice file. `ffmpeg -vn` writes
+  `audio.wav` into the clip cache, `parse_wav` reads it and `SoundPlayer::queue`
+  converts it through `SDL_AudioStream` to the device format. The clip is queued
+  before the frame loop and drained after it, so audio and video start and end
+  together. The port now prints a per-clip error if the device is not open,
+  `--no-audio` is set, the WAV is malformed or the queue fails, and a summary
+  `conversation_audio ERROR …`; it never silently plays nothing.
 
 ## 6. Real results
 
@@ -255,9 +280,28 @@ interactive run and a headless `--shot` run both resume with `steps=18`,
 `switch=25`, the same `pool_changed=7` and fingerprint
 `0xc8470f2394d7e98a`; the `1,0,0,0,0,0` headless run above instead takes the
 3-step tail. The answer frame was written
-as PPM and inspected: real CP1254 text with the DIALOG font and three answer rows.
-The first media frame was captured during `Mr2meh03.avi` and shows the decoded
-320x200 talking-head frame over the scene with the real subtitle.
+as PPM and inspected: the shipped Turkish text with the DIALOG font and three
+answer rows (ç/ş/ı/ğ/ü/ö all render through the `byte - 0x41` index). The first
+media frame was captured during `Mr2meh03.avi` and shows the decoded 320x200
+frame scaled 2x over the **whole** playfield with the real subtitle.
+
+Real-window/real-device verification (not a dummy audio claim):
+
+- 10 s screen+monitor recording: `/tmp/opencode/mr_conversation_record.mp4`
+  (1280x800 H.264 + AAC 48 kHz stereo, mean volume -26.7 dB, max -1.6 dB). It
+  shows the fullscreen `Mr2meh03` video and "Afacan'ım benim. Yeraltında fare
+  gibi öldürüldü..." with the Turkish glyphs, while the clip's audio plays.
+- A second 10 s recording `/tmp/opencode/mr_answers_record.mp4` catches the tail
+  of `Mr2meh04` and the three real answer rows (Turkish text, mean -22.7 dB,
+  max -0.5 dB).
+- The recording's audio envelope against the cached `Mr2meh03` `audio.wav` has
+  correlation **0.98** at the video's start offset, so it is the correct clip's
+  PCM and it is time-aligned with the frame loop; the source AVI is the only
+  audio source (no separate voice file).
+- The `--no-audio` and unavailable-device runs print
+  `conversation_audio … ERROR …` per clip and a
+  `conversation_audio ERROR N clip(s) …` summary (tested with
+  `SDL_AUDIODRIVER=invalid`).
 
 ## 7. Tests and census
 
@@ -301,6 +345,15 @@ The first media frame was captured during `Mr2meh03.avi` and shows the decoded
 | 0x40d2a1 | 7378a7da0065e607 | AVI lookup/start |
 | 0x40ced0 | dabc11839d698c3d | speaker list |
 | 0x406cfe | df4c09b307ceca77 | font registry (slot 0 fill) |
+| 0x405bf4 | 898ae1b9123f325e | high-byte font index (`byte - 0x41`) |
+| 0x406cbf | 62ebc4ffc90d31f4 | language gate (`DAT_0045d0ac`) |
+| 0x40d3af | 0441419c9da98e3e | AVI type/mode/position |
+| 0x40d5ff | 0caca3a1f27c63f2 | character-video start |
+| 0x413bdd | e159355056f45abf | AVI player entry |
+| 0x43a248 | 7d898e9bd016ed27 | IV41 mode/destination size |
+| 0x43d643 | 8b65b199f1b577f7 | DirectDraw frame blit |
+| 0x43d9c7 | b0fcc1a4cf07c9ff | Indeo decompress format |
+| 0x41d45a | a44998bd0603574a | language string query |
 | 0x411dfc | 554520e53cef4b24 | engine/<scene>cd reader |
 | 0x4123f9 | e8d9635a75c74eae | line reader (.ccf/.byz) |
 | 0x40f350 | 76ac6f66af4ead0c | fopen helper |
