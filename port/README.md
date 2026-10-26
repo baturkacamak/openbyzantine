@@ -90,8 +90,14 @@ etiket kümesinde bulunuyor. Kanıt ve bilinmeyen listesi:
   alanları da tıklanabilir. `--staged-x 0..2495` başsız bir bakış açar,
   `--click-at <x>,<y>` ekran noktasını gerçek tıklama yolundan geçirir.
   `0xcb` dönüşü `0x402285` gibi adım adım uygulanır.
-  Tam oyun değildir: sahneler arası taşınan durum/geçiş (`0x73` yalnızca
-  raporlanır), diyalog metni (`0x417a17`), video (`0xbd`) ve geçiş efektleri yoktur.
+  **Sahneler arası geçiş**: bir tıklama etiketi `0x73`'e ulaşırsa `DAT_00482428`
+  hedefi çözülür, per-scene tablolar (nesneler/sesler/diyalog zincirleri/medya/
+  kayıtlar) boşaltılır ve hedef sahne `0x42c8a0` gibi **ilk komutundan** yüklenir;
+  taşınan tek durum `DAT_0047e2f0` 3000 sözcüklü değişken havuzudur (ayrıntı:
+  [`SCENE_TRAVEL.md`](../analysis/rea/SCENE_TRAVEL.md)). Yeni sahnenin girişi de
+  ses kapılıdır; dönüşte konsola `travel …` ve `entry …` satırları basılır.
+  Tam oyun değildir: diyalog metni (`0x417a17`), video (`0xbd`) ve geçiş
+  efektleri yoktur.
 - `byzantine-cc --hotspots`, işlem kodu `0x72` olan sabit alan tanımlarını çıkarır. Oyunun `FUN_0042db22` komut yürütücüsü bu tanımları tıklama alanı tablosuna yazıyor: alan numarası, x, y+20, genişlik, yükseklik ve kalan iki değer. Yedinci değerin alt baytı alan durumuna yazılıyor; diğer değerlerin tüm anlamları henüz çözülmedi (`ev_6fae0653eb9d17a560b88cf841ffbe1c2fc3b14d9c5f18ac7a7ef5e9853ca522`). Dinamik operandlı tanımlar atlanır; çıktı betik yürütme sırasını göstermez.
 - `byzantine-cc --backgrounds <CB kaydı>`, sabit `0x69` sahne komutu numaralarını aynı sahnenin `CB.ALL` ad listesiyle eşler. `CB.ALL` kayıtları `ad\0kaynak\0ff` dizilerinden oluşur. Dinamik numaralar ancak çalışan yorumlayıcıda çözülebilir.
 - `byzantine-cc --flow`, `0xe1` etiketleri ile `0x76` atlamalarını ve `0x9b` çağrılarını eşler. Oyunun `FUN_0042d383` işlevi etiketi sonraki komuta bağlar; aynı etiket birden çok kez tanımlanırsa son tanım geçerlidir. `FUN_0043194f` çağrı dönüş adresini saklar; `FUN_0042d8ba` dönüş komutları `0x6f` ve `0x83` için yığını boşaltır. Bu çıktı koşullu dalları çalıştırmaz.
@@ -374,6 +380,43 @@ make
 SDL_VIDEODRIVER=dummy ./scene.sh ".." MAP 87 tempsave.btb --click 34 --shot /tmp/map.ppm
 SDL_VIDEODRIVER=dummy ./scene.sh ".." VT 497 72.btb --print-audio
 ```
+
+### İki sahne arasında gidip gelme (MAP ↔ MR)
+
+`MAP` başlangıç etiketi 87'de 11 tıklama alanı açar; bunlardan biri (ekranda
+yaklaşık `190,300`, alan 47) bir oda etiketini çalıştırıp çıkış alanını (aynı
+dikdörtgende 13) etkinleştirir; ikinci tıklama `0x73` ile `MR`'ye (`index=27`)
+geçer. `MR` girişi `MRDOORCL.jpg` arka planını ve 2 alanı açar; sağ alttaki
+alan (ekranda yaklaşık `589,330`, alan 38) `0x73` ile `MAP`'e (`index=25`) döner.
+
+```bash
+# Pencere: MAP'ta 190,300'e iki kez, MR'de 589,330'a bir kez tıkla
+./scene.sh ".." MAP 87 tempsave.btb
+
+# Aynı yol başsız (üç tıklama, son kare /tmp/roundtrip.ppm):
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+  ./scene.sh ".." MAP 87 tempsave.btb --no-audio \
+  --click-at 190,300 --click-at 190,300 --click-at 589,330 \
+  --shot /tmp/roundtrip.ppm
+```
+
+Beklenen satırlar (değerler değişmez):
+
+```text
+click at 190,320 slot 47 action 246
+click at 190,320 slot 13 action 257 scene_switch=27
+travel index=27 scene=mr from=MAP pool=3000 locals=300 pool_changed=1 (2) … record_preload=0
+entry scene=MR steps=100 stopped_at=89 hotspots=2 records=0 …
+click at 589,350 slot 38 action 96 scene_switch=25
+travel index=25 scene=map from=MR pool=3000 locals=300 pool_changed=4 (10,79,80,718) … record_preload=17
+entry scene=MAP steps=158 stopped_at=137 hotspots=11 records=17 …
+```
+
+`click_result` basılmadan `stopped: <neden>` yazıyorsa tıklama **başarısız**
+sayılır; kısmi durum uygulanmaz ve geçiş yapılmaz (ör. `--lcx` verilmezse
+`stopped: unresolved_scene_table=31`). MAP sonrası harita çiziminde `0x40fd7b`'nin
+17 tip-3 kaydı önceden yüklenir, `0x43b216`'nın `0x20`/`0x40` çizim kapısı
+uygulanır (`analysis/rea/SCENE_TRAVEL.md` §7).
 
 Windows'ta Visual Studio Developer Command Prompt içinde:
 

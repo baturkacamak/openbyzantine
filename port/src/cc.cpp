@@ -1,8 +1,10 @@
 #include "byzantine/cc.hpp"
+#include "byzantine/variables.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -83,6 +85,14 @@ std::optional<std::uint16_t> scene_value(
         return std::nullopt;
     }
     return found->second;
+}
+
+// One variable store (0x46ee00 maps the local operand to DAT_0047e2f0). The
+// local is also appended to `variable_writes`, because export_variable_pool must
+// replay the writes in order when two locals of the scene share a global.
+void write_variable(SceneState& state, std::uint16_t local, std::uint16_t value) {
+    state.variables[local] = value;
+    state.variable_writes.push_back(local);
 }
 
 // 0x460418 / 0x460428: byte tables applied to the actor flag byte by 0x432904
@@ -438,9 +448,34 @@ CcControlFlow resolve_control_flow(const std::vector<CcInstruction>& script) {
     return flow;
 }
 
+SceneRecordPreload preload_scene_records(SceneState& state) {
+    // 0x40fd7b (see the header): free the table, then load every CA type 2/3
+    // entry. 0x42d52f has already turned the file's 0xff marker into type 0, so
+    // only these two types are preloaded; types 0/1 stay lazy (0x431b0f).
+    SceneRecordPreload result;
+    state.records.clear();
+    if (!state.actor_assets_known) return result;
+    for (std::size_t id = 0; id < state.actor_assets.size(); ++id) {
+        const auto type = state.actor_assets[id].type;
+        if (type != 2 && type != 3) continue;
+        SceneRecordState record;
+        if (state.anims_library) {
+            const auto asset = state.anims_library->load(state.actor_assets[id].name);
+            if (!asset) {
+                ++result.failed;
+                continue;
+            }
+            apply_anims(record, *asset);
+        }
+        state.records[static_cast<std::uint16_t>(id)] = std::move(record);
+        ++result.created;
+    }
+    return result;
+}
+
 SceneCompose compose_scene(SceneState& state, Rgb16Surface& target) {
     SceneCompose result;
-    const auto draw = [&](std::uint16_t id, SceneRecordState& record) {
+    const auto draw = [&](std::uint16_t id, const SceneRecordState& record) {
         if (!record.current_frame || !state.anims_library ||
             id >= state.actor_assets.size()) {
             ++result.skipped_no_frame;
@@ -476,9 +511,25 @@ SceneCompose compose_scene(SceneState& state, Rgb16Surface& target) {
     };
     // 0x43b216: `for (local_3c = 0; local_3c < 5; ++local_3c)` groups the table
     // by the +0x08 kind byte, and each group walks ids from the highest down.
+    // The normal pass only reaches a record when `(+0x09 & 0x20) == 0` and
+    // `(+0x09 & 0x40) == 0`: 0x20 marks a record for the separate snap pass
+    // (which needs a non-zero +0x20 that 0x40ffee leaves at 0 and this port does
+    // not model) and 0x40 skips it entirely. Drawing either here would paint
+    // records the original never shows (the CA preload's 17 records all keep the
+    // 0x20 default until a 0x64 writes their kind byte).
     for (std::uint8_t kind = 0; kind < 5; ++kind) {
         for (auto it = state.records.rbegin(); it != state.records.rend(); ++it) {
-            if (it->second.kind == kind) draw(it->first, it->second);
+            const auto& record = it->second;
+            if (record.kind != kind) continue;
+            if ((record.flags & 0x20) != 0) {
+                ++result.skipped_snap;
+                continue;
+            }
+            if ((record.flags & 0x40) != 0) {
+                ++result.skipped_hidden;
+                continue;
+            }
+            draw(it->first, record);
         }
     }
     for (const auto& [id, record] : state.records) {
@@ -488,22 +539,20 @@ SceneCompose compose_scene(SceneState& state, Rgb16Surface& target) {
     return result;
 }
 
-SceneTrace trace_scene_label(const std::vector<CcInstruction>& script,
-                             const std::vector<BackgroundEntry>& entries,
-                             SceneState& state,
-                             std::uint16_t label, std::size_t step_budget) {
+// Runs `script` from `start_pc` until it returns/ends. Both public entry points
+// below differ only in how they pick that address.
+static SceneTrace trace_scene_from(const std::vector<CcInstruction>& script,
+                                   const std::vector<BackgroundEntry>& entries,
+                                   SceneState& state, std::size_t start_pc,
+                                   std::size_t step_budget) {
     const auto flow = resolve_control_flow(script);
-    const auto start = flow.labels.find(label);
-    if (start == flow.labels.end()) {
-        throw std::runtime_error("unknown CC scene label");
-    }
     std::map<std::uint16_t, SceneHotspot> hotspots;
     for (const auto& hotspot : static_hotspots(script)) {
         hotspots.emplace(hotspot.slot, hotspot);
     }
     std::vector<std::size_t> return_stack;
     SceneTrace trace;
-    std::size_t pc = start->second;
+    std::size_t pc = start_pc;
     // 0x431b0f(id, opcode): the guard every DAT_004649e8 command shares. The
     // original returns 0 only when the record exists, creating it through
     // 0x40fe70 for a CA type of 0/1; 0x40fd7b already created types 2/3 at
@@ -565,6 +614,30 @@ SceneTrace trace_scene_label(const std::vector<CcInstruction>& script,
         case 0xe1:
         case 0x72:
             break;
+        case 0x7a:
+            // 0x42db22 case 0x7a only copies operand 0 into the dispatcher's
+            // scratch word; it has no other side effect. The hotspot rectangle
+            // is the preceding 0x72 and the enable/disable is 0x6d/0x6e, so a
+            // scene entry that ends each 0x72 with 0x7a needs this case to
+            // reach the rest of the script.
+            break;
+        case 0x68: {
+            // 0x42db22 case 0x68 (0x42dad9): the alternate-mode selector
+            // DAT_00464878, which 0x42c8a0 initialises to -1 before the scene
+            // loop. Without a transition snapshot (DAT_004603d0) the mode is 0
+            // only when operand 1 is a type-2 zero; every other operand shape
+            // leaves it at -1. The DAT_00460660 transition branch is not
+            // modelled. 0x42dad9's redraw helpers are renderer work; the write
+            // itself is retained and reported instead of being guessed.
+            std::int32_t mode = -1;
+            const auto& operand = instruction.arguments.at(1);
+            if (operand.type == 2 && encoded_word(operand) == 0) mode = 0;
+            if (mode != state.alternate_mode) {
+                state.alternate_mode = mode;
+                ++trace.alternate_mode_changes;
+            }
+            break;
+        }
         case 0x69: {
             const auto id = constant_word(instruction.arguments.at(0));
             if (id >= entries.size()) {
@@ -584,7 +657,7 @@ SceneTrace trace_scene_label(const std::vector<CcInstruction>& script,
             // The executable maps this per-scene operand through its variable
             // table before the write. A trace remains in one script, so using
             // the same encoded operand preserves all later local references.
-            state.variables[encoded_word(instruction.arguments.at(1))] = *value;
+            write_variable(state, encoded_word(instruction.arguments.at(1)), *value);
             break;
         }
         case 0x79: {
@@ -632,8 +705,8 @@ SceneTrace trace_scene_label(const std::vector<CcInstruction>& script,
                 state.random_state = *state.random_state * 0x343fdu + 0x269ec3u;
                 roll = static_cast<std::uint16_t>((*state.random_state & 0x7fff0000u) >> 16);
             }
-            state.variables[encoded_word(instruction.arguments.at(0))] =
-                range == 0 ? 0 : static_cast<std::uint16_t>(roll % range);
+            write_variable(state, encoded_word(instruction.arguments.at(0)),
+                           range == 0 ? 0 : static_cast<std::uint16_t>(roll % range));
             break;
         }
         case 0x7f: {
@@ -654,8 +727,8 @@ SceneTrace trace_scene_label(const std::vector<CcInstruction>& script,
                 break;
             }
             const auto destination = encoded_word(instruction.arguments.at(1));
-            state.variables[destination] = static_cast<std::uint16_t>(
-                static_cast<std::uint32_t>(found->second.value) - found->second.frame);
+            write_variable(state, destination, static_cast<std::uint16_t>(
+                static_cast<std::uint32_t>(found->second.value) - found->second.frame));
             break;
         }
         case 0x6a: {
@@ -1755,6 +1828,7 @@ SceneTrace trace_scene_label(const std::vector<CcInstruction>& script,
             }
             previous->second = static_cast<std::uint16_t>(instruction.opcode == 0x74
                 ? previous->second + *amount : previous->second - *amount);
+            state.variable_writes.push_back(destination);
             break;
         }
         case 0x6d:
@@ -1975,9 +2049,94 @@ SceneTrace trace_scene_label(const std::vector<CcInstruction>& script,
 
 SceneTrace trace_scene_label(const std::vector<CcInstruction>& script,
                              const std::vector<BackgroundEntry>& entries,
+                             SceneState& state,
+                             std::uint16_t label, std::size_t step_budget) {
+    const auto flow = resolve_control_flow(script);
+    const auto start = flow.labels.find(label);
+    if (start == flow.labels.end()) {
+        throw std::runtime_error("unknown CC scene label");
+    }
+    return trace_scene_from(script, entries, state, start->second, step_budget);
+}
+
+SceneTrace trace_scene_entry(const std::vector<CcInstruction>& script,
+                             const std::vector<BackgroundEntry>& entries,
+                             SceneState& state, std::size_t step_budget) {
+    // 0x42c8a0 reloads DAT_00482428's scene after a 0x73 switch and 0x42d594
+    // starts at DAT_0047a238, the instruction-list head, so execution begins at
+    // instruction 0 (a 0x68 and the 0x72/0x7a hotspot declarations), not at a
+    // named label.
+    return trace_scene_from(script, entries, state, 0, step_budget);
+}
+
+SceneTrace trace_scene_label(const std::vector<CcInstruction>& script,
+                             const std::vector<BackgroundEntry>& entries,
                              std::uint16_t label) {
     SceneState state;
     return trace_scene_label(script, entries, state, label);
+}
+
+std::string trace_blocker(const SceneTrace& trace) {
+    // Every field below is a stop: 0x42db22 sets the flag and the dispatcher
+    // rewinds pc to the end of the script. Counters that only report a skipped
+    // or logged command (skipped_node_commands, anims_load_failures,
+    // missing_media_requests, subtraction_underflows, dialogue_name_fallbacks,
+    // video_skipped, media_timestamps_unavailable, refresh/display requests) are
+    // deliberately absent: the original continues after them.
+    if (trace.unsupported_opcode) {
+        std::ostringstream text;
+        text << "unsupported_opcode=0x" << std::hex
+             << static_cast<int>(*trace.unsupported_opcode) << std::dec;
+        return text.str();
+    }
+    if (trace.unresolved_variable) {
+        return "unresolved_variable=" + std::to_string(*trace.unresolved_variable);
+    }
+    if (trace.unresolved_random) return "unresolved_random";
+    if (trace.unresolved_sound_name) {
+        return "unresolved_sound_name=" + std::to_string(*trace.unresolved_sound_name);
+    }
+    if (trace.missing_object) return "missing_object=" + std::to_string(*trace.missing_object);
+    if (trace.unresolved_object_label) {
+        return "unresolved_object_label=" + std::to_string(*trace.unresolved_object_label);
+    }
+    if (trace.unresolved_dialogue) {
+        return "unresolved_dialogue=" + std::to_string(*trace.unresolved_dialogue);
+    }
+    if (trace.unresolved_dialogue_channel) {
+        return "unresolved_dialogue_channel=" +
+               std::to_string(*trace.unresolved_dialogue_channel);
+    }
+    if (trace.unresolved_dialogue_inventory) return "unresolved_dialogue_inventory";
+    if (trace.unresolved_video_name) {
+        return "unresolved_video_name=" + std::to_string(*trace.unresolved_video_name);
+    }
+    if (trace.unresolved_video_setting) return "unresolved_video_setting";
+    if (trace.unresolved_node_asset) {
+        return "unresolved_node_asset=" + std::to_string(*trace.unresolved_node_asset);
+    }
+    if (trace.missing_node_asset) {
+        return "missing_node_asset=" + std::to_string(*trace.missing_node_asset);
+    }
+    if (trace.disc_request) return "disc_request=" + std::to_string(*trace.disc_request);
+    if (trace.missing_media_record) {
+        return "missing_media_record=" + std::to_string(*trace.missing_media_record);
+    }
+    if (trace.missing_dialogue_chain) {
+        return "missing_dialogue_chain=" + std::to_string(*trace.missing_dialogue_chain);
+    }
+    if (trace.unresolved_system_input) {
+        return "unresolved_system_input=" + std::to_string(*trace.unresolved_system_input);
+    }
+    if (trace.unresolved_save_setting) return "unresolved_save_setting";
+    if (trace.unresolved_scene_table) {
+        return "unresolved_scene_table=" + std::to_string(*trace.unresolved_scene_table);
+    }
+    if (trace.unresolved_panorama_node) {
+        return "unresolved_panorama_node=" + std::to_string(*trace.unresolved_panorama_node);
+    }
+    if (trace.step_limit_exceeded) return "step_limit_exceeded";
+    return {};
 }
 
 void load_save(SceneState& state, const SaveGame& save) {
@@ -2155,21 +2314,11 @@ std::size_t load_save_variables(SceneState& state, const SaveGame& save,
     // 0x42c8a0 initialises every one of the 50 scene rows with 300 identity
     // entries; 0x438173 then overwrites the first `count` entries with the LCV
     // global ids. 0x4319b3 reads DAT_0047e2f0 through that row.
-    if (declared_global_ids.size() > 300) {
-        throw std::runtime_error("variable layout exceeds the 300-entry scene table");
-    }
     if (save.node_values.size() != kSaveNodeValueCount) {
         throw std::runtime_error("save variable pool is not the 3000-word table");
     }
-    state.variables.clear();
-    for (std::uint16_t local = 0; local < 300; ++local) {
-        const auto global = local < declared_global_ids.size()
-            ? declared_global_ids[local] : local;
-        if (global >= save.node_values.size()) {
-            throw std::runtime_error("variable mapping outside the 3000-word pool");
-        }
-        state.variables[local] = save.node_values[global];
-    }
+    apply_variable_pool(state, save.node_values,
+                        SceneVariableLayout{std::string(), declared_global_ids});
     return 300;
 }
 

@@ -35,6 +35,124 @@ byzantine::SceneState with_assets(std::size_t count, std::uint8_t type) {
 int main(int argc, char** argv) {
     try {
         using byzantine::CcInstruction;
+        // 0x68 writes DAT_00464878 (0x42dad9): 0 only when operand 1 is a
+        // type-2 zero, -1 for every other shape. 0x7a is a dispatcher no-op.
+        const std::vector<CcInstruction> alternate{
+            {0xe1, {word(2, 10)}}, {0x68, {word(2, 0), word(2, 0)}}, {0x6f, {}},
+            {0xe1, {word(2, 20)}}, {0x68, {word(2, 1), word(64, 0)}}, {0x6f, {}},
+            {0xe1, {word(2, 30)}}, {0x68, {word(2, 1), word(2, 1)}}, {0x6f, {}}
+        };
+        {
+            byzantine::SceneState mode_state;
+            require(mode_state.alternate_mode == -1, "alternate mode not initialised to -1");
+            const auto zero = byzantine::trace_scene_label(alternate, {}, mode_state, 10);
+            require(!zero.unsupported_opcode && mode_state.alternate_mode == 0 &&
+                    zero.alternate_mode_changes == 1, "0x68 type-2 zero did not select mode 0");
+            const auto other_type = byzantine::trace_scene_label(alternate, {}, mode_state, 20);
+            require(!other_type.unsupported_opcode && mode_state.alternate_mode == -1 &&
+                    other_type.alternate_mode_changes == 1,
+                    "0x68 non-type-2 operand did not restore -1");
+            const auto nonzero = byzantine::trace_scene_label(alternate, {}, mode_state, 30);
+            require(!nonzero.unsupported_opcode && mode_state.alternate_mode == -1 &&
+                    nonzero.alternate_mode_changes == 0,
+                    "0x68 nonzero operand changed the mode");
+        }
+        // A scene entry runs from instruction 0 and the 0x72/0x7a declaration
+        // pairs must not stop it, which is what 0x42c8a0 does after a 0x73.
+        {
+            const std::vector<CcInstruction> entry_script{
+                {0x7a, {word(2, 7), {0, {}}}},
+                {0x72, {word(2, 0), word(64, 10), word(64, 20), word(64, 30),
+                        word(64, 40), word(2, 50), word(2, 60), {0, {}}}},
+                {0x7a, {word(2, 0), word(2, 3)}},
+                {0x67, {word(64, 5), word(2, 3)}},
+                {0xe1, {word(2, 10)}},
+                {0x6f, {}}
+            };
+            byzantine::SceneState entry_state;
+            const auto entry = byzantine::trace_scene_entry(entry_script, {}, entry_state);
+            require(!entry.unsupported_opcode && entry.steps == 6 &&
+                    entry_state.variables.at(3) == 5,
+                    "scene entry did not start at instruction 0 or 0x7a stopped it");
+        }
+        // A trace that stopped on missing data/settings is not a success. Every
+        // such field must be classified, including the two the player used to
+        // ignore (unresolved_dialogue_channel, unresolved_save_setting).
+        {
+            const auto blocked = [](const byzantine::SceneTrace& trace) {
+                return !byzantine::trace_blocker(trace).empty();
+            };
+            byzantine::SceneTrace base;
+            require(!blocked(base), "a clean trace was classified as a blocker");
+            base.script_end_requested = true;
+            require(!blocked(base), "0x79 script end was classified as a blocker");
+            base = {};
+            base.scene_switch_requested = 7;
+            require(!blocked(base), "0x73 scene switch was classified as a blocker");
+            base = {};
+            base.unresolved_dialogue_channel = 3;
+            require(blocked(base), "unresolved dialogue channel accepted as success");
+            base = {};
+            base.unresolved_save_setting = true;
+            require(blocked(base), "unresolved save setting accepted as success");
+            base = {};
+            base.unresolved_dialogue_inventory = true;
+            require(blocked(base), "unresolved dialogue inventory accepted as success");
+            base = {};
+            base.unresolved_video_setting = true;
+            require(blocked(base), "unresolved video setting accepted as success");
+            base = {};
+            base.missing_media_record = 5;
+            require(blocked(base), "missing media record accepted as success");
+            base = {};
+            base.disc_request = 1;
+            require(blocked(base), "disc request accepted as success");
+            base = {};
+            base.step_limit_exceeded = true;
+            require(blocked(base), "step limit accepted as success");
+            base = {};
+            base.skipped_node_commands = 4;   // logged and continued in the original
+            base.sound_refresh_requests = 2;
+            require(!blocked(base), "a continuing counter was classified as a blocker");
+            byzantine::SceneTrace unsupported;
+            unsupported.unsupported_opcode = 0x8f;
+            require(byzantine::trace_blocker(unsupported).find("unsupported_opcode") !=
+                        std::string::npos,
+                    "unsupported opcode did not name itself");
+        }
+        // 0x40fd7b pre-loads the CA type 2/3 records at scene start; types 0/1
+        // stay lazy and the file's 0xff marker (0x42d52f turns it into type 0)
+        // is not preloaded. A failed asset load leaves the slot NULL.
+        {
+            byzantine::SceneState preload_state;
+            preload_state.actor_assets = {
+                {"lazy0", "T.CCG", 0}, {"lazy1", "T.CCG", 1},
+                {"pre2", "T.CCG", 2}, {"pre3", "T.CCG", 3},
+                {"marker", "T.CCG", 0xff}};
+            preload_state.actor_assets_known = true;
+            const auto preload = byzantine::preload_scene_records(preload_state);
+            require(preload.created == 2 && preload.failed == 0 &&
+                    preload_state.records.size() == 2 &&
+                    preload_state.records.count(2) == 1 &&
+                    preload_state.records.count(3) == 1 &&
+                    preload_state.records.count(0) == 0 &&
+                    preload_state.records.count(1) == 0 &&
+                    preload_state.records.count(4) == 0,
+                    "scene record preload selected the wrong CA types");
+            byzantine::SceneState missing;
+            missing.actor_assets = {{"gone", "T.CCG", 3}};
+            missing.actor_assets_known = true;
+            missing.anims_library = std::make_shared<byzantine::AnimsLibrary>(
+                "output/no-such-anims-tree");
+            const auto failed = byzantine::preload_scene_records(missing);
+            require(failed.created == 0 && failed.failed == 1 &&
+                    missing.records.empty(),
+                    "a failed preload asset did not leave the slot NULL");
+            byzantine::SceneState unknown;
+            const auto none = byzantine::preload_scene_records(unknown);
+            require(none.created == 0 && none.failed == 0 && unknown.records.empty(),
+                    "preload invented a CA table");
+        }
         // 0xba reads the raw operand, even for type 2. Retain it between
         // actions and clamp unsigned words exactly as the original caller.
         for (const unsigned x : {0u, 747u, 2495u, 2496u, 65535u}) {
@@ -670,21 +788,36 @@ int main(int argc, char** argv) {
         // (which carries the same +0x14 bias) is reduced by it. A kind outside
         // 0..4 is never drawn by that loop.
         auto compose_state = anim_state;  // keeps the anims library and assets
+        // The creation test's 0x64 left the snap flag set (0x21); a room label
+        // clears it before the record is drawn.
+        compose_state.records.at(1).flags = 0x01;
         // Both drawn records resolve the same synthetic asset by CA name.
         compose_state.actor_assets[2] = byzantine::NamedRecord{"abanim", "T.CCG", 2};
         compose_state.records[2] = byzantine::SceneRecordState{};
         compose_state.records.at(2).kind = 0;
+        compose_state.records.at(2).flags = 0x04;  // normal pass draws this
         compose_state.records.at(2).current_frame = 0;
         compose_state.records.at(2).x = 1;
         compose_state.records.at(2).y = 1 + byzantine::kPlayfieldTop;
         compose_state.records[3] = byzantine::SceneRecordState{};
         compose_state.records.at(3).kind = 7;  // outside 0x43b216's 0..4 loop
+        compose_state.records.at(3).flags = 0x04;
         compose_state.records.at(3).current_frame = 0;
+        // 0x20 is the snap-pass flag (0x40ffee's default) and 0x40 hides the
+        // record in the normal pass too; neither may be drawn here.
+        compose_state.records[4] = byzantine::SceneRecordState{};  // flags 0x20
+        compose_state.records.at(4).kind = 0;
+        compose_state.records.at(4).current_frame = 0;
+        compose_state.records[5] = byzantine::SceneRecordState{};
+        compose_state.records.at(5).kind = 0;
+        compose_state.records.at(5).flags = 0x40;
+        compose_state.records.at(5).current_frame = 0;
         auto target = byzantine::make_surface(8, 8, 0);
         const auto composed = byzantine::compose_scene(compose_state, target);
         // Record 1 sits at (100,30) from the creation test, i.e. fully off an
         // 8x8 surface: it is attempted (descending id) but writes nothing.
         require(composed.drawn == 1 && composed.skipped_other_kind == 1 &&
+                    composed.skipped_snap == 1 && composed.skipped_hidden == 1 &&
                     composed.records.size() == 2 &&
                     composed.records[0].id == 2 && composed.records[1].id == 1 &&
                     composed.records[0].blit.drawn &&

@@ -20,8 +20,8 @@ byzantine-play: src/play_main.cpp src/cc.cpp src/cb.cpp src/anims.cpp src/compos
 clean:
 	rm -f byzantine-rle byzantine-all byzantine-cc byzantine-play scene-state-test variable-metadata-test panorama-test panorama-view-test records-test save-test anims-test compose-test jpeg-test
 
-scene-state-test: tests/scene_state.cpp src/cc.cpp src/cb.cpp src/anims.cpp include/byzantine/cc.hpp include/byzantine/anims.hpp include/byzantine/compose.hpp
-	$(CXX) $(CXXFLAGS) -Iinclude tests/scene_state.cpp src/cc.cpp src/cb.cpp src/anims.cpp src/compose.cpp -o $@
+scene-state-test: tests/scene_state.cpp src/cc.cpp src/cb.cpp src/variables.cpp src/anims.cpp include/byzantine/cc.hpp include/byzantine/anims.hpp include/byzantine/compose.hpp
+	$(CXX) $(CXXFLAGS) -Iinclude tests/scene_state.cpp src/cc.cpp src/cb.cpp src/variables.cpp src/anims.cpp src/compose.cpp -o $@
 
 variable-metadata-test: tests/variable_metadata.cpp src/variables.cpp src/cc.cpp src/cb.cpp src/anims.cpp include/byzantine/variables.hpp include/byzantine/cc.hpp include/byzantine/cb.hpp include/byzantine/anims.hpp include/byzantine/compose.hpp
 	$(CXX) $(CXXFLAGS) -Iinclude tests/variable_metadata.cpp src/variables.cpp src/cc.cpp src/cb.cpp src/anims.cpp src/compose.cpp -o $@
@@ -44,8 +44,8 @@ compose-test: tests/compose.cpp src/compose.cpp src/anims.cpp include/byzantine/
 jpeg-test: tests/jpeg.cpp src/jpeg.cpp include/byzantine/jpeg.hpp
 	$(CXX) $(CXXFLAGS) -Iinclude tests/jpeg.cpp src/jpeg.cpp -o $@
 
-save-test: tests/save.cpp src/save.cpp src/cc.cpp src/cb.cpp src/anims.cpp include/byzantine/save.hpp include/byzantine/cc.hpp include/byzantine/cb.hpp include/byzantine/anims.hpp include/byzantine/compose.hpp
-	$(CXX) $(CXXFLAGS) -Iinclude tests/save.cpp src/save.cpp src/cc.cpp src/cb.cpp src/anims.cpp src/compose.cpp -o $@
+save-test: tests/save.cpp src/save.cpp src/cc.cpp src/cb.cpp src/variables.cpp src/anims.cpp include/byzantine/save.hpp include/byzantine/cc.hpp include/byzantine/cb.hpp include/byzantine/anims.hpp include/byzantine/compose.hpp
+	$(CXX) $(CXXFLAGS) -Iinclude tests/save.cpp src/save.cpp src/cc.cpp src/cb.cpp src/variables.cpp src/anims.cpp src/compose.cpp -o $@
 
 test: scene-state-test variable-metadata-test panorama-test panorama-view-test records-test save-test anims-test compose-test jpeg-test
 	./scene-state-test output/cc_all/EA output/cb_all/EA output/cc_all/STAR output/cb_all/STAR output/co_all/EA

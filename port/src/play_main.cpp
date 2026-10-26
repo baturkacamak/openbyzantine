@@ -89,7 +89,7 @@ struct Options {
     std::filesystem::path sounds;              // sounds/ root
     std::string shot;                          // --shot <file.ppm>
     std::optional<int> click;                  // --click <slot>
-    std::optional<std::pair<int, int>> click_at;  // --click-at <x,y>
+    std::vector<std::pair<int, int>> click_ats;  // --click-at <x>,<y>, repeatable
     std::optional<int> staged_x;               // --staged-x <0..2495>
     bool overlay = true;
     bool print_audio = false;
@@ -136,8 +136,8 @@ Options parse_options(int argc, char** argv) {
                 if (comma == std::string::npos) {
                     throw std::runtime_error("--click-at expects <x>,<y>");
                 }
-                options.click_at = std::make_pair(std::stoi(value.substr(0, comma)),
-                                                  std::stoi(value.substr(comma + 1)));
+                options.click_ats.emplace_back(std::stoi(value.substr(0, comma)),
+                                               std::stoi(value.substr(comma + 1)));
             } else options.scene[token] = value;
             continue;
         }
@@ -150,7 +150,7 @@ Options parse_options(int argc, char** argv) {
             "[--save <btb>] [--engine <dir>] [--backgrounds <dir>] [--sounds <dir>] "
             "[--lcx --lci --ci --lcy --cy --co --cf --ca --anims --gameprefs "
             "--inventor --hotitems --cs <file>] [--shot <file.ppm>] [--click <slot>] "
-            "[--click-at <x>,<y>] [--staged-x <0..2495>] "
+            "[--click-at <x>,<y> ...] [--staged-x <0..2495>] "
             "[--no-hotspots] [--no-audio] [--print-audio] [--selftest-events]");
     }
     options.cc_path = positional[0];
@@ -282,8 +282,16 @@ private:
 // ---------------------------------------------------------------------------
 // Scene state
 // ---------------------------------------------------------------------------
+// The visible scene layer: the last of 0x69 (background) and 0xb9 (node) the
+// committed trace contains (see update_layer).
+enum class SceneLayer { none, background, panorama };
+
 struct SceneView {
     std::string name;
+    // The scene's own files, kept so a 0x73 switch can derive the target's
+    // sibling paths in the same directory (cc_all/VT -> cc_all/MR, ...).
+    std::string cc_path;
+    std::string cb_path;
     std::vector<byzantine::CcInstruction> script;
     std::vector<byzantine::BackgroundEntry> entries;
     byzantine::SceneState entry_state;  // before the label runs (for replays)
@@ -296,6 +304,12 @@ struct SceneView {
     // another size, so the size is remembered across loads.
     std::optional<byzantine::PanoramaView> panorama;
     std::optional<std::pair<int, int>> panorama_size;
+    // Which layer the last committed trace selected (see update_layer).
+    SceneLayer layer = SceneLayer::none;
+    // The DAT_0047e2f0 pool this scene received when it was loaded (the save's
+    // pool for the start scene, the exported pool for a travel target). Travel
+    // compares its departure pool with this to report what the scene wrote.
+    std::vector<std::uint16_t> pool_on_arrival;
     std::uint16_t label = 0;
 };
 
@@ -367,6 +381,35 @@ std::optional<std::filesystem::path> sound_path(const std::filesystem::path& roo
     return std::nullopt;
 }
 
+// The visible scene layer: the last of 0x69 (background) and 0xb9 (node) the
+// committed trace contains. Within one scene a label that has neither keeps the
+// current layer, so a node loaded by an earlier label stays visible (the label
+// simply does not repaint the surface). A scene ENTRY adopts the layer its own
+// trace selects, because the new scene really repaints (a node carried over in
+// DAT_00464880 must not hide the new background).
+void update_layer(SceneView& view, bool fresh_scene) {
+    std::optional<std::size_t> last_load;
+    for (const auto& load : view.trace.panorama_loads) last_load = load.instruction;
+    if (last_load) {
+        view.layer = (!view.trace.background ||
+                      view.trace.background->instruction < *last_load)
+                         ? SceneLayer::panorama
+                         : SceneLayer::background;
+        return;
+    }
+    if (!view.trace.background) return;
+    if (fresh_scene || view.layer == SceneLayer::none) {
+        view.layer = SceneLayer::background;
+    }
+}
+
+void set_trace(SceneView& view, byzantine::SceneTrace trace) {
+    view.trace = std::move(trace);
+    update_layer(view, false);
+}
+
+bool panorama_layer(const SceneView& view) { return view.layer == SceneLayer::panorama; }
+
 std::string pick_background(const SceneView& view) {
     if (view.trace.background) return view.trace.background->entry.name;
     const auto static_entries = byzantine::static_backgrounds(view.script, view.entries);
@@ -383,22 +426,100 @@ SceneView open_scene(const std::map<std::string, std::string>& scene_options,
                      const std::string& cc_path, const std::string& cb_path,
                      std::uint16_t label) {
     SceneView view;
+    view.cc_path = cc_path;
+    view.cb_path = cb_path;
     view.script = byzantine::parse_cc(read_file(cc_path));
     view.entries = byzantine::parse_cb(read_file(cb_path));
     view.name = std::filesystem::path(cc_path).stem().string();
     view.label = label;
     auto setup = byzantine::load_scene_setup(cc_path, scene_options);
+    // 0x40fd7b runs at every scene load; a save then replaces the whole record
+    // table (0x425ab4 frees it), so only a scene without --save is preloaded.
+    if (scene_options.count("--save") == 0) {
+        const auto preload = byzantine::preload_scene_records(setup.state);
+        if (preload.created != 0 || preload.failed != 0) {
+            std::cout << "record_preload scene=" << view.name
+                      << " created=" << preload.created
+                      << " failed=" << preload.failed << '\n';
+        }
+    }
     view.entry_state = setup.state;
     view.state = std::move(setup.state);
     std::cout << "scene=" << view.name << " label=" << label << ' ' << setup.summary << '\n';
     return view;
 }
 
-byzantine::SceneTrace trace_label_at(SceneView& view, std::uint16_t label,
-                                     const byzantine::SceneState& entry,
-                                     std::size_t step_budget) {
+// A 0x73 target is loaded from the same directories as the current scene: every
+// per-scene table the player was given (cc/cb/co/ci/cy/cf/cs/ca) has the scene
+// name as its file name. The SHOW.LCC list is lowercase and the extracted files
+// are uppercase, so the lookup is case-insensitive (like the backgrounds).
+std::optional<std::filesystem::path> sibling_scene_file(
+    const std::filesystem::path& current, const std::string& target) {
+    std::error_code error;
+    const auto directory = current.parent_path();
+    if (directory.empty() || !std::filesystem::is_directory(directory, error)) {
+        return std::nullopt;
+    }
+    const auto wanted = lower_ascii(target);
+    for (const auto& entry : std::filesystem::directory_iterator(directory, error)) {
+        if (entry.is_regular_file() && lower_ascii(entry.path().stem().string()) == wanted) {
+            return entry.path();
+        }
+    }
+    return std::nullopt;
+}
+
+std::uint64_t mix_word(std::uint64_t hash, std::uint32_t value) {
+    for (int byte = 0; byte < 4; ++byte) {
+        hash ^= (value >> (byte * 8)) & 0xffu;
+        hash *= 1099511628211ull;
+    }
+    return hash;
+}
+
+// FNV-1a over the current scene's 300-local projection. Comparing the value at
+// a departure with the value after a return is the direct check that the
+// carried DAT_0047e2f0 pool survived the round trip.
+std::uint64_t locals_digest(const byzantine::SceneState& state) {
+    std::uint64_t hash = 1469598103934665603ull;
+    for (const auto& [key, value] : state.variables) hash = mix_word(hash, (key << 16) | value);
+    return hash;
+}
+
+std::uint64_t pool_digest(const std::vector<std::uint16_t>& pool) {
+    std::uint64_t hash = 1469598103934665603ull;
+    for (const auto value : pool) hash = mix_word(hash, value);
+    return hash;
+}
+
+// Ids the record pass actually painted, for the scene-render comparison.
+std::string drawn_ids(const byzantine::SceneCompose& composed) {
+    std::string text;
+    for (const auto& record : composed.records) {
+        if (!record.blit.drawn) continue;
+        if (!text.empty()) text += ',';
+        text += std::to_string(record.id);
+    }
+    return text;
+}
+
+// Where a trace starts: a hotspot action label, or the scene's first
+// instruction (0x42c8a0's post-switch entry). Both share one runner so the
+// audio-gated replay path is identical for clicks and scene loads.
+struct EntryPoint {
+    std::uint16_t label = 0;
+    bool at_entry = false;
+};
+
+byzantine::SceneTrace trace_point(SceneView& view, EntryPoint point,
+                                  const byzantine::SceneState& entry,
+                                  std::size_t step_budget) {
     view.state = entry;
-    return byzantine::trace_scene_label(view.script, view.entries, view.state, label,
+    if (point.at_entry) {
+        return byzantine::trace_scene_entry(view.script, view.entries, view.state,
+                                            step_budget);
+    }
+    return byzantine::trace_scene_label(view.script, view.entries, view.state, point.label,
                                         step_budget);
 }
 
@@ -580,15 +701,8 @@ struct Display {
     void compose(SceneView& view, bool verbose = true) {
         std::fill(surface.pixels.begin(), surface.pixels.end(), 0);
         // The scene layer is whichever of 0x69 (background) / 0xb9 (node) ran
-        // LAST: both decode into the same 640x400 buffer and the record pass
-        // draws on top. A node loaded by an earlier label stays current.
-        bool show_panorama = false;
-        if (view.panorama) {
-            std::optional<std::size_t> last_load;
-            for (const auto& load : view.trace.panorama_loads) last_load = load.instruction;
-            show_panorama = !view.trace.background || !last_load ||
-                            view.trace.background->instruction < *last_load;
-        }
+        // LAST (see panorama_layer).
+        const bool show_panorama = panorama_layer(view);
         if (show_panorama) {
             // 0x4242bd samples the current node through the camera map; the
             // record pass then draws on top, exactly like the background path.
@@ -603,7 +717,10 @@ struct Display {
                       << " pitch=" << view.panorama->pitch_degrees()
                       << " drawn=" << drawn.drawn
                       << " skipped_no_frame=" << drawn.skipped_no_frame
-                      << " pixels=" << drawn.pixels_written << '\n';
+                      << " skipped_snap=" << drawn.skipped_snap
+                      << " skipped_hidden=" << drawn.skipped_hidden
+                      << " pixels=" << drawn.pixels_written
+                      << " drawn_ids=" << drawn_ids(drawn) << '\n';
             return;
         }
         load_background(view.background_file);
@@ -618,7 +735,10 @@ struct Display {
                                                    : view.background_file.filename().string())
                   << " drawn=" << drawn.drawn
                   << " skipped_no_frame=" << drawn.skipped_no_frame
-                  << " pixels=" << drawn.pixels_written << '\n';
+                  << " skipped_snap=" << drawn.skipped_snap
+                  << " skipped_hidden=" << drawn.skipped_hidden
+                  << " pixels=" << drawn.pixels_written
+                  << " drawn_ids=" << drawn_ids(drawn) << '\n';
     }
 
     void present(const SceneView& view, bool overlay) {
@@ -630,7 +750,7 @@ struct Display {
         // 640x400 playfield for a background scene, the panorama SOURCE for a
         // panorama scene. Only the former can be drawn as a rectangle here, so
         // the panorama outline is not invented (the click still works).
-        if (overlay && !view.panorama) {
+        if (overlay && !panorama_layer(view)) {
             for (const auto& hotspot : view.trace.active_hotspots) {
                 SDL_Rect bounds{hotspot.x, hotspot.y - kPlayfieldTop, hotspot.width,
                                 hotspot.height};
@@ -681,6 +801,12 @@ struct Session {
     SceneView view;
     Display display;
     SoundPlayer audio;
+    // SHOW.LCC/LCV/LVM from --engine: the scene list that turns a 0x73 index
+    // into a scene name, and the per-scene local->global variable rows.
+    std::optional<byzantine::VariableMetadata> metadata;
+    // Set by the interactive branch: a scene entry may then wait on audio like
+    // any other script. --shot stays deterministic and never waits.
+    bool interactive = false;
     bool running = true;
     WaitStats wait;
 };
@@ -822,12 +948,12 @@ bool play_events(Session& session, const SceneView& view, const std::vector<Soun
     return true;
 }
 
-// Runs a label so that each queued sound is played at the instruction that
-// queued it: the label is replayed with a step budget up to that step, the
-// frame is presented, the clip plays while the window stays alive, and the
-// replay continues with the next budget. The last budget is the label's own
-// step count, so the final state is the same as an unbudgeted run.
-bool run_label_gated(Session& session, std::uint16_t label,
+// Runs a label (or a scene entry) so that each queued sound is played at the
+// instruction that queued it: the script is replayed with a step budget up to
+// that step, the frame is presented, the clip plays while the window stays
+// alive, and the replay continues with the next budget. The last budget is the
+// script's own step count, so the final state equals an unbudgeted run.
+bool run_label_gated(Session& session, EntryPoint point,
                      const byzantine::SceneState& entry,
                      const byzantine::SceneTrace& probe, bool verbose) {
     const auto events = sound_events(probe);
@@ -841,8 +967,8 @@ bool run_label_gated(Session& session, std::uint16_t label,
 
     std::size_t played = 0;
     for (const auto budget : budgets) {
-        auto trace = trace_label_at(session.view, label, entry, budget);
-        session.view.trace = std::move(trace);
+        auto trace = trace_point(session.view, point, entry, budget);
+        set_trace(session.view, std::move(trace));
         const auto all = sound_events(session.view.trace);
         if (all.size() <= played) continue;
         refresh_background(session.options, session.view);
@@ -861,10 +987,185 @@ bool run_label_gated(Session& session, std::uint16_t label,
 }
 
 // ---------------------------------------------------------------------------
+// Scene travel (0x73)
+// ---------------------------------------------------------------------------
+bool audio_gated(const Session& session) {
+    return session.audio.ready() && !session.options.sounds.empty() &&
+           session.view.state.sound_table_known;
+}
+
+// Compact stop reason for the new scene's entry line: the shared blocker
+// classification (so a partial entry can never look like a clean one).
+std::string stop_reason(const byzantine::SceneTrace& trace) {
+    const auto blocker = byzantine::trace_blocker(trace);
+    if (!blocker.empty()) return " stopped: " + blocker;
+    if (trace.script_end_requested) return " script_end";
+    return {};
+}
+
+// 0x73 writes DAT_00482428 and returns 0; 0x42c8a0's scene loop then reloads
+// that scene and 0x42d594 runs it from instruction 0. Every per-scene table is
+// freed on each load (0x40f3f0 clears objects/sounds/dialogue chains/media,
+// 0x40fd7b the DAT_004649e8 records), and DAT_0047e2f0 is cleared only ONCE
+// before the loop, so the carried variable pool is the state that crosses.
+bool travel_to(Session& session, std::uint16_t index, bool verbose) {
+    auto& options = session.options;
+    if (!session.metadata) {
+        std::cout << "travel index=" << index
+                  << " skipped: --engine (SHOW.LCC) is required to resolve a scene index\n";
+        return false;
+    }
+    const auto& scenes = session.metadata->scenes;
+    if (index >= scenes.size()) {
+        std::cout << "travel index=" << index << " skipped: outside the "
+                  << scenes.size() << "-entry SHOW.LCC list\n";
+        return false;
+    }
+    const auto target = scenes[index].scene;
+    const auto cc_file = sibling_scene_file(session.view.cc_path, target);
+    const auto cb_file = sibling_scene_file(session.view.cb_path, target);
+    if (!cc_file || !cb_file) {
+        std::cout << "travel index=" << index << " scene=" << target
+                  << " skipped: no scene script beside " << session.view.cc_path << '\n';
+        return false;
+    }
+    auto next = options.scene;
+    next.erase("--save");
+    std::string missing;
+    for (const char* key : {"--ci", "--cy", "--cf", "--cs", "--ca", "--co"}) {
+        const auto found = next.find(key);
+        if (found == next.end()) continue;
+        const auto file = sibling_scene_file(found->second, target);
+        if (!file) {
+            if (!missing.empty()) missing += ',';
+            missing += key + 2;
+            next.erase(found);
+            continue;
+        }
+        found->second = file->string();
+    }
+
+    const auto& from_layout =
+        byzantine::scene_variable_layout(*session.metadata, session.view.name);
+    const auto& to_layout = byzantine::scene_variable_layout(*session.metadata, target);
+    const auto from = session.view.name;
+    const auto from_locals = locals_digest(session.view.state);
+    const auto pool = byzantine::export_variable_pool(session.view.state, from_layout);
+    std::string written;
+    if (session.view.pool_on_arrival.size() == pool.size()) {
+        std::size_t changed = 0;
+        for (std::size_t at = 0; at < pool.size(); ++at) {
+            if (pool[at] == session.view.pool_on_arrival[at]) continue;
+            ++changed;
+            if (changed <= 8) {
+                written += (written.empty() ? "" : ",") + std::to_string(at);
+            }
+        }
+        written = std::to_string(changed) + (written.empty() ? "" : " (" + written + ")");
+    } else {
+        written = "unknown";
+    }
+
+    SceneView next_view;
+    next_view.cc_path = cc_file->string();
+    next_view.cb_path = cb_file->string();
+    next_view.script = byzantine::parse_cc(read_file(next_view.cc_path));
+    next_view.entries = byzantine::parse_cb(read_file(next_view.cb_path));
+    next_view.name = std::filesystem::path(next_view.cc_path).stem().string();
+    auto setup = byzantine::load_scene_setup(next_view.cc_path, next);
+    byzantine::apply_variable_pool(setup.state, pool, to_layout);
+    // 0x40fd7b: the scene load pre-loads the CA type 2/3 records before the
+    // script runs (the save path is not used here, so nothing replaces them).
+    const auto preload = byzantine::preload_scene_records(setup.state);
+    next_view.entry_state = setup.state;
+    next_view.state = setup.state;
+    next_view.pool_on_arrival = pool;
+    // 0x401256 fixed the node size once at startup; the current node stays in
+    // DAT_00464880 until the new scene's own 0x69/0xb9 replaces it, but the
+    // visible layer restarts from `none` so the node cannot hide this scene's
+    // background.
+    next_view.panorama_size = session.view.panorama_size;
+    next_view.panorama = std::move(session.view.panorama);
+    next_view.layer = SceneLayer::none;
+
+    std::cout << "travel index=" << index << " scene=" << target << " from=" << from
+              << " pool=3000 locals=300"
+              << " pool_changed=" << written
+              << " from_locals_digest=0x" << std::hex << from_locals
+              << " pool_digest=0x" << pool_digest(pool)
+              << " locals_digest=0x" << locals_digest(setup.state) << std::dec;
+    if (preload.created != 0 || preload.failed != 0) {
+        std::cout << " record_preload=" << preload.created;
+        if (preload.failed != 0) std::cout << " record_preload_failed=" << preload.failed;
+    }
+    if (!missing.empty()) std::cout << " missing_tables=" << missing;
+    std::cout << '\n';
+
+    session.view = std::move(next_view);
+    options.scene = std::move(next);
+    options.cc_path = session.view.cc_path;
+    options.cb_path = session.view.cb_path;
+
+    // The new scene runs from its first instruction (DAT_0047a238), exactly
+    // like 0x42c8a0's reload; its sounds are gated like any other script.
+    const auto probe = byzantine::trace_scene_entry(
+        session.view.script, session.view.entries, session.view.entry_state, 0);
+    if (session.interactive && audio_gated(session)) {
+        if (!run_label_gated(session, EntryPoint{0, true}, session.view.entry_state, probe,
+                             verbose)) {
+            return false;
+        }
+    } else {
+        set_trace(session.view,
+                  trace_point(session.view, EntryPoint{0, true},
+                              session.view.entry_state, 0));
+    }
+    // The entry's own trace selects the layer for this scene (see update_layer).
+    update_layer(session.view, true);
+    apply_panorama_events(session.view, options, verbose);
+    refresh_background(options, session.view);
+    session.display.compose(session.view, verbose);
+    session.display.present(session.view, options.overlay);
+    if (session.display.window != nullptr) {
+        SDL_SetWindowTitle(session.display.window,
+                           ("Byzantine — " + session.view.name + " entry").c_str());
+    }
+    std::cout << "entry scene=" << session.view.name
+              << " steps=" << session.view.trace.steps
+              << " stopped_at=" << session.view.trace.stopped_at
+              << stop_reason(session.view.trace)
+              << " hotspots=" << session.view.trace.active_hotspots.size()
+              << " records=" << session.view.state.records.size()
+              << " locals_digest=0x" << std::hex << locals_digest(session.view.state)
+              << std::dec << '\n';
+    return session.running;
+}
+
+constexpr std::size_t kTravelHopLimit = 8;
+
+// The engine's scene loop: after a 0x73-ended script it reloads the target and
+// runs its entry, which may itself end in another 0x73. The hop bound only
+// protects the port from a script that would travel forever.
+void follow_switches(Session& session, bool verbose) {
+    std::size_t hops = 0;
+    while (session.running && session.view.trace.scene_switch_requested) {
+        const auto index = *session.view.trace.scene_switch_requested;
+        if (++hops > kTravelHopLimit) {
+            std::cout << "travel index=" << index << " skipped: hop limit "
+                      << kTravelHopLimit << " reached\n";
+            return;
+        }
+        if (!travel_to(session, index, verbose)) return;
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Clicks
 // ---------------------------------------------------------------------------
 struct ClickPlan {
     bool ok = false;
+    bool travel = false;
+    std::uint16_t switch_index = 0;
     std::string message;
     std::uint16_t action = 0;
     byzantine::SceneState entry;
@@ -886,7 +1187,7 @@ SceneHit hotspot_at(const SceneView& view, int screen_x, int screen_y) {
     SceneHit hit;
     hit.test_x = screen_x;
     hit.test_y = screen_y + kPlayfieldTop;
-    if (view.panorama) {
+    if (panorama_layer(view)) {
         // 0x401ca6 subtracts the playfield bias, 0x4240ae maps the point and
         // 0x401ca6 adds the bias back to the result.
         const auto point = view.panorama->canvas_point(screen_x, screen_y);
@@ -907,8 +1208,9 @@ SceneHit hotspot_at(const SceneView& view, int screen_x, int screen_y) {
     return hit;
 }
 
-// 0x73 leaves the scene; the player renders one scene and has no carried state
-// for the target, so the request is reported and nothing is committed.
+// A hotspot whose action reaches 0x73 is a scene switch: 0x42db22 writes
+// DAT_00482428 and ends the script, so the port commits the action's state and
+// then performs the scene reload the engine's outer loop would.
 ClickPlan plan_hotspot(const SceneView& view, int slot) {
     ClickPlan plan;
     const auto found = std::find_if(view.trace.active_hotspots.begin(),
@@ -928,28 +1230,25 @@ ClickPlan plan_hotspot(const SceneView& view, int slot) {
     plan.action = found->action;
     plan.probe = byzantine::trace_scene_label(view.script, view.entries, plan.entry,
                                               found->action);
-    const auto unknown = [&plan]() -> const char* {
-        if (plan.probe.unsupported_opcode) return "unsupported opcode";
-        if (plan.probe.unresolved_variable) return "unresolved variable";
-        if (plan.probe.unresolved_random) return "unresolved random seed";
-        if (plan.probe.unresolved_sound_name) return "unresolved sound name";
-        if (plan.probe.unresolved_dialogue) return "unresolved dialogue table";
-        if (plan.probe.missing_object) return "missing object";
-        if (plan.probe.unresolved_node_asset) return "unresolved node asset";
-        if (plan.probe.missing_node_asset) return "missing node asset";
-        return nullptr;
-    };
-    if (const char* reason = unknown()) {
+    // Every stop that means "the port lacks data or settings, or hit a safety
+    // bound" is a failed click: the original would fault or do something this
+    // port cannot reproduce, so neither the partial state nor a scene switch may
+    // be committed as a success. 0x6f return and 0x79 script end are real ends;
+    // 0x73 is a real switch.
+    const auto blocker = byzantine::trace_blocker(plan.probe);
+    if (!blocker.empty()) {
         plan.message = "slot " + std::to_string(slot) + " action " +
-                       std::to_string(plan.action) + " stopped: " + reason +
+                       std::to_string(plan.action) + " stopped: " + blocker +
                        " at instruction " + std::to_string(plan.probe.stopped_at);
         return plan;
     }
     if (plan.probe.scene_switch_requested) {
+        plan.ok = true;
+        plan.travel = true;
+        plan.switch_index = *plan.probe.scene_switch_requested;
         plan.message = "slot " + std::to_string(slot) + " action " +
                        std::to_string(plan.action) + " scene_switch=" +
-                       std::to_string(*plan.probe.scene_switch_requested) +
-                       " (not supported by the player)";
+                       std::to_string(plan.switch_index);
         return plan;
     }
     plan.ok = true;
@@ -1015,6 +1314,8 @@ int main(int argc, char** argv) {
 
         session.view = open_scene(options.scene, options.cc_path, options.cb_path,
                                   static_cast<std::uint16_t>(label_value));
+        session.view.pool_on_arrival = session.view.state.variable_pool;
+        session.metadata = byzantine::read_variable_metadata(options.scene);
         session.display.init();
         if (options.audio) {
             try {
@@ -1023,8 +1324,7 @@ int main(int argc, char** argv) {
                 std::cerr << "audio disabled: " << error.what() << '\n';
             }
         }
-        const bool audio_ready = session.audio.ready() && !options.sounds.empty() &&
-                                 session.view.state.sound_table_known;
+        const bool audio_ready = audio_gated(session);
         if (!audio_ready && options.audio) {
             std::cout << "audio not gated: "
                       << (session.audio.ready() ? "" : "no device, ")
@@ -1057,21 +1357,24 @@ int main(int argc, char** argv) {
             refresh_background(options, session.view);
             session.display.compose(session.view);
             session.display.present(session.view, options.overlay);
-            const auto run = [&](std::uint16_t label, const byzantine::SceneState& entry,
+            const auto run = [&](EntryPoint point, const byzantine::SceneState& entry,
                                  const byzantine::SceneTrace& look) {
                 if (!audio_ready) {
                     session.view.state = entry;
-                    session.view.trace = trace_label_at(session.view, label, entry, 0);
+                    set_trace(session.view, trace_point(session.view, point, entry, 0));
                     return session.running;
                 }
-                return run_label_gated(session, label, entry, look, true);
+                return run_label_gated(session, point, entry, look, true);
             };
+            session.interactive = true;
             const bool startup_ok =
-                run(session.view.label, session.view.entry_state, probe);
+                run(EntryPoint{session.view.label, false}, session.view.entry_state, probe);
             // The label's node loads/rotations belong to the renderer, so they
             // are applied exactly once, from the committed trace.
             apply_panorama_events(session.view, options, true);
-            if (options.selftest_events && !options.click && !options.click_at) push_quit();
+            if (options.selftest_events && !options.click && options.click_ats.empty()) {
+                push_quit();
+            }
             if (!startup_ok) {
                 SDL_DestroyTexture(session.display.texture);
                 SDL_DestroyRenderer(session.display.renderer);
@@ -1101,21 +1404,21 @@ int main(int argc, char** argv) {
                           << (hit.panorama_mapped ? " (panorama)" : "") << ' '
                           << plan.message << '\n';
                 if (!plan.ok) return;
-                if (!run(plan.action, plan.entry, plan.probe)) return;
+                if (!run(EntryPoint{plan.action, false}, plan.entry, plan.probe)) return;
                 apply_panorama_events(session.view, options, true);
                 refresh_background(options, session.view);
                 session.display.compose(session.view);
                 session.display.present(session.view, options.overlay);
-                if (plan.probe.scene_switch_requested) return;
                 std::cout << "click_result "
                           << describe_trace(session.view.trace, session.view.state)
                           << " active_slots="
                           << session.view.trace.active_hotspots.size() << '\n';
+                follow_switches(session, true);
             };
             // Arrow keys turn the panorama (the original uses on-screen cursor
             // buttons; the mapping between those and a host key is ours).
             const auto turn = [&](double yaw, double pitch) {
-                if (!session.view.panorama) return;
+                if (!panorama_layer(session.view)) return;
                 session.view.panorama->advance(yaw, pitch, 1.0);
                 session.display.compose(session.view, false);
                 session.display.present(session.view, options.overlay);
@@ -1130,7 +1433,7 @@ int main(int argc, char** argv) {
                 const auto plan = plan_hotspot(session.view, *options.click);
                 std::cout << "click " << plan.message
                           << " handled=" << (plan.ok ? "true" : "false") << '\n';
-                if (plan.ok && run(plan.action, plan.entry, plan.probe)) {
+                if (plan.ok && run(EntryPoint{plan.action, false}, plan.entry, plan.probe)) {
                     apply_panorama_events(session.view, options, true);
                     refresh_background(options, session.view);
                     session.display.compose(session.view);
@@ -1139,11 +1442,12 @@ int main(int argc, char** argv) {
                               << describe_trace(session.view.trace, session.view.state)
                               << " active_slots="
                               << session.view.trace.active_hotspots.size() << '\n';
+                    follow_switches(session, true);
                 }
                 if (options.selftest_events) push_quit();
             }
-            if (options.click_at) {
-                handle_click(options.click_at->first, options.click_at->second);
+            for (const auto& point : options.click_ats) {
+                handle_click(point.first, point.second);
                 if (options.selftest_events) push_quit();
             }
 
@@ -1179,7 +1483,7 @@ int main(int argc, char** argv) {
                         float logical_y = 0;
                         SDL_RenderWindowToLogical(session.display.renderer, event.button.x,
                                                   event.button.y, &logical_x, &logical_y);
-                        if (session.view.panorama) {
+                        if (panorama_layer(session.view)) {
                             dragging = true;
                             dragged = false;
                             drag_x = static_cast<int>(logical_x);
@@ -1238,7 +1542,7 @@ int main(int argc, char** argv) {
 
         // --shot: one deterministic frame, no audio device wait.
         session.view.state = session.view.entry_state;
-        session.view.trace = probe;
+        set_trace(session.view, probe);
         session.view.state = std::move(probe_state);
         apply_panorama_events(session.view, options, true);
         if (options.click) {
@@ -1246,32 +1550,36 @@ int main(int argc, char** argv) {
             std::cout << "click " << plan.message
                       << " handled=" << (plan.ok ? "true" : "false") << '\n';
             if (plan.ok) {
-                session.view.trace = trace_label_at(session.view, plan.action, plan.entry, 0);
+                set_trace(session.view,
+                          trace_point(session.view, EntryPoint{plan.action, false},
+                                      plan.entry, 0));
                 apply_panorama_events(session.view, options, true);
                 std::cout << "click_result "
                           << describe_trace(session.view.trace, session.view.state) << '\n';
+                follow_switches(session, true);
             }
         }
-        if (options.click_at) {
-            const auto hit = hotspot_at(session.view, options.click_at->first,
-                                        options.click_at->second);
-            std::cout << "click_at " << options.click_at->first << ','
-                      << options.click_at->second << " -> " << hit.test_x << ','
-                      << hit.test_y;
-            if (hit.slot) {
-                const auto plan = plan_hotspot(session.view, *hit.slot);
-                std::cout << ' ' << plan.message;
-                if (plan.ok) {
-                    session.view.trace =
-                        trace_label_at(session.view, plan.action, plan.entry, 0);
-                    apply_panorama_events(session.view, options, false);
-                    std::cout << " click_result "
-                              << describe_trace(session.view.trace, session.view.state);
-                }
-            } else {
-                std::cout << " hit no hotspot";
+        for (const auto& point : options.click_ats) {
+            const auto hit = hotspot_at(session.view, point.first, point.second);
+            std::cout << "click_at " << point.first << ',' << point.second << " -> "
+                      << hit.test_x << ',' << hit.test_y;
+            if (!hit.slot) {
+                std::cout << " hit no hotspot\n";
+                continue;
             }
-            std::cout << '\n';
+            const auto plan = plan_hotspot(session.view, *hit.slot);
+            std::cout << ' ' << plan.message;
+            if (!plan.ok) {
+                std::cout << '\n';
+                continue;
+            }
+            set_trace(session.view,
+                      trace_point(session.view, EntryPoint{plan.action, false},
+                                  plan.entry, 0));
+            apply_panorama_events(session.view, options, false);
+            std::cout << " click_result "
+                      << describe_trace(session.view.trace, session.view.state) << '\n';
+            follow_switches(session, false);
         }
         refresh_background(options, session.view);
         session.display.compose(session.view);

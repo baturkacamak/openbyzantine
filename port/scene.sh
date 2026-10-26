@@ -12,6 +12,11 @@
 # splits the per-scene engine tables; later runs reuse it.
 #
 # In the window: click a hotspot, H toggles the hotspot outlines, Esc quits.
+# A hotspot whose action reaches 0x73 switches scenes: the target is loaded from
+# the same per-scene directories, the 3000-word variable pool is carried and the
+# new scene runs from its first instruction (analysis/rea/SCENE_TRAVEL.md).
+# MAP 87 -> click 47 twice (190,300) travels to MR (index 27); in MR click 38
+# (589,330) to travel back to MAP (index 25).
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

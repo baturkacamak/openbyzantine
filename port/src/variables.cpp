@@ -87,4 +87,73 @@ SceneState new_game_scene_state(const VariableMetadata& metadata, std::string_vi
     }
     return state;
 }
+
+namespace {
+// The 0x46ee00 row entry for one local operand: an LCV global id, or the
+// identity past the declared count (0x42c8a0 initialises all 300 that way).
+std::size_t mapped_global(std::size_t local, const SceneVariableLayout& layout) {
+    return local < layout.global_ids.size() ? layout.global_ids[local] : local;
+}
+}  // namespace
+
+std::vector<std::uint16_t> export_variable_pool(const SceneState& state,
+                                                const SceneVariableLayout& layout) {
+    if (layout.global_ids.size() > 300) {
+        throw std::runtime_error("variable layout exceeds the 300-entry scene table");
+    }
+    // Start from the carried pool (zeros when 0x42c8a0's clear is all that
+    // happened). A known pool is the arrival state, so only the locals the
+    // script actually wrote are replayed, in write order: that keeps an aliased
+    // global at the value the script last stored instead of letting the identity
+    // tail overwrite it. Without a pool the projection itself is the only
+    // information, so all 300 locals are written out.
+    std::vector<std::uint16_t> pool(3000, 0);
+    const bool pool_known = !state.variable_pool.empty();
+    if (pool_known) {
+        if (state.variable_pool.size() != pool.size()) {
+            throw std::runtime_error("carried variable pool is not the 3000-word table");
+        }
+        pool = state.variable_pool;
+    }
+    const auto store = [&](std::uint16_t local, std::uint16_t value) {
+        const auto global = mapped_global(local, layout);
+        if (global >= pool.size()) {
+            throw std::runtime_error("variable mapping outside the 3000-word pool");
+        }
+        pool[global] = value;
+    };
+    if (pool_known) {
+        for (const auto local : state.variable_writes) {
+            const auto found = state.variables.find(local);
+            if (found != state.variables.end()) store(local, found->second);
+        }
+    } else {
+        for (std::size_t local = 0; local < 300; ++local) {
+            const auto found = state.variables.find(static_cast<std::uint16_t>(local));
+            if (found != state.variables.end()) {
+                store(static_cast<std::uint16_t>(local), found->second);
+            }
+        }
+    }
+    return pool;
+}
+
+void apply_variable_pool(SceneState& state, const std::vector<std::uint16_t>& pool,
+                         const SceneVariableLayout& layout) {
+    if (layout.global_ids.size() > 300) {
+        throw std::runtime_error("variable layout exceeds the 300-entry scene table");
+    }
+    if (pool.size() != 3000) {
+        throw std::runtime_error("variable pool is not the 3000-word table");
+    }
+    state.variable_pool = pool;
+    // A freshly imported pool IS the arrival state: nothing has been written
+    // since, so the replay log starts empty.
+    state.variable_writes.clear();
+    state.variables.clear();
+    for (std::uint16_t local = 0; local < 300; ++local) {
+        const auto global = mapped_global(local, layout);
+        state.variables[local] = pool[global];
+    }
+}
 }  // namespace byzantine

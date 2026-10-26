@@ -387,6 +387,23 @@ struct SceneState {
     // DAT_00460668: display/menu selector written by 0xc8 sub 0x32/0x33 and
     // restored from the save's mid-block dword.
     std::uint32_t field_460668 = 0;
+    // DAT_00464878: the alternate-mode selector. 0x42c8a0 initialises it to -1
+    // before the scene loop; 0x68 (0x42dad9) writes 0 or -1. 0xbd mode 3 reads
+    // it and 0xcd's guard tests it; both are still request-only in this port,
+    // which reports the write instead of guessing an effect.
+    std::int32_t alternate_mode = -1;
+    // DAT_0047e2f0: the carried 3000-word variable pool. 0x42c8a0 clears it once
+    // before the scene loop and every scene reaches it through its own
+    // 0x46ee00 row, so it is the state that crosses a 0x73 switch. `variables`
+    // above is the current scene's 300-local projection of this pool; a label
+    // only writes its own locals. Empty until a save or an imported pool
+    // supplies it (0x42c8a0's clear leaves zeros anyway).
+    std::vector<std::uint16_t> variable_pool;
+    // Local operand numbers the executed script wrote, in order. 0x46ee00 can
+    // map two locals of one scene onto the same global (a declared entry and the
+    // identity tail), so an export must replay the writes instead of guessing
+    // which local is current.
+    std::vector<std::uint16_t> variable_writes;
     // DAT_0045f490: 0xc8 sub 0x3a sets it to 2. Not part of the save format.
     std::uint32_t field_45f490 = 0;
     // DAT_004859cd: set by 0x425ab4 after a successful load, written 1/0 by
@@ -599,6 +616,8 @@ struct SceneTrace {
     std::optional<std::uint16_t> scene_switch_requested;
     // 0x73 without the LCX table supplied.
     std::optional<std::uint16_t> unresolved_scene_table;
+    // 0x68 wrote DAT_00464878 (0x42dad9).
+    std::size_t alternate_mode_changes = 0;
     std::vector<SceneVideoRequest> video_requests;
     // Modes 2/3 are skipped when their gamepref entry is zero (FUN_0041d440).
     std::size_t video_skipped = 0;
@@ -612,6 +631,13 @@ struct SceneTrace {
     std::size_t stopped_at = 0;
 };
 
+// A trace that stopped because the port lacks data or settings the original
+// would have (or because it hit a safety bound) must not be treated as a
+// successful action: the original would either fault or do something this port
+// cannot reproduce. Returns an empty string for a real end (0x6f return, 0x79
+// script end) and for a 0x73 scene switch, otherwise a short "reason=detail".
+std::string trace_blocker(const SceneTrace& trace);
+
 // One record the scene composer drew.
 struct SceneDraw {
     std::uint16_t id = 0;
@@ -624,9 +650,28 @@ struct SceneCompose {
     std::size_t drawn = 0;            // records that wrote at least one pixel
     std::size_t skipped_no_frame = 0; // kind 0..4 but no decodable current frame
     std::size_t skipped_other_kind = 0;  // kind outside 0..4 (0x43b216's loop bound)
+    // +0x09 & 0x20: handled by 0x43b216's snap pass, which this port does not
+    // model (it needs the record's +0x20 word, left 0 by 0x40ffee).
+    std::size_t skipped_snap = 0;
+    // +0x09 & 0x40: skipped by the normal pass as well.
+    std::size_t skipped_hidden = 0;
     std::size_t pixels_written = 0;
     std::vector<SceneDraw> records;
 };
+
+// 0x40fd7b: the scene loader frees the DAT_004649e8 table (0x4102ae) and then
+// pre-loads every engine/<scene>ca entry whose +0x08 type is 2 or 3 through
+// 0x40fe70 (which loads the `anims` asset). 0x42d52f runs first and rewrites the
+// file's 0xff "load lazily" marker to type 0, so those entries are NOT preloaded.
+// A failed asset load leaves the slot NULL in the original and makes 0x40fd7b
+// return 1, which aborts the whole scene load in 0x42c8a0; the port reports the
+// count instead of silently continuing. The save loader frees this table again,
+// so a save-supplied record table must not be preloaded.
+struct SceneRecordPreload {
+    std::size_t created = 0;
+    std::size_t failed = 0;  // 0x40fe70 failed: the original aborts the scene load
+};
+SceneRecordPreload preload_scene_records(SceneState& state);
 
 // 0x43b216's record pass, reduced to what the port can draw: for kind 0..4 it
 // walks the DAT_004649e8 table from the highest id down, and draws each
@@ -658,8 +703,7 @@ std::vector<ScenePanorama> static_panoramas(
 // Resolves 0xe1 labels and constant 0x76 jumps / 0x9b calls.
 CcControlFlow resolve_control_flow(const std::vector<CcInstruction>& script);
 
-// Restores the state a parsed savegame/NN.BTB carries into a fresh SceneState:
-// the 0x464300 object records (including +0x0c/+0x14), the 0x464f60 media
+// Restores the state a parsed savegame/NN.BTB carries into a fresh SceneState:// the 0x464300 object records (including +0x0c/+0x14), the 0x464f60 media
 // records, the 0x486220 sound records, the 0x4649e8 node records and the
 // dialogue window state that 0x408adc reads (channel selector, scroll, the ten
 // channel stacks, the current record and the 0x4089b0 per-record state bytes).
@@ -694,5 +738,13 @@ SceneTrace trace_scene_label(const std::vector<CcInstruction>& script,
                              const std::vector<BackgroundEntry>& entries,
                              SceneState& state,
                              std::uint16_t label, std::size_t step_budget = 0);
+
+// Runs a scene script from its first instruction, which is what the engine does
+// after 0x73 writes DAT_00482428: 0x42c8a0 reloads that scene and 0x42d594
+// starts at DAT_0047a238, the instruction-list head (NOT at a label). The first
+// instructions are 0x68 and the 0x72/0x7a hotspot declarations.
+SceneTrace trace_scene_entry(const std::vector<CcInstruction>& script,
+                            const std::vector<BackgroundEntry>& entries,
+                            SceneState& state, std::size_t step_budget = 0);
 
 }  // namespace byzantine

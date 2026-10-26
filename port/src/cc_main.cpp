@@ -902,6 +902,8 @@ int main(int argc, char** argv) {
                           << " drawn=" << composed.drawn
                           << " skipped_no_frame=" << composed.skipped_no_frame
                           << " skipped_other_kind=" << composed.skipped_other_kind
+                          << " skipped_snap=" << composed.skipped_snap
+                          << " skipped_hidden=" << composed.skipped_hidden
                           << " pixels=" << composed.pixels_written;
                 if (compose_out->second != "-") {
                     if (!byzantine::write_ppm(surface, compose_out->second)) {

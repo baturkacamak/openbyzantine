@@ -64,6 +64,65 @@ int main(int argc, char** argv) {
         rejects(lcc, lcv, bad);
         bad = lvm; bad[0] = 185; bad[1] = 11; // 3001 globals
         rejects(lcc, lcv, bad);
+        // DAT_0047e2f0 crosses a scene switch through each scene's own LCV row:
+        // A maps locals 0/1 to globals 400/2, B maps them to 2/401. A write A
+        // makes is visible to B through their shared global, and every untouched
+        // pool word survives the round trip.
+        const byzantine::SceneVariableLayout layout_a{"a", {400, 2}};
+        const byzantine::SceneVariableLayout layout_b{"b", {2, 401}};
+        byzantine::SceneState state_a;
+        state_a.variable_pool.assign(3000, 0);
+        state_a.variable_pool[400] = 11;
+        state_a.variable_pool[2] = 22;
+        state_a.variable_pool[7] = 77;
+        byzantine::apply_variable_pool(state_a, state_a.variable_pool, layout_a);
+        require(state_a.variables.size() == 300 && state_a.variables.at(0) == 11 &&
+                state_a.variables.at(1) == 22 && state_a.variables.at(7) == 77,
+                "carried pool projection mismatch");
+        state_a.variables[1] = 99;  // A local 1 -> global 2
+        state_a.variable_writes.push_back(1);
+        const auto pool = byzantine::export_variable_pool(state_a, layout_a);
+        require(pool.size() == 3000 && pool[400] == 11 && pool[2] == 99 && pool[7] == 77 &&
+                pool[3] == 0, "export lost a written or an untouched pool word");
+        // A scene that writes nothing must hand its arrival pool on unchanged.
+        byzantine::SceneState untouched = state_a;
+        untouched.variable_writes.clear();
+        require(byzantine::export_variable_pool(untouched, layout_a) == state_a.variable_pool,
+                "export changed a pool the scene never wrote");
+        byzantine::SceneState state_b;
+        byzantine::apply_variable_pool(state_b, pool, layout_b);
+        require(state_b.variables.at(0) == 99 && state_b.variables.at(1) == 0 &&
+                state_b.variable_pool.at(7) == 77,
+                "B did not read A's shared global through its own mapping");
+        state_b.variables[0] = 123;  // B local 0 -> global 2
+        state_b.variable_writes.push_back(0);
+        const auto back_pool = byzantine::export_variable_pool(state_b, layout_b);
+        byzantine::SceneState back;
+        byzantine::apply_variable_pool(back, back_pool, layout_a);
+        require(back.variables.at(1) == 123 && back.variables.at(0) == 11 &&
+                back.variable_pool.at(7) == 77 && back.variable_pool.at(3) == 0,
+                "return trip lost B's write or an untouched global");
+        // 0x46ee00 can map a declared local and an identity local onto the same
+        // global. Replaying the writes keeps the value the script stored.
+        const byzantine::SceneVariableLayout aliased{"c", {50, 3}};
+        byzantine::SceneState alias_state;
+        std::vector<std::uint16_t> alias_pool(3000, 0);
+        alias_pool[50] = 7;
+        byzantine::apply_variable_pool(alias_state, alias_pool, aliased);
+        require(alias_state.variables.at(0) == 7 && alias_state.variables.at(50) == 7,
+                "aliased local did not share one global");
+        alias_state.variables[0] = 9;  // declared local 0 -> global 50
+        alias_state.variable_writes.push_back(0);
+        require(byzantine::export_variable_pool(alias_state, aliased)[50] == 9,
+                "identity tail overwrote the aliased global the script wrote");
+        bool rejected_pool = false;
+        try { byzantine::apply_variable_pool(back, {1, 2, 3}, layout_a); }
+        catch (const std::runtime_error&) { rejected_pool = true; }
+        require(rejected_pool, "accepted a short carried pool");
+        rejected_pool = false;
+        try { byzantine::export_variable_pool(back, byzantine::SceneVariableLayout{"a", std::vector<std::uint16_t>(301, 0)}); }
+        catch (const std::runtime_error&) { rejected_pool = true; }
+        require(rejected_pool, "accepted a 301-entry scene row");
         if (argc >= 2) {
             const std::filesystem::path root(argv[1]);
             const auto original = byzantine::parse_variable_metadata(

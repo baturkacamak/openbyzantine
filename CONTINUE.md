@@ -18,7 +18,114 @@ game ISOs/archives, `analysis/rea/BETRAYAL.EXE`, `tools/rea`, `upscale_ornek` an
 needs `port/output/`: recreate it from your own copy with `port/byzantine-all`
 (and `port/scene.sh` for the extracted media) before running the suites.
 
-## Latest step — panorama scenes are playable (look around and click them)
+## Latest step — two scenes you can walk between (MAP ↔ MR)
+
+A hotspot action that ends in `0x73` now loads the target scene and runs its
+entry, and the 3000-word `DAT_0047e2f0` pool crosses the switch. Verified round
+trip: **MAP 87 → click 47 twice → MR → click 38 → MAP**, every hop a shipped
+hotspot label of the shipped script.
+
+- `0x73` writes `DAT_00482428` and returns **0** (a table `0xffff` returns
+  `0xffff` = continue). `0x42d594` turns 0 into "stop the dispatcher" and
+  `0x42c8a0`'s outer `while (result == 0)` reloads the scene selected by
+  `DAT_00482428`; `DAT_00483bc0` is the SHOW.LCC list (`0x438173`), so the LCX
+  value is an LCC index — the mapping the port uses. Execution then starts at
+  `DAT_0047a238`, the **instruction-list head**, not at a label (the save resume
+  `0x41e289` only runs on the first load).
+- Only `DAT_0047e2f0` survives: it is cleared once before the scene loop. Every
+  other table is freed and rebuilt per load — `0x40f3f0` frees objects
+  (`DAT_00464300`), sounds (`DAT_00486220`), dialogue chains (`DAT_00486a10`)
+  and media (`DAT_00464f60`); `0x40fd7b`→`0x4102ae` frees the record table and
+  pre-loads CA type 2/3; `0x408662` re-creates the 126 dialogue records;
+  `0x4117a6` re-creates the sound rows from the new script's `0x65`s.
+- Port: `SceneState::variable_pool` (the carried pool) plus the existing
+  `variables` as the current scene's 300-local projection of its `0x46ee00` row;
+  `export_variable_pool`/`apply_variable_pool` in `variables.cpp`, and
+  `load_save_variables` now keeps the save's whole 3000-word block. A new
+  `SceneState::variable_writes` log replays the script's stores in order, because
+  one scene row can map a declared local and an identity local onto the same
+  global (without the log the untouched identity copy would overwrite the write).
+- VM: `trace_scene_entry` runs a script from instruction 0 through the same
+  runner as `trace_scene_label`; that needed two real branches: `0x68` (writes
+  `DAT_00464878`: 0 only for a type-2 zero operand, else -1, counted in
+  `alternate_mode_changes`) and `0x7a` (a dispatcher no-op — the rectangle is
+  `0x72`, the enable is `0x6d`/`0x6e`).
+- Player: `plan_hotspot` accepts a `0x73` probe as travel; `travel_to` resolves
+  the index through SHOW.LCC, derives the target's `cc/cb/co/ci/cy/cf/cs/ca`
+  from the current files (same directories, case-insensitive), drops `--save`,
+  exports/imports the pool, keeps the renderer's fixed node size and current
+  node, runs the entry audio-gated, and prints `travel …`/`entry …`.
+  `follow_switches` follows an entry that switches again (8-hop bound, reported).
+  `--click-at` is now repeatable so the whole chain is reproducible headlessly.
+- Real results: `travel index=27 scene=mr from=MAP pool=3000 locals=300
+  pool_changed=1 (2) … locals_digest=0x23569faa90b9e0fb`, `entry scene=MR
+  steps=100 stopped_at=89 hotspots=2`, `travel index=25 scene=map from=MR
+  pool_changed=4 (10,79,80,718) … locals_digest=0xe6aae5f275869f89`, `entry
+  scene=MAP steps=158 stopped_at=137 hotspots=11`. **2996/3000 pool words are
+  bit-identical** across the visit; the 4 that changed are MR's own stores
+  (global 10 is shared, MAP local 18 = MR local 18), and MAP's own value (global
+  2 = 19, local 25) survived. MAP's re-entry then increments its visit counter
+  (local 25 19→20) and rewrites local 18, as the shipped script dictates.
+  MR shows `composed background=MRDOORCL.jpg`; MAP after return draws the 1
+  record its fresh entry creates (the save's 27-record table is per-scene data,
+  freed on load — not carry loss). The visible layer after a switch comes from
+  the new entry's own trace, so a background replaces a node carried from
+  another scene (verified MAP → AM → MAP); a label *inside* one scene that loads
+  a background without a node load still keeps the current node, preserving the
+  documented EA 602 click frame.
+- **A click whose trace stopped on missing data/settings is no longer a
+  success** (review fix). `plan_hotspot` used to know eight stop reasons; a probe
+  that stopped on `unresolved_dialogue_channel`, `unresolved_save_setting`,
+  `unresolved_video_*`, `disc_request`, `step_limit`, … was accepted and its
+  partial state committed. `byzantine::trace_blocker` now classifies every
+  stop field in one place (0x6f return / 0x79 script end / 0x73 switch are real
+  ends; continue-only counters are not blockers) and the player, the entry line
+  and the tests share it. Real check: MAP 87 without `--lcx` → second click
+  prints `slot 13 action 257 stopped: unresolved_scene_table=31 at instruction
+  302`, no `click_result`, no travel, no commit.
+- **MAP's frame after a switch now matches the original's table and draw gate**
+  (review fix). `0x40fd7b` really pre-loads the CA type 2/3 records: MAP's
+  `engine/map ca` has 17 type-3 entries, and all 17 match the save's own
+  preloaded records exactly (x/y and +0x14 frame count, 17/17). `0x43b216`'s
+  normal pass also skips `+0x09 & 0x20` (snap pass) and `+0x09 & 0x40`, which
+  the port ignored. New frames: resume `tempsave.btb` → `drawn=11
+  skipped_snap=16 pixels=62263 drawn_ids=33,28,26,24,16,14,12,10,8,2,0`
+  (the save's 10 room records carry `flags=0x4`; the 16 inactive `…Hi` preloads
+  carry `0x20`), after MR → MAP → `records=17 record_preload=17 drawn=1
+  skipped_snap=16 pixels=3373 drawn_ids=0` (`maphl` only, activated by the
+  entry's `0x64`), and `--click 34` adds `mapTkHi` (`drawn=12 pixels=70684`).
+  The two frames differ in 55,409 pixels = exactly the 10 room records a scene
+  switch drops. **Correction:** the earlier `drawn=27 pixels=163079` MAP frame
+  and EA `drawn=1 pixels=13570` were over-drawing `0x20` records (EA's
+  `EACaset2` is a type-2 preload); EA now reports `drawn=0 skipped_snap=1`.
+  The snap pass (`+0x20` rect, `0x43264d` clear) stays unmodelled and is counted
+  in `skipped_snap`.
+- Regression checks unchanged: MAP 87 `--trace-save` `steps=70 stopped_at=137`
+  `tempsave_requests=1`; VT 497 audio `gate stopped_after_step=4 of=15`,
+  `audio step=4 id=35 name=voTins1 duration_ms=4709`, `--click 14` →
+  `steps=12 … fingerprint=0x849a49bff1a28319 active_slots=2`; EA 602 panorama
+  `instruction=317 yaw=180`, `click_at 246,294 -> 2423,496 slot 4 action 586`.
+- Tests: `variable-metadata-test` (A/B pool round trip, "no writes = unchanged
+  pool", the declared/identity alias, short pool and 301-entry row rejected) and
+  `scene-state-test` (`0x68` three operand shapes + counter, `trace_scene_entry`
+  starting at instruction 0 through `0x7a`, `trace_blocker` for every stop field
+  and for the continuing counters, `preload_scene_records` (CA 2/3 only; 0xff
+  not preloaded; a missing asset leaves the slot NULL), and `compose_scene`'s
+  `0x20`/`0x40` skip counters). `make -C port -j2 all test` passes all nine
+  suites.
+- Report: `analysis/rea/SCENE_TRAVEL.md` (17 verified hashes). Port coverage:
+  127 → 129 of 840 functions (15.1% → 15.4%, 76,910 → 77,230 B = 31.0%).
+- Still not modelled: the `DAT_004603d0`/`DAT_00460660` transition snapshot
+  (`0x73`'s override, `0x439349`), `DAT_00477350`/`DAT_0047ae80`/`DAT_00485a10`
+  (cleared once before the loop, meaning unrecovered), aliasing **reads** inside
+  one scene (exports replay writes, so the carry is exact), scenes whose entry
+  needs the CRT `_rand` state (IU, NB, EA, … stop at `unresolved_random`), the
+  transition effects, and the snap pass (`+0x09 & 0x20` with a non-zero `+0x20`
+  drawn once through the mode-1 rect and cleared by `0x43264d`, plus the `0x40`
+  → `0x20` conversion and the `flags & 0x10` offset/blend path). Such records are
+  skipped and counted (`skipped_snap`, `skipped_hidden`) rather than guessed.
+
+## Previous step — panorama scenes are playable (look around and click them)
 
 A `0xb9` node scene is no longer a background it cannot click. The player samples
 the 2496x768 `nodes/` panorama through the engine's own camera map, turns the
@@ -133,11 +240,15 @@ code exists for it yet.
   `0x4063e0` `a321c3e91c9b99e1`, `0x4066c6` `fbcc5640b962cc1c`,
   `0x4067e2` `99488c31c78b9447`, `0x4069a4` `ab6b7bd02064ab5d`,
   `0x406cfe` `df4c09b307ceca77`, `0x406ef5` `7411bee3de54d03a`.
-- The other open playability gap is **cross-scene travel**: `0x42c8a0` clears the
-  3000-word pool once, then reloads `engine/<scene>` per `DAT_00482428`; `0x73`
-  only writes that index and returns 2. `DAT_0047a238` (the instruction list
-  head, linked through `+0x2c`) is the scene entry, i.e. execution starts at the
-  first instruction, not at a label.
+- **Cross-scene travel is now implemented** (see the latest step): `0x73` writes
+  `DAT_00482428` and returns 0, `0x42c8a0` reloads that LCC-indexed scene and
+  runs it from `DAT_0047a238` (the instruction-list head, i.e. the first
+  instruction, not a label), and only the `DAT_0047e2f0` pool survives the
+  switch. MAP ↔ MR is the verified click round trip (`SCENE_TRAVEL.md`). What
+  remains: the `DAT_004603d0`/`DAT_00460660` transition snapshot (`0x73`'s
+  override, `0x439349`), the other once-cleared pools (`DAT_00477350`,
+  `DAT_0047ae80`, `DAT_00485a10`), and scene entries that need the CRT `_rand`
+  state (IU, NB, EA, …).
 
 ## Previous step — the SDL2 player draws a real scene (first playable delivery)
 
