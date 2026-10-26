@@ -79,6 +79,20 @@ int main(int argc, char** argv) {
         require(state_a.variables.size() == 300 && state_a.variables.at(0) == 11 &&
                 state_a.variables.at(1) == 22 && state_a.variables.at(7) == 77,
                 "carried pool projection mismatch");
+        // 0x42c8a0 clears the whole 3000-word pool before the first scene. A
+        // no-save entry now applies that zero pool, so locals past the declared
+        // LCV count (identity) are 0 instead of "unresolved".
+        {
+            byzantine::SceneState zeroed;
+            byzantine::apply_variable_pool(zeroed, std::vector<std::uint16_t>(3000, 0),
+                                           layout_a);
+            require(zeroed.variable_pool.size() == 3000 &&
+                        zeroed.variables.size() == 300 &&
+                        zeroed.variables.at(0) == 0 &&
+                        zeroed.variables.at(1) == 0 &&
+                        zeroed.variables.at(299) == 0,
+                    "zero pool did not initialise all 300 locals");
+        }
         state_a.variables[1] = 99;  // A local 1 -> global 2
         state_a.variable_writes.push_back(1);
         const auto pool = byzantine::export_variable_pool(state_a, layout_a);

@@ -182,6 +182,15 @@ SceneSetup load_scene_setup(const std::string& cc_path,
             throw std::runtime_error(
                 "--save needs --engine for the carried variable pool projection");
         }
+    } else if (metadata) {
+        // 0x42c8a0 initialises DAT_0047e2f0 to 3000 zero words before the first
+        // scene runs. Without a save the port must do the same, otherwise every
+        // identity local (past the declared LCV count) is "unresolved" instead
+        // of the original's zero. A save still replaces this with its own pool.
+        const auto& layout = scene_variable_layout(*metadata, setup.scene);
+        apply_variable_pool(setup.state, std::vector<std::uint16_t>(3000, 0), layout);
+        setup.summary += " variables_zero_pool=300 declared=" +
+                         std::to_string(layout.global_ids.size());
     }
     apply_dialogue_inputs(setup.state, options);
     return setup;

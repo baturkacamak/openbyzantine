@@ -2142,10 +2142,20 @@ static SceneTrace trace_scene_from(const std::vector<CcInstruction>& script,
         trace.step_limit_exceeded = true;
         trace.stopped_at = pc;
     }
-    for (const auto& [slot, is_enabled] : state.hotspot_enabled) {
-        if (is_enabled) {
-            trace.active_hotspots.push_back(hotspots.at(slot));
+    // 0x40c02c iterates DAT_00464300 in ascending id order and tests the
+    // object's own +0x08 active byte. The save and 0x6d/0x6e both write that
+    // byte, so the object table is authoritative; hotspot_enabled is only a
+    // fallback for a static hotspot whose object was not created (it should not
+    // happen, but the port must not lose a clickable rectangle).
+    for (const auto& [slot, hotspot] : hotspots) {
+        bool active = false;
+        const auto object = state.objects.find(slot);
+        if (object != state.objects.end()) active = object->second.active != 0;
+        if (!active) {
+            const auto enabled = state.hotspot_enabled.find(slot);
+            if (enabled != state.hotspot_enabled.end()) active = enabled->second;
         }
+        if (active) trace.active_hotspots.push_back(hotspot);
     }
     return trace;
 }

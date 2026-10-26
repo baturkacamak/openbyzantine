@@ -1,5 +1,6 @@
 #include "byzantine/cc.hpp"
 
+#include <algorithm>
 #include <array>
 #include <filesystem>
 #include <fstream>
@@ -161,6 +162,27 @@ int main(int argc, char** argv) {
                         unresolved_object != unresolved_state.objects.end() &&
                         unresolved_object->second.name_id == 0xffffffffu,
                     "0x72 guessed a name id without the CI table");
+            // 0x40c02c tests DAT_00464300[slot]+0x08, so an object active from
+            // a save must be hittable even when no 0x6d ran in this trace.
+            const std::vector<CcInstruction> active_script{
+                {0x72, {word(2, 2), word(64, 1), word(64, 2), word(64, 3),
+                        word(64, 4), word(2, 30), word(2, 8), word(2, 0)}},
+                {0x6f, {}}
+            };
+            byzantine::SceneState active_state;
+            byzantine::SceneObjectState saved_object;
+            saved_object.active = 1;
+            saved_object.kind = 8;
+            saved_object.label = 30;
+            saved_object.name_id = 0xffffffffu;
+            active_state.objects[2] = saved_object;
+            const auto active_trace =
+                byzantine::trace_scene_entry(active_script, {}, active_state);
+            const bool saw_two = std::any_of(
+                active_trace.active_hotspots.begin(), active_trace.active_hotspots.end(),
+                [](const byzantine::SceneHotspot& hotspot) { return hotspot.slot == 2; });
+            require(saw_two,
+                    "a save-active object was missing from the click/active set");
         }
         // 0x69 with transition code 4 is the examine close-up: it requests
         // inventor/examine/<item>.jpg from DAT_0045d1cc and must not require a
