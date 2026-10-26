@@ -249,7 +249,7 @@ Options parse_options(int argc, char** argv) {
             "[--lcx --lci --ci --lcy --cy --co --cf --ca --anims --gameprefs "
             "--inventor --hotitems --cs <file>] [--shot <file.ppm>] [--click <slot>] "
             "[--entry] [--click-at <x>,<y> ...] [--staged-x <0..2495>] "
-            "[--cd <file> --ccb --ccf --byz --dialog --dialog-cache <dir>] "
+            "[--cd <file> --ccb --ccf --byz --messages <file> --dialog --dialog-cache <dir>] "
             "[--run-label <n>] [--conversation-choices <i,...>] "
             "[--conversation-object <slot>] [--conversation-cancel <n>] "
             "[--conversation-shot <ppm>] "
