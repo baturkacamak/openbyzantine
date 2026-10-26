@@ -96,8 +96,16 @@ etiket kümesinde bulunuyor. Kanıt ve bilinmeyen listesi:
   taşınan tek durum `DAT_0047e2f0` 3000 sözcüklü değişken havuzudur (ayrıntı:
   [`SCENE_TRAVEL.md`](../analysis/rea/SCENE_TRAVEL.md)). Yeni sahnenin girişi de
   ses kapılıdır; dönüşte konsola `travel …` ve `entry …` satırları basılır.
-  Tam oyun değildir: diyalog metni (`0x417a17`), video (`0xbd`) ve geçiş
-  efektleri yoktur.
+  **Metin pencereleri**: `0x4177c7` (inceleme, font 1, x=5, y=0x14a, 3 satır) ve
+  `0x417a17` (mesaj, font 3, sağa dayalı 0x26e/0x2d) artık çizilir; içerik
+  `engine/<scene>ce` (`CE.ALL`, gerçek Türkçe metin), font
+  `klio.SFN`+`GR_KLIO.TGA`/`BK_KLIO.TGA` ve `0x4067e2` karışımıdır (`--ce`,
+  `--fonts`). Bir nesneye tıklamak `+0x14` metin indeksini gösterir ve
+  nesnenin `action` etiketi betiği sürdürür. Not: oyunun `0x70` konuşmaları
+  **ses + animasyon**dur; `CCB/CCF` konuşma VM'i (`0x43340a`) metin çizmez,
+  bu yüzden diyalog altyazısı verisi yoktur. Kapsam dışı: mesaj paneli
+  arkası, saniyede bir satır açılan kaydırma (`0x4177c7`/`0x4176d8`) ve
+  `0x4069a4`'ün SFN atlas çizimi. Video (`0xbd`) ve geçiş efektleri yoktur.
 - `byzantine-cc --hotspots`, işlem kodu `0x72` olan sabit alan tanımlarını çıkarır. Oyunun `FUN_0042db22` komut yürütücüsü bu tanımları tıklama alanı tablosuna yazıyor: alan numarası, x, y+20, genişlik, yükseklik ve kalan iki değer. Yedinci değerin alt baytı alan durumuna yazılıyor; diğer değerlerin tüm anlamları henüz çözülmedi (`ev_6fae0653eb9d17a560b88cf841ffbe1c2fc3b14d9c5f18ac7a7ef5e9853ca522`). Dinamik operandlı tanımlar atlanır; çıktı betik yürütme sırasını göstermez.
 - `byzantine-cc --backgrounds <CB kaydı>`, sabit `0x69` sahne komutu numaralarını aynı sahnenin `CB.ALL` ad listesiyle eşler. `CB.ALL` kayıtları `ad\0kaynak\0ff` dizilerinden oluşur. Dinamik numaralar ancak çalışan yorumlayıcıda çözülebilir.
 - `byzantine-cc --flow`, `0xe1` etiketleri ile `0x76` atlamalarını ve `0x9b` çağrılarını eşler. Oyunun `FUN_0042d383` işlevi etiketi sonraki komuta bağlar; aynı etiket birden çok kez tanımlanırsa son tanım geçerlidir. `FUN_0043194f` çağrı dönüş adresini saklar; `FUN_0042d8ba` dönüş komutları `0x6f` ve `0x83` için yığını boşaltır. Bu çıktı koşullu dalları çalıştırmaz.
@@ -376,6 +384,7 @@ make
 #   ./scene.sh <oyun-dizini> [sahne] [etiket] [save]
 ./scene.sh ".." MAP 87 tempsave.btb          # harita: 27 kayıt + tıklanabilir alanlar
 ./scene.sh ".." VT 497 72.btb                # ses: 4.7 sn voTins1, betik bekler
+./scene.sh ".." CLOCK --entry 70.btb          # metin: saat gövdesine tıkla (inceleme yazısı)
 # Başsız doğrulama (pencere açmadan):
 SDL_VIDEODRIVER=dummy ./scene.sh ".." MAP 87 tempsave.btb --click 34 --shot /tmp/map.ppm
 SDL_VIDEODRIVER=dummy ./scene.sh ".." VT 497 72.btb --print-audio

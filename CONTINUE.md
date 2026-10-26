@@ -18,7 +18,53 @@ game ISOs/archives, `analysis/rea/BETRAYAL.EXE`, `tools/rea`, `upscale_ornek` an
 needs `port/output/`: recreate it from your own copy with `port/byzantine-all`
 (and `port/scene.sh` for the extracted media) before running the suites.
 
-## Latest step — two scenes you can walk between (MAP ↔ MR)
+## Latest step — the game's text windows (real font + real CE.ALL text)
+
+The port now renders the game's own text: the **examine scroller** (`0x4177c7`,
+font 1, x=5, y=0x14a, 3 lines) and the **message block** (`0x417a17`, font 3,
+right-aligned to 0x26e/0x2d). The content is the shipped `engine/<scene>ce`
+table (`CE.ALL`), the font is `klio.SFN` + `GR_KLIO.TGA`/`BK_KLIO.TGA` with
+`0x4067e2`'s gr-over-bk blend.
+
+- **Conversations are voice-only.** The `0x70` CONVERSE path is real (MR label
+  413 → `converse_jump id=2 label=265`), but `0x410669` loads
+  `engine/<name>.ccb` (bytecode) + `.ccf` (voice-clip names: `Mr2meh00…`) and
+  the conversation VM `0x43340a` never calls the text drawer. There is no
+  dialogue-subtitle asset; the only shipped prose is `CE.ALL` and
+  `setupart/MESSAGES.TXT`. A "conversation with text" would have to invent the
+  text, so the deliverable is the game's real text-bearing interaction: click an
+  object → its `+0x14` indexes `engine/<scene>ce` → `0x4177c7` shows it, and the
+  object's action label continues the script (`0x40c329`).
+- Text pipeline: `--ce <file>` (per scene, so travel reloads it) and
+  `--fonts <dir>` are new; `text.{hpp,cpp}` parses the SFN metrics (223 glyphs,
+  `0xcdcd` filler entries), the 8-bit TGA masks (row flip) and draws with the
+  exact blend. The CP1254 bytes index the font directly. An unterminated entry,
+  a wrong version, a glyph outside the atlas or a non-8-bit TGA is rejected.
+- Wire-up: after a committed click the object's `+0x14` selects the examine
+  text (a text-less object clears it, as `0x40c329`'s `0x4177c7(0)` does); a
+  `0xcd` request sets the message text; both windows are drawn in
+  `Display::compose` after the record pass; a scene load clears them.
+- Demo (`CLOCK`, save `70.btb`): `./port/scene.sh . CLOCK --entry 70.btb` →
+  `fonts klio glyphs=223 atlas=375x93 line=22`, `composed background=vtclock.jpg
+  drawn=3 pixels=9949`. Click the clock body (logical ~330,250 → slot 31) →
+  `text object=31 index=0 lines=4`, `text_draw window=examine x=5 y=330
+  width=308` and the frame shows "ARAŞTIRMACIYA UYARI: YERLEŞİK VERİ / MEKANİK
+  SAAT / AHŞAP VE ALTIN, 1520" (the 4th line is the one the original's 1-line/s
+  scroll would reveal). Clicking the pendulum (slot 0) clears the window
+  (`text object=0 cleared`) and runs label 264, which enables the twelve
+  mechanism hotspots — the real answer set. `--entry` starts at instruction 0
+  (a scene load without needing a label). VT 72.btb 497 shows the message window
+  instead: text 1 at x=378..622, y=49..62 ("HÜNKAR SOFASI (TAHT ODASI)"), and
+  `--click 19` adds examine entry 3 ("SAZ HEYETİ BALKONU").
+- Not modelled: the message panel behind the right block (`0x417a17`'s
+  DirectDraw band copy), the 1-line-per-second reveal/scroll and `0x4176d8`'s
+  tick (the final 3-line block is drawn), and `0x4069a4`'s SFN-atlas blit.
+- Tests: new `text-test` (synthetic SFN + TGAs, blend values, alignment,
+  newline/max lines, undefined codes, seven rejections) and `make -C port -j2
+  all test` passes all ten suites.
+- Report: `analysis/rea/TEXT_WINDOW.md` (19 verified hashes).
+
+## Previous step — two scenes you can walk between (MAP ↔ MR)
 
 A hotspot action that ends in `0x73` now loads the target scene and runs its
 entry, and the 3000-word `DAT_0047e2f0` pool crosses the switch. Verified round

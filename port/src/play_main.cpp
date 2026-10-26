@@ -24,6 +24,7 @@
 #include "byzantine/panorama.hpp"
 #include "byzantine/panorama_view.hpp"
 #include "byzantine/scene_setup.hpp"
+#include "byzantine/text.hpp"
 
 #include <SDL.h>
 
@@ -87,7 +88,9 @@ struct Options {
     std::map<std::string, std::string> scene;  // passthrough for load_scene_setup
     std::filesystem::path backgrounds;         // backs/ root or the extracted root
     std::filesystem::path sounds;              // sounds/ root
+    std::filesystem::path fonts;               // the DIALOG/klio font files
     std::string shot;                          // --shot <file.ppm>
+    bool entry = false;                        // --entry: start at instruction 0
     std::optional<int> click;                  // --click <slot>
     std::vector<std::pair<int, int>> click_ats;  // --click-at <x>,<y>, repeatable
     std::optional<int> staged_x;               // --staged-x <0..2495>
@@ -99,8 +102,9 @@ struct Options {
 
 const std::set<std::string> kValued = {
     "--save", "--engine", "--lcx", "--lci", "--ci", "--lcy", "--cy", "--co", "--cf",
-    "--ca", "--anims", "--gameprefs", "--inventor", "--hotitems", "--cs",
-    "--backgrounds", "--sounds", "--shot", "--click", "--click-at", "--staged-x"};
+    "--ca", "--anims", "--gameprefs", "--inventor", "--hotitems", "--cs", "--ce",
+    "--backgrounds", "--sounds", "--shot", "--click", "--click-at", "--staged-x",
+    "--fonts"};
 
 Options parse_options(int argc, char** argv) {
     Options options;
@@ -123,11 +127,16 @@ Options parse_options(int argc, char** argv) {
             options.selftest_events = true;
             continue;
         }
+        if (token == "--entry") {
+            options.entry = true;
+            continue;
+        }
         if (kValued.count(token) != 0) {
             if (index + 1 >= argc) throw std::runtime_error(token + " needs a value");
             const std::string value(argv[++index]);
             if (token == "--backgrounds") options.backgrounds = value;
             else if (token == "--sounds") options.sounds = value;
+            else if (token == "--fonts") options.fonts = value;
             else if (token == "--shot") options.shot = value;
             else if (token == "--click") options.click = std::stoi(value);
             else if (token == "--staged-x") options.staged_x = std::stoi(value);
@@ -144,18 +153,18 @@ Options parse_options(int argc, char** argv) {
         if (token.rfind("--", 0) == 0) throw std::runtime_error("unknown option: " + token);
         positional.push_back(token);
     }
-    if (positional.size() != 3) {
+    if (positional.size() != 3 && !(options.entry && positional.size() == 2)) {
         throw std::runtime_error(
             "usage: byzantine-play <scene.cc> <scene.cb> <label> "
             "[--save <btb>] [--engine <dir>] [--backgrounds <dir>] [--sounds <dir>] "
             "[--lcx --lci --ci --lcy --cy --co --cf --ca --anims --gameprefs "
             "--inventor --hotitems --cs <file>] [--shot <file.ppm>] [--click <slot>] "
-            "[--click-at <x>,<y> ...] [--staged-x <0..2495>] "
+            "[--entry] [--click-at <x>,<y> ...] [--staged-x <0..2495>] "
             "[--no-hotspots] [--no-audio] [--print-audio] [--selftest-events]");
     }
     options.cc_path = positional[0];
     options.cb_path = positional[1];
-    options.label = positional[2];
+    if (positional.size() == 3) options.label = positional[2];
     return options;
 }
 
@@ -306,6 +315,15 @@ struct SceneView {
     std::optional<std::pair<int, int>> panorama_size;
     // Which layer the last committed trace selected (see update_layer).
     SceneLayer layer = SceneLayer::none;
+    // The game's two text windows. `examine` is 0x4177c7's 3-line scroller at
+    // (5, 0x14a) in font 1 (klio); `message` is 0x417a17's right-aligned block at
+    // (0x26e, 0x2d) in font 3. Their content comes from engine/<scene>ce.
+    struct TextWindow {
+        bool active = false;
+        std::string text;
+    };
+    TextWindow examine_text;
+    TextWindow message_text;
     // The DAT_0047e2f0 pool this scene received when it was loaded (the save's
     // pool for the start scene, the exported pool for a travel target). Travel
     // compares its departure pool with this to report what the scene wrote.
@@ -663,6 +681,10 @@ struct Display {
     byzantine::Rgb16Surface surface;
     std::string background_key;
     std::vector<std::uint16_t> background_pixels;
+    // Font slots 1 (examine, klio green 0x1b<<5) and 3 (message, klio with
+    // 0x406cfe's (0xb<<11)|(0xe<<5)|2) share the klio atlas.
+    std::optional<byzantine::SfnFont> examine_font;
+    std::optional<byzantine::SfnFont> message_font;
 
     void init() {
         if (SDL_Init(SDL_INIT_VIDEO) != 0) {
@@ -708,6 +730,7 @@ struct Display {
             // record pass then draws on top, exactly like the background path.
             view.panorama->render(surface);
             const auto drawn = byzantine::compose_scene(view.state, surface);
+            draw_text_windows(view, verbose);
             if (!verbose) return;
             std::cout << "composed panorama=" << view.panorama->path()
                       << " size=" << view.panorama->source_width() << 'x'
@@ -729,6 +752,7 @@ struct Display {
                                   background_pixels.data(), 0, 0);
         }
         const auto drawn = byzantine::compose_scene(view.state, surface);
+        draw_text_windows(view, verbose);
         if (!verbose) return;
         std::cout << "composed background="
                   << (view.background_file.empty() ? "none"
@@ -772,6 +796,32 @@ struct Display {
         SDL_RenderPresent(renderer);
     }
 
+    // 0x4177c7 (examine, font 1, 0x14a, 3 lines, left) and 0x417a17 (message,
+    // font 3, 0x26e/0x2d, 3 lines, right-aligned). The original reveals the
+    // examine text one line per second and blits a message panel behind the
+    // right block; this draws the final block over the scene and says so.
+    void draw_text_windows(const SceneView& view, bool verbose) {
+        if (view.examine_text.active && examine_font) {
+            byzantine::draw_text(surface, *examine_font, view.examine_text.text, 5, 0x14a,
+                                 3, 3);
+            if (verbose) {
+                std::cout << "text_draw window=examine x=5 y=" << 0x14a
+                          << " width=" << byzantine::text_width(*examine_font,
+                                                               view.examine_text.text)
+                          << '\n';
+            }
+        }
+        if (view.message_text.active && message_font) {
+            const auto width = byzantine::text_width(*message_font, view.message_text.text);
+            byzantine::draw_text(surface, *message_font, view.message_text.text, 0x26e,
+                                 0x2d, 3, 4);
+            if (verbose) {
+                std::cout << "text_draw window=message x=" << (0x26e - width)
+                          << " y=" << 0x2d << " width=" << width << '\n';
+            }
+        }
+    }
+
     // Writes the composed scene (background + records) as PPM. The hotspot
     // outlines are a window-only overlay and are deliberately not in the file.
     // SDL_RenderReadPixels is not used: it reads at the window/render-target
@@ -804,6 +854,9 @@ struct Session {
     // SHOW.LCC/LCV/LVM from --engine: the scene list that turns a 0x73 index
     // into a scene name, and the per-scene local->global variable rows.
     std::optional<byzantine::VariableMetadata> metadata;
+    // engine/<scene>ce, the text entries 0x412206 loads into DAT_00483640.
+    // Reloaded on a scene switch from the target's --ce record.
+    std::optional<byzantine::SceneTextTable> scene_text;
     // Set by the interactive branch: a scene entry may then wait on audio like
     // any other script. --shot stays deterministic and never waits.
     bool interactive = false;
@@ -1003,6 +1056,83 @@ std::string stop_reason(const byzantine::SceneTrace& trace) {
     return {};
 }
 
+std::size_t text_lines(const std::string& text) {
+    return 1 + static_cast<std::size_t>(std::count(text.begin(), text.end(), '\n'));
+}
+
+// 0x412206: engine/<scene>ce becomes the DAT_00483640 text table.
+void load_scene_text(Session& session, bool verbose) {
+    session.scene_text.reset();
+    session.view.examine_text = {};
+    session.view.message_text = {};
+    const auto found = session.options.scene.find("--ce");
+    if (found == session.options.scene.end()) return;
+    try {
+        session.scene_text = byzantine::parse_scene_text(read_file(found->second));
+        if (verbose) {
+            std::cout << "scene_text file=" << found->second
+                      << " entries=" << session.scene_text->entries.size() << '\n';
+        }
+    } catch (const std::exception& error) {
+        std::cout << "scene_text " << found->second << ": " << error.what() << '\n';
+    }
+}
+
+// 0x40c329 sets DAT_004603d4 from the clicked object's +0x14 and 0x4177c7 shows
+// engine/<scene>ce[+0x14] in the 3-line scroll window.
+void show_object_text(Session& session, std::uint16_t slot, bool verbose) {
+    const auto object = session.view.state.objects.find(slot);
+    if (object == session.view.state.objects.end()) return;
+    const auto index = object->second.argument;
+    if (index == 0xffffffffu) {
+        // 0x40c329 clears DAT_004603d4 (0x4177c7(0)) before it reads +0x14, so a
+        // click on an object without a text index blanks the window.
+        const bool had = session.view.examine_text.active;
+        session.view.examine_text = {};
+        if (verbose && had) std::cout << "text object=" << slot << " cleared\n";
+        return;
+    }
+    if (!session.scene_text) {
+        std::cout << "text object=" << slot << " index=" << index
+                  << " skipped: no --ce text table\n";
+        return;
+    }
+    if (index >= session.scene_text->entries.size()) {
+        std::cout << "text object=" << slot << " index=" << index
+                  << " skipped: outside the " << session.scene_text->entries.size()
+                  << "-entry table\n";
+        return;
+    }
+    session.view.examine_text = {true, session.scene_text->entries[index]};
+    if (verbose) {
+        std::cout << "text object=" << slot << " index=" << index
+                  << " lines=" << text_lines(session.view.examine_text.text) << '\n';
+    }
+}
+
+// 0xcd -> 0x417a17 shows DAT_00483640[id] right-aligned at (0x26e,0x2d).
+void show_message_text(Session& session, bool verbose) {
+    if (session.view.trace.text_requests.empty()) return;
+    const auto& request = session.view.trace.text_requests.back();
+    if (!session.scene_text) {
+        std::cout << "message id=" << request.id << " mode=" << request.mode
+                  << " skipped: no --ce text table\n";
+        return;
+    }
+    if (request.id >= session.scene_text->entries.size()) {
+        std::cout << "message id=" << request.id << " mode=" << request.mode
+                  << " skipped: outside the " << session.scene_text->entries.size()
+                  << "-entry table\n";
+        return;
+    }
+    session.view.message_text = {true, session.scene_text->entries[request.id]};
+    if (verbose) {
+        std::cout << "message id=" << request.id << " mode=" << request.mode
+                  << " lines=" << text_lines(session.view.message_text.text)
+                  << " bytes=" << session.view.message_text.text.size() << '\n';
+    }
+}
+
 // 0x73 writes DAT_00482428 and returns 0; 0x42c8a0's scene loop then reloads
 // that scene and 0x42d594 runs it from instruction 0. Every per-scene table is
 // freed on each load (0x40f3f0 clears objects/sounds/dialogue chains/media,
@@ -1032,7 +1162,7 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose) {
     auto next = options.scene;
     next.erase("--save");
     std::string missing;
-    for (const char* key : {"--ci", "--cy", "--cf", "--cs", "--ca", "--co"}) {
+    for (const char* key : {"--ci", "--cy", "--cf", "--cs", "--ca", "--co", "--ce"}) {
         const auto found = next.find(key);
         if (found == next.end()) continue;
         const auto file = sibling_scene_file(found->second, target);
@@ -1105,6 +1235,7 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose) {
     options.scene = std::move(next);
     options.cc_path = session.view.cc_path;
     options.cb_path = session.view.cb_path;
+    load_scene_text(session, verbose);
 
     // The new scene runs from its first instruction (DAT_0047a238), exactly
     // like 0x42c8a0's reload; its sounds are gated like any other script.
@@ -1122,6 +1253,7 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose) {
     }
     // The entry's own trace selects the layer for this scene (see update_layer).
     update_layer(session.view, true);
+    show_message_text(session, verbose);
     apply_panorama_events(session.view, options, verbose);
     refresh_background(options, session.view);
     session.display.compose(session.view, verbose);
@@ -1309,14 +1441,45 @@ int main(int argc, char** argv) {
         Session session;
         session.options = parse_options(argc, argv);
         auto& options = session.options;
-        const auto label_value = std::stoul(options.label, nullptr, 0);
+        const auto label_value = options.label.empty()
+                                     ? 0
+                                     : std::stoul(options.label, nullptr, 0);
         if (label_value > 0xffff) throw std::runtime_error("label outside 16-bit range");
 
         session.view = open_scene(options.scene, options.cc_path, options.cb_path,
                                   static_cast<std::uint16_t>(label_value));
         session.view.pool_on_arrival = session.view.state.variable_pool;
         session.metadata = byzantine::read_variable_metadata(options.scene);
+        load_scene_text(session, false);
         session.display.init();
+        if (!options.fonts.empty()) {
+            const auto sfn = find_child(options.fonts, "klio");
+            const auto gr = find_child(options.fonts, "gr_klio");
+            const auto bk = find_child(options.fonts, "bk_klio");
+            if (sfn && gr && bk) {
+                try {
+                    // 0x406cfe slots 1 and 3: the same klio metrics/atlas, fill
+                    // 0x1b<<5 (examine) and (0xb<<11)|(0xe<<6)|2 (message).
+                    session.display.examine_font = byzantine::load_sfn_font(
+                        sfn->string(), gr->string(), bk->string(), 0x0360);
+                    session.display.message_font = byzantine::load_sfn_font(
+                        sfn->string(), gr->string(), bk->string(), 0x5b82);
+                    std::cout << "fonts klio glyphs="
+                              << session.display.examine_font->glyph_count
+                              << " atlas=" << session.display.examine_font->atlas_width
+                              << 'x' << session.display.examine_font->atlas_height
+                              << " line=" << session.display.examine_font->line_height
+                              << '\n';
+                } catch (const std::exception& error) {
+                    std::cout << "fonts disabled: " << error.what() << '\n';
+                }
+            } else {
+                std::cout << "fonts disabled: klio.SFN/GR_KLIO.TGA/BK_KLIO.TGA not under "
+                          << options.fonts.string() << '\n';
+            }
+        } else {
+            std::cout << "fonts disabled: no --fonts (the text windows stay blank)\n";
+        }
         if (options.audio) {
             try {
                 session.audio.open();
@@ -1335,8 +1498,11 @@ int main(int argc, char** argv) {
 
         // Probe (on a copy): total steps and the sounds the label queues.
         byzantine::SceneState probe_state = session.view.entry_state;
-        const auto probe = byzantine::trace_scene_label(
-            session.view.script, session.view.entries, probe_state, session.view.label);
+        const auto probe = options.entry
+            ? byzantine::trace_scene_entry(session.view.script, session.view.entries,
+                                           probe_state, 0)
+            : byzantine::trace_scene_label(session.view.script, session.view.entries,
+                                           probe_state, session.view.label);
         if (options.print_audio) {
             for (const auto& event : sound_events(probe)) {
                 std::cout << "audio step=" << event.step << " instruction=" << event.instruction
@@ -1368,10 +1534,12 @@ int main(int argc, char** argv) {
             };
             session.interactive = true;
             const bool startup_ok =
-                run(EntryPoint{session.view.label, false}, session.view.entry_state, probe);
+                run(EntryPoint{session.view.label, options.entry}, session.view.entry_state,
+                    probe);
             // The label's node loads/rotations belong to the renderer, so they
             // are applied exactly once, from the committed trace.
             apply_panorama_events(session.view, options, true);
+            show_message_text(session, true);
             if (options.selftest_events && !options.click && options.click_ats.empty()) {
                 push_quit();
             }
@@ -1405,6 +1573,8 @@ int main(int argc, char** argv) {
                           << plan.message << '\n';
                 if (!plan.ok) return;
                 if (!run(EntryPoint{plan.action, false}, plan.entry, plan.probe)) return;
+                show_object_text(session, *hit.slot, true);
+                show_message_text(session, true);
                 apply_panorama_events(session.view, options, true);
                 refresh_background(options, session.view);
                 session.display.compose(session.view);
@@ -1434,6 +1604,8 @@ int main(int argc, char** argv) {
                 std::cout << "click " << plan.message
                           << " handled=" << (plan.ok ? "true" : "false") << '\n';
                 if (plan.ok && run(EntryPoint{plan.action, false}, plan.entry, plan.probe)) {
+                    show_object_text(session, static_cast<std::uint16_t>(*options.click), true);
+                    show_message_text(session, true);
                     apply_panorama_events(session.view, options, true);
                     refresh_background(options, session.view);
                     session.display.compose(session.view);
@@ -1545,6 +1717,7 @@ int main(int argc, char** argv) {
         set_trace(session.view, probe);
         session.view.state = std::move(probe_state);
         apply_panorama_events(session.view, options, true);
+        show_message_text(session, true);
         if (options.click) {
             const auto plan = plan_hotspot(session.view, *options.click);
             std::cout << "click " << plan.message
@@ -1553,9 +1726,11 @@ int main(int argc, char** argv) {
                 set_trace(session.view,
                           trace_point(session.view, EntryPoint{plan.action, false},
                                       plan.entry, 0));
-                apply_panorama_events(session.view, options, true);
                 std::cout << "click_result "
                           << describe_trace(session.view.trace, session.view.state) << '\n';
+                show_object_text(session, static_cast<std::uint16_t>(*options.click), true);
+                show_message_text(session, true);
+                apply_panorama_events(session.view, options, true);
                 follow_switches(session, true);
             }
         }
@@ -1576,9 +1751,11 @@ int main(int argc, char** argv) {
             set_trace(session.view,
                       trace_point(session.view, EntryPoint{plan.action, false},
                                   plan.entry, 0));
-            apply_panorama_events(session.view, options, false);
             std::cout << " click_result "
                       << describe_trace(session.view.trace, session.view.state) << '\n';
+            show_object_text(session, *hit.slot, true);
+            show_message_text(session, true);
+            apply_panorama_events(session.view, options, false);
             follow_switches(session, false);
         }
         refresh_background(options, session.view);

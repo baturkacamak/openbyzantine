@@ -55,7 +55,8 @@ if [ ! -f "$data/.prepared" ]; then
     mkdir -p "$data"
     # CD1: the engine tables, game preferences and the savegames.
     7z x -y "$iso1" "copy2hd/engine/*.ALL" "copy2hd/engine/SHOW.L*" \
-        "copy2hd/goldsave/GAMEPREF.000" "copy2hd/savegame/*.btb" -o"$data" >/dev/null
+        "copy2hd/goldsave/GAMEPREF.000" "copy2hd/savegame/*.btb" \
+        "copy2hd/fonts/*" -o"$data" >/dev/null
     # Every CD: backgrounds, panorama nodes, animation assets, sounds.
     for index in 1 2 3 4 5 6; do
         iso="$(find_iso "$index")" || continue
@@ -74,12 +75,20 @@ if [ ! -f "$data/.prepared" ]; then
         grep -E '^inventor/[^/]*\.tga$' | sed 's|.*/||; s|\.tga$||' | sort >"$data/inventor.txt"
     # Split the per-scene engine tables (CS CI CY CF CA) the way
     # byzantine-all does: one file per record name.
-    for archive in CS CI CY CF CA; do
+    for archive in CS CI CY CF CA CE; do
         target="$(lower "$archive")"
         mkdir -p "$data/$target"
         "$here/byzantine-all" "$data/copy2hd/engine/$archive.ALL" "$data/$target" >/dev/null
     done
     touch "$data/.prepared"
+fi
+
+# A data dir prepared before the text step has neither the fonts nor the split
+# CE records; fetch just those instead of re-extracting everything.
+if [ ! -d "$data/copy2hd/fonts" ] || [ ! -d "$data/ce" ]; then
+    7z x -y "$iso1" "copy2hd/fonts/*" "copy2hd/engine/CE.ALL" -o"$data" >/dev/null
+    mkdir -p "$data/ce"
+    "$here/byzantine-all" "$data/copy2hd/engine/CE.ALL" "$data/ce" >/dev/null
 fi
 
 upper_scene="$(printf '%s' "$scene" | tr '[:lower:]' '[:upper:]')"
@@ -88,8 +97,17 @@ cb="$here/output/cb_all/$upper_scene"
 co="$here/output/co_all/$upper_scene"
 [ -f "$cc" ] || { echo "no scene script for '$scene' ($cc)" >&2; exit 1; }
 
+ce="$data/ce/$upper_scene"
+[ -f "$ce" ] || ce=""
+fonts="$data/copy2hd/fonts"
+[ -d "$fonts" ] || fonts=""
+
 save_path="$data/copy2hd/savegame/$save"
 [ -f "$save_path" ] || { echo "no savegame '$save' in $data/copy2hd/savegame" >&2; exit 1; }
+
+text_args=()
+[ -n "$ce" ] && text_args+=(--ce "$ce")
+[ -n "$fonts" ] && text_args+=(--fonts "$fonts")
 
 exec "$here/byzantine-play" "$cc" "$cb" "$label" \
     --save "$save_path" \
@@ -109,4 +127,5 @@ exec "$here/byzantine-play" "$cc" "$cb" "$label" \
     --gameprefs "$data/copy2hd/goldsave/GAMEPREF.000" \
     --inventor "$data/inventor.txt" \
     --hotitems "$data/hotitems.txt" \
+    "${text_args[@]}" \
     "${@:5}"
