@@ -25,7 +25,8 @@ conversation is played from a real AM save with normal panorama input and the
 shipped AVI/PCM, and the conversation's script continuation runs to its return.
 Map destinations now get their backgrounds/panorama nodes and start with the
 original startup RNG seed; the exact old stream from a save is explicitly not
-claimed.
+claimed. Commit: `829d380`; reports: `analysis/rea/AM_NURAY.md`,
+`analysis/rea/VM_RANDOM.md`.
 
 - **Start state and normal clicks.** Save `62.btb` at AM (`AM03`, entry yaw
   180) enables slots 82..88,90. Rotate toward source x1470 until slot 88
