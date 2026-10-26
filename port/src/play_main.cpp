@@ -134,12 +134,18 @@ struct Options {
     bool audio = true;
     bool video = true;                         // --no-video disables FFmpeg decodes
     bool selftest_events = false;              // --selftest-events (see README)
+    bool print_hotspots = false;               // --print-hotspots
+
     // --conversation-choices 1,0,...: deterministic answers for --shot/tests.
     // The interactive player never uses this: an answer is a real mouse click.
     std::vector<std::size_t> conversation_choices;
     // --conversation-object <slot>: a deterministic scene-object click while an
     // answer list is up (0x436b01's other return path; --shot only).
     std::optional<int> conversation_object;
+    // --conversation-cancel N: cancel at the Nth answer list (1-based, all
+    // conversations in the run). 0 is off. This is the deterministic counterpart
+    // of ESC at 0x436b01; it returns 0xfffe and keeps the scene.
+    int conversation_cancel = 0;
 };
 
 const std::set<std::string> kValued = {
@@ -148,7 +154,7 @@ const std::set<std::string> kValued = {
     "--backgrounds", "--sounds", "--shot", "--click", "--click-at", "--staged-x",
     "--fonts", "--cd", "--ccb", "--ccf", "--byz", "--dialog", "--dialog-cache",
     "--run-label", "--conversation-choices", "--conversation-shot",
-    "--conversation-object", "--conversation-video-shot"};
+    "--conversation-object", "--conversation-video-shot", "--conversation-cancel"};
 
 Options parse_options(int argc, char** argv) {
     Options options;
@@ -173,6 +179,10 @@ Options parse_options(int argc, char** argv) {
         }
         if (token == "--selftest-events") {
             options.selftest_events = true;
+            continue;
+        }
+        if (token == "--print-hotspots") {
+            options.print_hotspots = true;
             continue;
         }
         if (token == "--entry") {
@@ -208,6 +218,12 @@ Options parse_options(int argc, char** argv) {
             else if (token == "--conversation-shot") options.conversation_shot = value;
             else if (token == "--conversation-object") options.conversation_object = std::stoi(value);
             else if (token == "--conversation-video-shot") options.conversation_video_shot = value;
+            else if (token == "--conversation-cancel") {
+                options.conversation_cancel = std::stoi(value);
+                if (options.conversation_cancel < 0) {
+                    throw std::runtime_error("--conversation-cancel must be >= 0");
+                }
+            }
             else if (token == "--click") options.click = std::stoi(value);
             else if (token == "--staged-x") options.staged_x = std::stoi(value);
             else if (token == "--click-at") {
@@ -232,9 +248,11 @@ Options parse_options(int argc, char** argv) {
             "[--entry] [--click-at <x>,<y> ...] [--staged-x <0..2495>] "
             "[--cd <file> --ccb --ccf --byz --dialog --dialog-cache <dir>] "
             "[--run-label <n>] [--conversation-choices <i,...>] "
-            "[--conversation-object <slot>] [--conversation-shot <ppm>] "
+            "[--conversation-object <slot>] [--conversation-cancel <n>] "
+            "[--conversation-shot <ppm>] "
             "[--conversation-video-shot <ppm>] [--no-video] "
-            "[--no-hotspots] [--no-audio] [--print-audio] [--selftest-events]");
+            "[--no-hotspots] [--no-audio] [--print-audio] [--print-hotspots] "
+            "[--selftest-events]");
     }
     options.cc_path = positional[0];
     options.cb_path = positional[1];
@@ -919,6 +937,27 @@ struct Display {
         present_image(surface, view, overlay, 0);
     }
 
+    // SDL_RenderWindowToLogical expects renderer-output pixels. X11 mouse
+    // events are in window points; on a 2x-scaled display the renderer output
+    // is 2560x1920 while the window is 1280x960, so feeding the event
+    // coordinate directly lands at half the visible position. Scale by
+    // output/window first.
+    void window_to_logical(int window_x, int window_y, float* logical_x,
+                           float* logical_y) const {
+        int output_width = 0;
+        int output_height = 0;
+        int window_width = 0;
+        int window_height = 0;
+        SDL_GetRendererOutputSize(renderer, &output_width, &output_height);
+        SDL_GetWindowSize(window, &window_width, &window_height);
+        const float scale_x =
+            window_width > 0 ? static_cast<float>(output_width) / window_width : 1.0f;
+        const float scale_y =
+            window_height > 0 ? static_cast<float>(output_height) / window_height : 1.0f;
+        SDL_RenderWindowToLogical(renderer, window_x * scale_x, window_y * scale_y,
+                                  logical_x, logical_y);
+    }
+
     // 0x4177c7 (examine, font 1, 0x14a, 3 lines, left) and 0x417a17 (message,
     // font 3, 0x26e/0x2d, 3 lines, right-aligned). The original reveals the
     // examine text one line per second and blits a message panel behind the
@@ -1001,6 +1040,10 @@ void pump_window(Session& session) {
             return;
         }
         if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE) {
+            // During a conversation ESC is 0x436b01's answer-list cancel. The
+            // answer loop owns that transition; media/text waits must not quit
+            // the whole player.
+            if (session.conversation_frame != nullptr) continue;
             session.running = false;
             return;
         }
@@ -1349,6 +1392,11 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose) {
     next_view.panorama = std::move(session.view.panorama);
     next_view.layer = SceneLayer::none;
 
+    // 0x42c8a0 -> 0x41316f -> 0x40fbf6 -> 0x40f98c frees every conversation
+    // state on a scene load; next_view.state is built fresh, so this map cannot
+    // cross the 0x73.
+    std::cout << "conversation_memory reset=scene_load previous_entries="
+              << session.view.state.conversation_memory.size() << '\n';
     std::cout << "travel index=" << index << " scene=" << target << " from=" << from
               << " pool=3000 locals=300"
               << " pool_changed=" << written
@@ -1472,6 +1520,43 @@ SceneHit hotspot_at(const SceneView& view, int screen_x, int screen_y) {
     }
     if (best != nullptr) hit.slot = best->slot;
     return hit;
+}
+
+// Diagnostic: the logical playfield rectangle that actually hits each active
+// hotspot under the current camera. This is the same hotspot_at path the mouse
+// uses, so the printed centre is a valid real click coordinate.
+void print_hotspot_screens(const SceneView& view) {
+    std::cout << "hotspot_camera yaw="
+              << (view.panorama ? view.panorama->yaw_degrees() : -999.0)
+              << " panorama_loads=" << view.trace.panorama_loads.size()
+              << " rotations=" << view.trace.panorama_rotations.size() << '\n';
+    for (const auto& hotspot : view.trace.active_hotspots) {
+        int min_x = kSceneWidth;
+        int min_y = kSceneHeight;
+        int max_x = -1;
+        int max_y = -1;
+        for (int y = 0; y < kSceneHeight; ++y) {
+            for (int x = 0; x < kSceneWidth; ++x) {
+                const auto hit = hotspot_at(view, x, y);
+                if (!hit.slot || *hit.slot != hotspot.slot) continue;
+                min_x = std::min(min_x, x);
+                min_y = std::min(min_y, y);
+                max_x = std::max(max_x, x);
+                max_y = std::max(max_y, y);
+            }
+        }
+        if (max_x < min_x || max_y < min_y) {
+            std::cout << "hotspot_screen slot=" << hotspot.slot
+                      << " not_visible action=" << hotspot.action << '\n';
+            continue;
+        }
+        std::cout << "hotspot_screen slot=" << hotspot.slot << " x=" << min_x
+                  << " y=" << min_y << " w=" << (max_x - min_x + 1)
+                  << " h=" << (max_y - min_y + 1)
+                  << " centre=" << ((min_x + max_x) / 2) << ','
+                  << ((min_y + max_y) / 2) << " action=" << hotspot.action
+                  << '\n';
+    }
 }
 
 // A hotspot whose action reaches 0x73 is a scene switch: 0x42db22 writes
@@ -1932,6 +2017,7 @@ bool wait_dialog_ms(Session& session, std::uint64_t milliseconds) {
 
 struct ConversationOutcome {
     bool ok = false;
+    bool cancelled = false;
     std::uint16_t result = 0xffff;
     std::string name;
     std::size_t lines = 0;
@@ -1988,7 +2074,22 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                   << " trailing_bytes=" << program.trailing_bytes
                   << " object_context=" << object_context << '\n';
     }
-    byzantine::ConversationSession conversation(std::move(program), state);
+    // DAT_00482ad0[record_index]: 0x410669 allocates it once and 0x432d6e
+    // keeps the entry flags/defaults across repeated 0x70 calls in one scene.
+    // travel_to builds a fresh SceneState, so a 0x73 scene load clears this map
+    // (0x42c8a0 -> 0x41316f -> 0x40fbf6 -> 0x40f98c).
+    auto& conversation_memory = state.conversation_memory[record_index];
+    if (verbose) {
+        std::cout << "conversation_memory record=" << record_index
+                  << " asked=" << conversation_memory.unspeak.size()
+                  << " disabled=" << conversation_memory.disabled.size()
+                  << " done=" << (conversation_memory.done ? "yes" : "no")
+                  << " default_line=" << static_cast<int>(conversation_memory.default_line)
+                  << " default_reply="
+                  << static_cast<int>(conversation_memory.default_reply) << '\n';
+    }
+    byzantine::ConversationSession conversation(std::move(program), state,
+                                               &conversation_memory);
     conversation.start();
 
     // The scene layer under the dialogue is whatever the pre-conversation
@@ -2066,12 +2167,14 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
         if (event.kind == byzantine::ConversationEventKind::finished) {
             outcome.ok = true;
             outcome.result = event.result;
+            outcome.cancelled = event.result == 0xfffe;
             // The subtitle belongs to the conversation screen only; 0x432d6e
             // clears DAT_0045fdb4/0x424c4e before the scene returns.
             ui.clear_caption();
             if (verbose) {
-                std::cout << "conversation_caption source=cleared reason=end result="
-                          << event.result << '\n';
+                std::cout << "conversation_caption source=cleared reason="
+                          << (outcome.cancelled ? "cancel" : "end")
+                          << " result=" << event.result << '\n';
                 std::cout << "conversation_end record=" << record_index
                           << " name=" << record.name << " result=" << event.result
                           << " lines=" << outcome.lines
@@ -2079,6 +2182,12 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                           << " media=" << outcome.media
                           << " audio_failures=" << outcome.audio_failures
                           << " instructions=" << conversation.executed_instructions() << '\n';
+                std::cout << "conversation_memory_after record=" << record_index
+                          << " asked=" << conversation_memory.unspeak.size()
+                          << " disabled=" << conversation_memory.disabled.size()
+                          << " done=" << (conversation_memory.done ? "yes" : "no")
+                          << " default_line="
+                          << static_cast<int>(conversation_memory.default_line) << '\n';
             }
             return outcome;
         }
@@ -2237,10 +2346,9 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                             while (SDL_PollEvent(&event_poll)) {
                                 ++session.wait.events;
                                 if (event_poll.type == SDL_QUIT) session.running = false;
-                                if (event_poll.type == SDL_KEYDOWN &&
-                                    event_poll.key.keysym.sym == SDLK_ESCAPE) {
-                                    session.running = false;
-                                }
+                                // 0x413bdd's video loop has no ESC branch; ESC
+                                // is 0x436b01's answer-list cancel and must not
+                                // terminate the player here.
                                 if (event_poll.type == SDL_KEYDOWN &&
                                     event_poll.key.keysym.sym == SDLK_h) {
                                     session.options.overlay = !session.options.overlay;
@@ -2289,6 +2397,25 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
             if (event.answers.empty()) {
                 std::cout << "conversation record=" << record_index
                           << " no answers (0x436b01 sets done)\n";
+                return outcome;
+            }
+            if (options.conversation_cancel > 0 &&
+                outcome.answer_lists ==
+                    static_cast<std::size_t>(options.conversation_cancel)) {
+                conversation.cancel();
+                ui.clear_caption();
+                outcome.ok = true;
+                outcome.cancelled = true;
+                outcome.result = 0xfffe;
+                std::cout << "conversation_cancel record=" << record_index
+                          << " answer_list=" << outcome.answer_lists
+                          << " result=0xfffe (control returns to the scene)\n";
+                std::cout << "conversation_memory_after record=" << record_index
+                          << " asked=" << conversation_memory.unspeak.size()
+                          << " disabled=" << conversation_memory.disabled.size()
+                          << " done=" << (conversation_memory.done ? "yes" : "no")
+                          << " default_line="
+                          << static_cast<int>(conversation_memory.default_line) << '\n';
                 return outcome;
             }
             if (!options.conversation_shot.empty() && !answer_shot_written) {
@@ -2350,6 +2477,7 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
             int hovered = -1;
             int last_hovered = -2;
             bool picked = false;
+            bool cancelled = false;
             while (session.running && !picked) {
                 // 0x436b01 redraws the list on every pointer move: the option
                 // under the pointer uses its white (0xffff) colour. The rects
@@ -2360,8 +2488,8 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                 SDL_GetMouseState(&pointer_x, &pointer_y);
                 float mouse_x = 0;
                 float mouse_y = 0;
-                SDL_RenderWindowToLogical(session.display.renderer, pointer_x,
-                                          pointer_y, &mouse_x, &mouse_y);
+                session.display.window_to_logical(pointer_x, pointer_y, &mouse_x,
+                                                 &mouse_y);
                 hovered = answer_at(rects, mouse_x, mouse_y);
                 if (verbose && hovered != last_hovered) {
                     std::cout << "conversation_hover choice=" << hovered
@@ -2402,7 +2530,19 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                         session.running = false;
                     } else if (event_poll.type == SDL_KEYDOWN &&
                                event_poll.key.keysym.sym == SDLK_ESCAPE) {
-                        session.running = false;
+                        // 0x436b01's ESC branch: 0xfffe, script stops, control
+                        // returns to the scene. It does not close the player.
+                        conversation.cancel();
+                        ui.clear_caption();
+                        outcome.ok = true;
+                        outcome.cancelled = true;
+                        outcome.result = 0xfffe;
+                        cancelled = true;
+                        picked = true;
+                        std::cout << "conversation_cancel record=" << record_index
+                                  << " answer_list=" << outcome.answer_lists
+                                  << " result=0xfffe (control returns to the scene)\n";
+                        break;
                     } else if (event_poll.type == SDL_KEYDOWN &&
                                event_poll.key.keysym.sym == SDLK_h) {
                         session.options.overlay = !session.options.overlay;
@@ -2410,9 +2550,9 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                                event_poll.button.button == SDL_BUTTON_LEFT) {
                         float logical_x = 0;
                         float logical_y = 0;
-                        SDL_RenderWindowToLogical(session.display.renderer,
-                                                  event_poll.button.x, event_poll.button.y,
-                                                  &logical_x, &logical_y);
+                        session.display.window_to_logical(
+                            event_poll.button.x, event_poll.button.y, &logical_x,
+                            &logical_y);
                         const auto index = answer_at(rects, logical_x, logical_y);
                         if (index >= 0) {
                             if (verbose) {
@@ -2452,6 +2592,7 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                 }
                 SDL_Delay(16);
             }
+            if (cancelled) return outcome;
             if (!picked) return outcome;
             continue;
         }
@@ -2522,6 +2663,18 @@ bool execute_plan(Session& session, const ClickPlan& plan,
                   << session.view.state.hotspot_enabled.size()
                   << " records=" << before_conversation.records.size() << '/'
                   << session.view.state.records.size() << '\n';
+    }
+    if (outcome.cancelled || outcome.result == 0xfffe) {
+        // 0x42db22 case 0x70: 0xfffe sets local_8 = 1, so the script stops and
+        // the outer loop returns control to the scene. The conversation's
+        // variable writes and the persistent DAT_00482ad0 slice stay committed;
+        // there is no resume instruction and no scene switch.
+        std::cout << "conversation_branch cancel (0xfffe: script stops, control "
+                     "returns to the scene)\n";
+        refresh_background(session.options, session.view);
+        session.display.compose(session.view, false);
+        session.display.present(session.view, false);
+        return true;
     }
     std::size_t resume = 0;
     try {
@@ -2817,12 +2970,14 @@ int main(int argc, char** argv) {
                     session.display.compose(session.view);
                     session.display.present(session.view, options.overlay);
                     follow_switches(session, true);
+                    if (options.print_hotspots) print_hotspot_screens(session.view);
                 }
                 if (options.selftest_events) push_quit();
             }
             refresh_background(options, session.view);
             session.display.compose(session.view);
             session.display.present(session.view, options.overlay);
+            if (options.print_hotspots) print_hotspot_screens(session.view);
             SDL_SetWindowTitle(session.display.window,
                                ("Byzantine - " + session.view.name + " label " +
                                 std::to_string(session.view.label)).c_str());
@@ -2865,6 +3020,7 @@ int main(int argc, char** argv) {
                           << " active_slots="
                           << session.view.trace.active_hotspots.size() << '\n';
                 follow_switches(session, true);
+                if (options.print_hotspots) print_hotspot_screens(session.view);
             };
             // Arrow keys turn the panorama (the original uses on-screen cursor
             // buttons; the mapping between those and a host key is ours).
@@ -2876,6 +3032,7 @@ int main(int argc, char** argv) {
                 std::cout << "panorama yaw=" << session.view.panorama->yaw_degrees()
                           << " pitch=" << session.view.panorama->pitch_degrees()
                           << '\n';
+                if (options.print_hotspots) print_hotspot_screens(session.view);
             };
 
             // Headless verification of the click path: the same handler the
@@ -2942,8 +3099,8 @@ int main(int argc, char** argv) {
                                event.button.button == SDL_BUTTON_LEFT) {
                         float logical_x = 0;
                         float logical_y = 0;
-                        SDL_RenderWindowToLogical(session.display.renderer, event.button.x,
-                                                  event.button.y, &logical_x, &logical_y);
+                        session.display.window_to_logical(
+                            event.button.x, event.button.y, &logical_x, &logical_y);
                         if (panorama_layer(session.view)) {
                             dragging = true;
                             dragged = false;
@@ -2955,8 +3112,8 @@ int main(int argc, char** argv) {
                     } else if (event.type == SDL_MOUSEMOTION && dragging) {
                         float logical_x = 0;
                         float logical_y = 0;
-                        SDL_RenderWindowToLogical(session.display.renderer, event.motion.x,
-                                                  event.motion.y, &logical_x, &logical_y);
+                        session.display.window_to_logical(
+                            event.motion.x, event.motion.y, &logical_x, &logical_y);
                         const int delta = static_cast<int>(logical_x) - drag_x;
                         if (delta != 0) {
                             // One source column per screen pixel, the same
@@ -2973,8 +3130,8 @@ int main(int argc, char** argv) {
                         dragging = false;
                         float logical_x = 0;
                         float logical_y = 0;
-                        SDL_RenderWindowToLogical(session.display.renderer, event.button.x,
-                                                  event.button.y, &logical_x, &logical_y);
+                        session.display.window_to_logical(
+                            event.button.x, event.button.y, &logical_x, &logical_y);
                         if (!dragged) {
                             handle_click(static_cast<int>(logical_x),
                                          static_cast<int>(logical_y));
@@ -3108,6 +3265,7 @@ int main(int argc, char** argv) {
         refresh_background(options, session.view);
         session.display.compose(session.view);
         session.display.present(session.view, options.overlay);
+        if (options.print_hotspots) print_hotspot_screens(session.view);
         session.display.write_shot(options.shot);
         std::cout << "scene=" << session.view.name
                   << " background=" << session.view.background_name

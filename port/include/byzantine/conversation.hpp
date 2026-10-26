@@ -2,6 +2,7 @@
 
 #include "byzantine/cc.hpp"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -136,12 +137,20 @@ struct ConversationEvent {
 class ConversationSession {
 public:
     ConversationSession(ConversationProgram program, SceneState& state);
+    // `memory` is the persistent DAT_00482ad0 slice for this record. When it is
+    // null the session behaves like the old one-shot runner.
+    ConversationSession(ConversationProgram program, SceneState& state,
+                        ConversationMemory* memory);
 
     void start();
     ConversationEvent next();
     void line_shown();
     void choose(std::size_t choice);
     void click_object(std::uint16_t object_id);
+    // 0x436b01's ESC/right-click path: result 0xfffe, the script stops and the
+    // scene stays. The state is snapshotted but remains "not done", so a later
+    // 0x70 keeps the asked options and defaults.
+    ConversationEvent cancel();
 
     const ConversationProgram& program() const { return program_; }
     std::size_t executed_instructions() const { return executed_; }
@@ -169,6 +178,7 @@ private:
     void store_variable(std::uint16_t local, std::uint16_t value);
     ConversationEntry* entry_at(ConversationGroups& groups, std::uint16_t index,
                                 std::uint16_t hops, const char* what);
+    ConversationEntry* entry_by_key(const ConversationEntryKey& key);
     bool entry_available(const ConversationEntry& entry) const;
     bool group_has_answers(std::size_t group) const;
     void apply_skips(std::uint8_t byte_slot, std::uint32_t pointer_slot);
@@ -176,6 +186,9 @@ private:
     std::vector<ConversationAnswer> collect_answers(std::size_t group);
     ConversationLine make_line(std::uint16_t index) const;
     std::size_t current_line_entry(std::uint16_t group) const;
+    std::uint16_t default_group(std::uint8_t value) const;
+    void apply_memory();
+    void save_memory(bool mark_done);
 
     ConversationProgram program_;
     SceneState& state_;
@@ -186,6 +199,7 @@ private:
     bool mode_ = false;          // state+0x0a: 0 line, 1 reply
     bool done_ = false;          // state+0x0e
     bool branch_ = false;        // DAT_0047a8d8
+    bool cancelled_ = false;     // 0xfffe from the answer list
     bool failed_ = false;
     std::string error_;
     std::uint16_t result_ = 0xffff;
@@ -207,7 +221,10 @@ private:
     std::vector<std::uint8_t> line_override_flag_ = std::vector<std::uint8_t>(50, 0);
     // state+0xc0: the answer entry chosen for each group.
     std::vector<std::optional<ConversationEntry*>> chosen_;
+    std::vector<std::optional<ConversationEntryKey>> line_override_keys_ =
+        std::vector<std::optional<ConversationEntryKey>>(50);
     const ConversationEntry* pending_line_ = nullptr;
+    ConversationMemory* memory_ = nullptr;
 };
 
 }  // namespace byzantine

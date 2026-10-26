@@ -130,10 +130,18 @@ etiket kümesinde bulunuyor. Kanıt ve bilinmeyen listesi:
   **640×400 tam oyun alanına 2×** (kaynak 320×200, `0x43a248` mod 2) ve PCM
   AVI içinden SDL2'ye verilir. Türkçe metin `0x405bf4`'ün `byte - 0x41` font
   indeksiyle çizilir (CP1254 dönüşümü yok); ses aygıtı/klip hatası açıkça
-  bildirilir, sessizce yutulmaz. Deneme:
-  `./port/scene.sh . MR 0 30.btb --entry --run-label 413` (seçenekler
-  y≈250/270/310, altyazı 420; fareyle üzerine gelince beyazlar). Ayrıntı,
-  opcode tablosu ve doğrulama:
+  bildirilir, sessizce yutulmaz. Konuşma normal oynanışta kayıttan başlatılır:
+  `30.btb` MR etiketi 0 → kapı alanı 42 → mantıksal `(300,300)` (panorama alanı
+  1, eylem 261) → `0x70` kayıt 2. Aynı sahnedeki yeniden konuşma
+  `DAT_00482ad0` durumunu korur (sorulmuş/seçilmiş cevaplar, devre dışı
+  girişler, varsayılan grup); `0x73` sahne yüklemesi bu durumu serbest bırakır.
+  Cevap listesinde ESC `0xfffe` ile konuşmayı iptal eder ve oyuncuya döner
+  (tüm oyuncuyu kapatmaz). `--conversation-cancel <n>` ve
+  `--print-hotspots` tanılama içindir. Deneme:
+  `./port/scene.sh . MR 0 30.btb --entry`; kapı `(352,201)`, satıcı
+  `(300,300)`, seçenekler y≈250/270/310, altyazı 420; konuşma sonrası
+  Left/Right ile panorama döndürülüp alan 17'ye tıklanır. Ayrıntı, opcode
+  tablosu, kalıcılık kanıtı ve engeller:
   [`CONVERSATION.md`](../analysis/rea/CONVERSATION.md).
 - `byzantine-cc --hotspots`, işlem kodu `0x72` olan sabit alan tanımlarını çıkarır. Oyunun `FUN_0042db22` komut yürütücüsü bu tanımları tıklama alanı tablosuna yazıyor: alan numarası, x, y+20, genişlik, yükseklik ve kalan iki değer. Yedinci değerin alt baytı alan durumuna yazılıyor; diğer değerlerin tüm anlamları henüz çözülmedi (`ev_6fae0653eb9d17a560b88cf841ffbe1c2fc3b14d9c5f18ac7a7ef5e9853ca522`). Dinamik operandlı tanımlar atlanır; çıktı betik yürütme sırasını göstermez.
 - `byzantine-cc --backgrounds <CB kaydı>`, sabit `0x69` sahne komutu numaralarını aynı sahnenin `CB.ALL` ad listesiyle eşler. `CB.ALL` kayıtları `ad\0kaynak\0ff` dizilerinden oluşur. Dinamik numaralar ancak çalışan yorumlayıcıda çözülebilir.

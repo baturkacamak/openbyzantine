@@ -279,6 +279,71 @@ void test_program_and_runtime() {
     check(state3.variables[5] == 1, "object click keeps the conversation's writes");
 }
 
+void test_memory_reentry() {
+    auto program = build_program();
+    const auto run_to_answers = [&](byzantine::ConversationSession& session) {
+        (void)session.next();
+        session.line_shown();
+        (void)session.next();
+        session.line_shown();
+        return session.next();
+    };
+
+    // A selected answer stays unspeak across a second 0x70. The completed run
+    // also sets state+0xe, so the re-entry starts from the default line group.
+    auto state = zero_state();
+    auto& memory = state.conversation_memory[0];
+    {
+        byzantine::ConversationSession session(program, state, &memory);
+        session.start();
+        auto event = run_to_answers(session);
+        check(event.kind == byzantine::ConversationEventKind::answers &&
+                  event.answers.size() == 2,
+              "memory fixture first list");
+        session.choose(0);
+        event = session.next();
+        check(event.kind == byzantine::ConversationEventKind::finished,
+              "memory fixture first run ends");
+        check(memory.done, "completed conversation sets state+0xe");
+        check(memory.unspeak.size() == 1, "selected answer is remembered");
+    }
+    {
+        byzantine::ConversationSession session(program, state, &memory);
+        session.start();
+        auto event = run_to_answers(session);
+        check(event.kind == byzantine::ConversationEventKind::answers &&
+                  event.answers.size() == 1 && event.answers[0].line == 4,
+              "asked answer stays hidden on the same-scene re-entry");
+        session.cancel();
+        check(memory.done, "cancel does not clear the completed state+0xe");
+    }
+
+    // A cancel before any choice keeps state+0xe clear; the next 0x70 shows the
+    // same two answers and the scene stays in control.
+    auto state2 = zero_state();
+    auto& memory2 = state2.conversation_memory[0];
+    {
+        byzantine::ConversationSession session(program, state2, &memory2);
+        session.start();
+        auto event = run_to_answers(session);
+        check(event.answers.size() == 2, "cancel fixture first list");
+        const auto cancelled = session.cancel();
+        check(cancelled.kind == byzantine::ConversationEventKind::finished &&
+                  cancelled.result == 0xfffe,
+              "cancel returns 0xfffe");
+        check(!memory2.done, "cancel leaves state+0xe clear");
+        check(memory2.unspeak.empty(), "cancel before a choice remembers no answer");
+    }
+    {
+        byzantine::ConversationSession session(program, state2, &memory2);
+        session.start();
+        auto event = run_to_answers(session);
+        check(event.kind == byzantine::ConversationEventKind::answers &&
+                  event.answers.size() == 2,
+              "cancelled conversation restarts its list");
+    }
+}
+
 void test_conditions() {
     // group 0 line, list disables answer line 3 in groups2[1] and enables it
     // only when local 7 == 2.
@@ -432,6 +497,7 @@ int main(int argc, char** argv) {
     try {
         test_lines_and_records();
         test_program_and_runtime();
+        test_memory_reentry();
         test_conditions();
         test_unsupported_and_rejections();
         test_real_byz(argc > 1 ? argv[1] : "");

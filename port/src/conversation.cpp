@@ -227,7 +227,11 @@ ConversationProgram parse_conversation_program(const std::vector<std::uint8_t>& 
 // ---------------------------------------------------------------------------
 
 ConversationSession::ConversationSession(ConversationProgram program, SceneState& state)
-    : program_(std::move(program)), state_(state) {
+    : ConversationSession(std::move(program), state, nullptr) {}
+
+ConversationSession::ConversationSession(ConversationProgram program, SceneState& state,
+                                         ConversationMemory* memory)
+    : program_(std::move(program)), state_(state), memory_(memory) {
     answer_a_.resize(kGroupSlots);
     answer_b_.resize(kGroupSlots);
     answer_c_.resize(kGroupSlots);
@@ -235,7 +239,114 @@ ConversationSession::ConversationSession(ConversationProgram program, SceneState
     chosen_.resize(kGroupSlots);
 }
 
+std::uint16_t ConversationSession::default_group(std::uint8_t value) const {
+    // 0x43302b: 0xff means the first non-NULL line group, otherwise the byte.
+    if (value != 0xff) return value;
+    for (std::size_t index = 0; index < program_.lines.size(); ++index) {
+        if (!program_.lines[index].empty()) {
+            return static_cast<std::uint16_t>(index);
+        }
+    }
+    return 0;
+}
+
+ConversationEntry* ConversationSession::entry_by_key(const ConversationEntryKey& key) {
+    auto& groups = key.list != 0 ? program_.answers : program_.lines;
+    if (key.group >= groups.size() || key.hop >= groups[key.group].size()) {
+        return nullptr;
+    }
+    auto* entry = &groups[key.group][key.hop];
+    if (key.sub != 0xffff) {
+        if (key.sub >= entry->subs.size()) return nullptr;
+        entry = &entry->subs[key.sub];
+    }
+    return entry;
+}
+
+void ConversationSession::apply_memory() {
+    if (memory_ == nullptr) return;
+    const auto apply = [this](ConversationGroups& groups, std::uint8_t list) {
+        for (std::size_t group = 0; group < groups.size(); ++group) {
+            for (std::size_t hop = 0; hop < groups[group].size(); ++hop) {
+                auto& entry = groups[group][hop];
+                const auto apply_key = [this](ConversationEntry& target,
+                                              const ConversationEntryKey& key) {
+                    target.enabled = memory_->disabled.count(key) == 0;
+                    target.unspeak = memory_->unspeak.count(key) != 0;
+                };
+                apply_key(entry, ConversationEntryKey{
+                                      list, static_cast<std::uint16_t>(group),
+                                      static_cast<std::uint16_t>(hop), 0xffff});
+                for (std::size_t sub = 0; sub < entry.subs.size(); ++sub) {
+                    apply_key(entry.subs[sub],
+                              ConversationEntryKey{list,
+                                                   static_cast<std::uint16_t>(group),
+                                                   static_cast<std::uint16_t>(hop),
+                                                   static_cast<std::uint16_t>(sub)});
+                }
+            }
+        }
+    };
+    apply(program_.lines, 0);
+    apply(program_.answers, 1);
+    skip_a_ = memory_->skip_a;
+    skip_b_ = memory_->skip_b;
+    skip_c_ = memory_->skip_c;
+    default_reply_ = memory_->default_reply;
+    default_line_ = memory_->default_line;
+    line_override_flag_ = memory_->line_override_flag;
+    for (std::size_t index = 0; index < line_override_.size(); ++index) {
+        line_override_[index].reset();
+        line_override_keys_[index].reset();
+        if (memory_->line_override[index]) {
+            if (auto* entry = entry_by_key(*memory_->line_override[index])) {
+                line_override_[index] = entry;
+                line_override_keys_[index] = *memory_->line_override[index];
+            }
+        }
+    }
+}
+
+void ConversationSession::save_memory(bool mark_done) {
+    if (memory_ == nullptr) return;
+    memory_->unspeak.clear();
+    memory_->disabled.clear();
+    const auto save = [this](const ConversationGroups& groups, std::uint8_t list) {
+        for (std::size_t group = 0; group < groups.size(); ++group) {
+            for (std::size_t hop = 0; hop < groups[group].size(); ++hop) {
+                const auto& entry = groups[group][hop];
+                const auto save_key = [this](const ConversationEntry& target,
+                                             const ConversationEntryKey& key) {
+                    if (!target.enabled) memory_->disabled.insert(key);
+                    if (target.unspeak) memory_->unspeak.insert(key);
+                };
+                save_key(entry, ConversationEntryKey{
+                                    list, static_cast<std::uint16_t>(group),
+                                    static_cast<std::uint16_t>(hop), 0xffff});
+                for (std::size_t sub = 0; sub < entry.subs.size(); ++sub) {
+                    save_key(entry.subs[sub],
+                             ConversationEntryKey{list,
+                                                  static_cast<std::uint16_t>(group),
+                                                  static_cast<std::uint16_t>(hop),
+                                                  static_cast<std::uint16_t>(sub)});
+                }
+            }
+        }
+    };
+    save(program_.lines, 0);
+    save(program_.answers, 1);
+    memory_->skip_a = skip_a_;
+    memory_->skip_b = skip_b_;
+    memory_->skip_c = skip_c_;
+    memory_->default_reply = default_reply_;
+    memory_->default_line = default_line_;
+    memory_->line_override = line_override_keys_;
+    memory_->line_override_flag = line_override_flag_;
+    if (mark_done) memory_->done = done_;
+}
+
 void ConversationSession::start() {
+    apply_memory();
     phase_ = Phase::prelude;
     group_ = 0;
     mode_ = false;
@@ -244,7 +355,20 @@ void ConversationSession::start() {
     failed_ = false;
     error_.clear();
     result_ = 0xffff;
+    cancelled_ = false;
     executed_ = 0;
+    pending_line_ = nullptr;
+    chosen_.assign(kGroupSlots, std::nullopt);
+    // 0x432d6e resets the per-call cursor, then uses the persistent default
+    // groups when the previous run ended (state+0xe). The pending reply flag is
+    // state+0xc; the shipped MR program does not set it but the state keeps it.
+    if (memory_ != nullptr) {
+        if (memory_->done) group_ = default_group(memory_->default_line);
+        if (memory_->default_reply_pending) {
+            group_ = default_group(memory_->default_reply);
+            memory_->default_reply_pending = false;
+        }
+    }
 }
 
 ConversationEvent ConversationSession::fail(std::string message) {
@@ -258,12 +382,30 @@ ConversationEvent ConversationSession::fail(std::string message) {
 }
 
 ConversationEvent ConversationSession::finish(std::uint16_t result) {
-    done_ = true;
     phase_ = Phase::finished;
     result_ = result;
     ConversationEvent event;
     event.kind = ConversationEventKind::finished;
     event.result = result;
+    event.group = group_;
+    if (cancelled_) return event;
+    done_ = true;
+    save_memory(true);
+    return event;
+}
+
+ConversationEvent ConversationSession::cancel() {
+    // 0x436b01: ESC/right-click sets local_8 = 0xfffe and DAT_0045f48c.
+    // 0x42db22 case 0x70 then stops the script (local_8 = 1); it is not a
+    // completed conversation, so state+0xe stays clear and the next 0x70 starts
+    // at group 0 with the persisted entry flags.
+    cancelled_ = true;
+    result_ = 0xfffe;
+    phase_ = Phase::finished;
+    save_memory(false);
+    ConversationEvent event;
+    event.kind = ConversationEventKind::finished;
+    event.result = 0xfffe;
     event.group = group_;
     return event;
 }
@@ -398,12 +540,16 @@ void ConversationSession::run_instruction_list(
         }
         case 0x38: {  // select a line entry for the group
             const auto index = argument(instruction, 0);
-            ConversationGroups& groups = (index.type & 0x10) ? program_.lines : program_.answers;
+            const bool answers = (index.type & 0x10) != 0;
+            ConversationGroups& groups = answers ? program_.lines : program_.answers;
             auto* entry = entry_at(groups, index.value, index.high, "select");
             if (index.value >= line_override_.size()) {
                 throw std::runtime_error("conversation select index outside 50 slots");
             }
             line_override_[index.value] = entry;
+            line_override_keys_[index.value] = ConversationEntryKey{
+                static_cast<std::uint8_t>(answers ? 0 : 1), index.value, index.high,
+                0xffff};
             line_override_flag_[index.value] = static_cast<std::uint8_t>(index.high);
             break;
         }
@@ -460,6 +606,8 @@ void ConversationSession::run_instruction_list(
                 throw std::runtime_error("conversation IFSET index outside 50 slots");
             }
             line_override_[index.value] = entry;
+            line_override_keys_[index.value] = ConversationEntryKey{
+                0, index.value, index.high, 0xffff};
             line_override_flag_[index.value] = static_cast<std::uint8_t>(index.high);
             break;
         }

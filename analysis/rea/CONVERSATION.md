@@ -381,11 +381,103 @@ aligned with the frame loop; the AVI is the only audio source. The
 per clip and a `conversation_audio ERROR N clip(s) …` summary (tested with
 `SDL_AUDIODRIVER=invalid`).
 
-## 7. Tests and census
+## 7. Playable continuation (natural click path, persistence, cancel)
+
+### Natural start from the save
+
+Save `30.btb` starts at MR label 0 with hotspots 42 (door, action 165) and 43.
+The real click chain is:
+
+1. click the door at logical `(352, 201)` (hotspot 42) -> label 165 loads
+   `nodes/mr/MR02.jpg` at staged_x=1815 (`yaw=82`); hotspots 1,2,4,5 are active.
+2. click logical `(300, 300)` -> inverse panorama mapping hits source
+   `(1796, 504)` = hotspot 1, action 261. Label 261 loads `nodes/mr/MR01.jpg`
+   (staged_x=824, yaw=-61), rotates to column 2300 (yaw=151.596) and reaches the
+   conversation `0x70` at instruction 523 (`record=2`, object context 0).
+
+This is the same `hotspot_at` / `execute_plan` path the mouse uses; no label
+413 is forced. The first list is the shipped `IMhMR2a` group 2.
+
+### Same-scene state
+
+The original allocates `DAT_00482ad0[index]` once in `0x410669` and
+`0x432d6e` resets only the per-call cursor (`state+2`), mode (`+0xa`) and the
+chosen array (`+0xc0`). The entry flags (`enabled`, `unspeak`), line overrides
+(`+0xf2`/`+0x490`), skip arrays (`+0xf/+0x41/+0x73`) and the default bytes
+(`+0xb`/`+0xd`) stay in the state. `0x42c8a0`'s scene load calls
+`0x41316f -> 0x40fbf6 -> 0x40f98c`, which frees every conversation state; a
+`0x73` scene switch therefore resets it. The port stores this slice in
+`SceneState::conversation_memory[record_index]`; `travel_to` builds a fresh
+`SceneState`, so the map does not cross a scene switch.
+
+Measured on the real `IMhMR2a` with choices `1,1,1,1`:
+
+```
+conversation_memory record=2 asked=0 disabled=0 done=no default_line=255 ...
+conversation_end ... result=65535 lines=7 answer_lists=3
+...
+conversation_memory record=2 asked=3 disabled=4 done=yes default_line=5 ...
+conversation_end ... result=65535 lines=1 answer_lists=0
+```
+
+After the first conversation the script resumes at 524 and returns to **the same
+MR scene** (`hotspots=17,18,19,20,21`, panorama yaw=180 when started from label
+413) instead of travelling. Clicking active hotspot 17 (action 396) re-enters
+record 2; the log proves the asked/disabled flags and `state+0xe`/default line
+survived. This re-entry is a real hotspot action, not a forced label.
+
+The post-conversation camera in the natural door/NPC chain is yaw=151.596 and
+the active hotspots 17..21 are outside the 640-wide viewport; the player must
+rotate the panorama (arrow keys in the port, on-screen arrows in the original)
+before the re-talk click. `--print-hotspots` reports the actual logical rectangle
+and centre for every active hotspot under the current camera, and logs
+`not_visible` when none exists.
+
+### Cancel
+
+`0x436b01`'s ESC/right-click branch returns `0xfffe`; `0x42db22` case 0x70 then
+sets `local_8=1`, stops the script and returns to the scene without a resume or
+scene switch. The port's `ConversationSession::cancel()` returns the same result,
+does **not** set `state+0xe`, keeps the entry flags, and the answer loop no
+longer quits the whole player on ESC. `execute_plan` commits the conversation's
+variable writes and memory and returns control to the scene.
+
+Concrete blocker: in the MR label-261 path the script has already disabled the
+shop hotspots (`state.hotspot_enabled` is empty at the `0x70`), so after 0xfffe
+the scene has `hotspots=0`. The original's out-of-script idle/menu path that
+might re-enable them is not modelled; the port therefore cannot re-talk after a
+cancel by a natural click. Forcing label 413 would hide this, so it is reported
+instead of being counted as a completed re-talk.
+
+### Scene exit / return
+
+The re-entry above ends with one line and resumes at 524, which travels
+(`0x73`) to scene 25 = **MAP**. The travel log now shows
+`conversation_memory reset=scene_load previous_entries=1`; the fresh MAP state
+has no conversation memory, matching `0x40f98c`.
+
+MAP's active hotspots 34,36,39,40,41,46,47,49 and the tested full-screen
+region/action hotspots only toggle map information in the port; no tested MAP
+click travelled back to MR. The map's travel UI is not modelled, so the
+"leave and return" leg is not claimed; the reset itself is shown by the travel
+log and by reloading `30.btb` (a fresh scene load logs `asked=0`).
+
+### Host input note
+
+On this host the X11 display is 2x-scaled: `xdotool` physical coordinates and
+SDL's logical mapping disagreed (a visible door click arrived at half the
+logical position). `Display::window_to_logical` now scales window coordinates by
+renderer-output/window size before `SDL_RenderWindowToLogical`. The headless
+acceptance still uses the same `hotspot_at` coordinates; the real-window
+recordings use SDL events/`--click-at`, not a physical click.
+
+## 8. Tests and census
 
 - New `conversation-test`: CCF/BYZ CRLF records, cd name pairs and the 0xff
   separator, a synthetic CCB with both group arrays and an empty slot, line ->
   answer -> branch/end, 0x39, 0x67/0x74 (including the variable-write log),
+  same-scene memory (the chosen answer is hidden on re-entry), cancel returning
+  0xfffe without setting `state+0xe`, and a cancelled list restarting unchanged,
   0x37/0x42 conditions, object-click result, unsupported opcode error, trailing
   bytes, truncated operand/missing group/group slot 50 rejections, and the real
   `IMHMR2A` BYZ record count/line (from `analysis/rea/engine_sample`).

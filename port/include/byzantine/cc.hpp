@@ -360,11 +360,56 @@ struct ConversationRecord {
     std::string file;
 };
 
+// One conversation entry, addressed without a pointer so it can survive a
+// re-entry: `list` 0 = lines (+0x4c4), 1 = answers (+0x58c); `sub` 0xffff is
+// the top-level entry, otherwise the index in its sub-entry chain.
+struct ConversationEntryKey {
+    std::uint8_t list = 0;
+    std::uint16_t group = 0;
+    std::uint16_t hop = 0;
+    std::uint16_t sub = 0xffff;
+
+    bool operator<(const ConversationEntryKey& other) const {
+        if (list != other.list) return list < other.list;
+        if (group != other.group) return group < other.group;
+        if (hop != other.hop) return hop < other.hop;
+        return sub < other.sub;
+    }
+    bool operator==(const ConversationEntryKey& other) const {
+        return list == other.list && group == other.group && hop == other.hop &&
+               sub == other.sub;
+    }
+};
+
+// The persistent part of DAT_00482ad0's per-conversation state (0x1ea4 bytes,
+// allocated once by 0x410669). 0x432d6e resets only the per-call cursor/chosen
+// slots; the group entries' enabled/unspeak flags, the line overrides, the skip
+// arrays and the default group bytes survive the next 0x70. 0x42c8a0's scene
+// load calls 0x41316f -> 0x40fbf6 -> 0x40f98c, which frees every conversation
+// state, so a 0x73 scene switch starts with an empty map.
+struct ConversationMemory {
+    std::set<ConversationEntryKey> unspeak;
+    std::set<ConversationEntryKey> disabled;
+    std::vector<std::optional<ConversationEntryKey>> line_override =
+        std::vector<std::optional<ConversationEntryKey>>(50);
+    std::vector<std::uint8_t> line_override_flag = std::vector<std::uint8_t>(50, 0);
+    std::vector<std::uint8_t> skip_a = std::vector<std::uint8_t>(50, 0xff);
+    std::vector<std::uint8_t> skip_b = std::vector<std::uint8_t>(50, 0xff);
+    std::vector<std::uint8_t> skip_c = std::vector<std::uint8_t>(50, 0xff);
+    std::uint8_t default_reply = 0xff;  // state+0xb (0x3b)
+    std::uint8_t default_line = 0xff;   // state+0xd (0x40)
+    bool default_reply_pending = false; // state+0xc
+    bool done = false;                  // state+0xe (0x39/natural end)
+};
+
 struct SceneState {
     // engine/<scene>cd (DAT_0046e870): 0x70's operand 0 indexes this table and
     // the record's file stem names the .ccb/.ccf/.byz conversation files.
     std::vector<ConversationRecord> conversation_records;
     bool conversation_table_known = false;
+    // DAT_00482ad0[index]: the conversation state that survives repeated 0x70
+    // calls in one scene. Keyed by the resolved conversation record index.
+    std::map<std::uint16_t, ConversationMemory> conversation_memory;
     // 0xba stages a horizontal pixel position (DAT_0045c064, clamped to
     // 0..0x9bf). 0x401ddf converts it to degrees and clears it back to -1 when
     // the panorama load reaches it.

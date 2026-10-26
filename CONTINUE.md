@@ -18,7 +18,65 @@ game ISOs/archives, `analysis/rea/BETRAYAL.EXE`, `tools/rea`, `upscale_ornek` an
 needs `port/output/`: recreate it from your own copy with `port/byzantine-all`
 (and `port/scene.sh` for the extracted media) before running the suites.
 
-## Latest step — match the reference conversation screen layout
+## Latest step — natural MR conversation continuation and persistent state
+
+The MR conversation now starts from the evidence save with real hotspot clicks,
+returns to the same scene on completion, keeps `DAT_00482ad0`'s asked/disabled
+state across a same-scene re-talk, and treats 0xfffe as an answer-list cancel
+instead of closing the player.
+
+- **Natural start:** save `30.btb` at MR label 0 -> click hotspot 42 (door,
+  action 165) -> click logical `(300,300)` in the mr02 panorama = hotspot 1
+  (action 261) -> label 261 loads mr01 and reaches the `0x70` at instruction 523
+  (record 2). No `--run-label` is used. The first list is IMhMR2a group 2.
+- **Persistent state:** `SceneState::conversation_memory[record]` mirrors the
+  persistent part of `DAT_00482ad0` (0x410669): entry `enabled`/`unspeak`, line
+  overrides, skip arrays, `state+0xb`/`0xd`, `state+0xe`. `0x432d6e` still resets
+  the per-call cursor/mode/chosen slots, as the original does. `travel_to` builds
+  a fresh SceneState and logs `conversation_memory reset=scene_load`; 0x42c8a0
+  frees every state through 0x41316f/0x40fbf6/0x40f98c.
+- **Measured re-talk:** with choices `1,1,1,1` the first run is
+  `asked=0 disabled=0 done=no`; the completed run is
+  `asked=3 disabled=4 done=yes default_line=5`, and the second 0x70 via hotspot
+  17 (action 396) uses the default line, shows 1 line / 0 answer lists. It is a
+  real hotspot action, not a forced label.
+- **Same-scene completion:** `1,1,1,1` resumes at 524 and stays in MR with
+  hotspots 17..21; `0,0,0,0` travels to MAP. The natural chain's camera is
+  yaw=151.596, so the player must rotate the panorama to bring the post-scene
+  hotspots into view. `--print-hotspots` prints the actual logical rectangles.
+- **Cancel:** answer-list ESC returns 0xfffe, does not set `state+0xe`, keeps the
+  entry flags, and `execute_plan` returns to the scene with the conversation's
+  writes committed. The answer loop no longer quits the player on ESC.
+  `--conversation-cancel N` is the deterministic headless counterpart.
+- **Blocker:** in the MR label-261 path the script has disabled the hotspots by
+  the time 0x70 runs; after cancel the scene has `hotspots=0`, so a natural
+  re-talk click after cancel is not possible. The original's out-of-script
+  idle/menu re-enable is not modelled; label 413 is not forced to hide this.
+- **Scene exit/return:** re-entry ends at 524 and travels to MAP; the travel log
+  shows the memory reset and a fresh MAP state. The tested MAP hotspots only
+  toggle map information; no MAP click travelled back to MR, so the return leg
+  is not claimed and the map travel UI remains unimplemented.
+- **Input note:** the host's 2x X scaling made physical `xdotool` clicks arrive
+  at half the expected logical point. `Display::window_to_logical` scales
+  window coordinates by renderer-output/window size; the verified runs use the
+  same `hotspot_at` path through `--click-at`/SDL events rather than claiming a
+  physical mouse click.
+- Real-window clip: `port/output/recordings/mr_natural_start_clean.mp4` (8 s,
+  1280x960 H.264 + AAC, mean -23.7 dB, max -1.3 dB), started by the door/NPC
+  `--click 42 --click-at 300,300` path; it shows the `Mr2meh03` video and green
+  subtitle. The full chain/state evidence is in the logs above.
+- Tests: `conversation-test` now covers same-scene memory (asked answer hidden
+  after re-entry), cancel returning 0xfffe without setting done, and a cancelled
+  list restarting unchanged. `make -C port -j2 all test` passes all eleven
+  suites.
+- Try:
+  `./port/scene.sh . MR 0 30.btb --entry`
+  then click the door at logical `(352,201)` and the shopkeeper at `(300,300)`;
+  answer lists: click the second row. After the conversation rotate with
+  Left/Right and click hotspot 17. Headless chain:
+  `… --click 42 --click-at 300,300 --conversation-choices 1,1,1,1 --click 17`.
+
+## Previous step — match the reference conversation screen layout
 
 The reference frames show the 640x480 original layout: the full-playfield video
 on black, a green subtitle in the bottom 60-px band, and the answer list over
