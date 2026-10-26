@@ -75,6 +75,58 @@ int main(int argc, char** argv) {
                     entry_state.variables.at(3) == 5,
                     "scene entry did not start at instruction 0 or 0x7a stopped it");
         }
+        // 0x72 also allocates DAT_00464300[slot] with the same rect (y is
+        // operand 2 + 0x14), kind = operand 6, label = operand 5 and the
+        // resolved name id; 0x6d/0x6e then write +0x08. VB's map entry uses
+        // 0x72 for slot 4 and failed on missing_object before this.
+        {
+            const std::vector<CcInstruction> object_script{
+                {0x72, {word(2, 4), word(64, 10), word(64, 20), word(64, 30),
+                        word(64, 40), word(2, 50), word(2, 8), word(2, 7)}},
+                {0x6d, {word(2, 4)}},
+                {0x6f, {}},
+                {0xe1, {word(2, 20)}},
+                {0x72, {word(2, 4), word(64, 1), word(64, 1), word(64, 1),
+                        word(64, 1), word(2, 1), word(2, 1), word(2, 1)}},
+                {0x6e, {word(2, 4)}},
+                {0x6f, {}}
+            };
+            byzantine::SceneState object_state;
+            const auto created = byzantine::trace_scene_entry(object_script, {}, object_state);
+            const auto object = object_state.objects.find(4);
+            require(!created.unsupported_opcode && object != object_state.objects.end(),
+                    "0x72 did not create the declared object");
+            require(object->second.x == 10 && object->second.y == 40 &&
+                        object->second.width == 30 && object->second.height == 40 &&
+                        object->second.kind == 8 && object->second.label == 50 &&
+                        object->second.name_id == 0xffffffffu &&
+                        object->second.active == 1 &&
+                        object->second.argument == 0xffffffffu,
+                    "0x72 object fields do not match the declared hotspot");
+            // The second 0x72 must not overwrite the earlier object (the
+            // original only creates a NULL slot), while 0x6e still disables it.
+            const auto reuse =
+                byzantine::trace_scene_label(object_script, {}, object_state, 20);
+            require(!reuse.unsupported_opcode &&
+                        object->second.x == 10 && object->second.width == 30 &&
+                        object->second.kind == 8 && object->second.label == 50 &&
+                        object->second.active == 0,
+                    "0x72 overwrote an existing object or 0x6e left it active");
+            // Kind 0x13/0x14 store operand 7 directly; other kinds would need
+            // FUN_00408bb2's string-table resolution, which is not modelled.
+            const std::vector<CcInstruction> named_script{
+                {0x72, {word(2, 6), word(64, 1), word(64, 2), word(64, 3),
+                        word(64, 4), word(2, 9), word(2, 0x13), word(2, 4)}},
+                {0x6f, {}}
+            };
+            byzantine::SceneState named_state;
+            const auto named = byzantine::trace_scene_entry(named_script, {}, named_state);
+            const auto named_object = named_state.objects.find(6);
+            require(!named.unsupported_opcode && named_object != named_state.objects.end() &&
+                        named_object->second.kind == 0x13 &&
+                        named_object->second.name_id == 4,
+                    "0x72 kind 0x13 did not keep the direct name id");
+        }
         // A trace that stopped on missing data/settings is not a success. Every
         // such field must be classified, including the two the player used to
         // ignore (unresolved_dialogue_channel, unresolved_save_setting).

@@ -647,8 +647,53 @@ static SceneTrace trace_scene_from(const std::vector<CcInstruction>& script,
         ++pc;
         switch (instruction.opcode) {
         case 0xe1:
-        case 0x72:
             break;
+        case 0x72: {
+            // 0x42db22 case 0x72 creates DAT_00464300[slot] when the slot is
+            // NULL: x/y+0x14/w/h, active=0, label=operand 5, kind=operand 6,
+            // name id from operand 7. The static hotspot table already parsed
+            // the same instruction; using it keeps the click rectangle and the
+            // object table consistent. A save object or an earlier creation is
+            // never overwritten (the original logs 0x40abb4 then).
+            if (instruction.arguments.size() == 8) {
+                const auto& slot_argument = instruction.arguments[0];
+                if ((slot_argument.type == 2 || slot_argument.type == 64) &&
+                    slot_argument.encoded_value.size() == 2) {
+                    const auto slot = encoded_word(slot_argument);
+                    if (state.objects.find(slot) == state.objects.end()) {
+                        const auto found = hotspots.find(slot);
+                        if (found != hotspots.end()) {
+                            SceneObjectState object;
+                            object.x = found->second.x;
+                            object.y = found->second.y;
+                            object.width = found->second.width;
+                            object.height = found->second.height;
+                            object.active = 0;
+                            object.kind = static_cast<std::uint8_t>(found->second.mode);
+                            object.label = found->second.action;
+                            object.argument = 0xffffffffu;
+                            // 0x42db22 reads operand 7 only when its type
+                            // byte is 2; kinds 0x13/0x14 store the value
+                            // directly, others go through FUN_00408bb2's
+                            // string-list resolution (DAT_00485400), which
+                            // this port does not model. No current consumer
+                            // reads object.name_id, so it stays the original
+                            // "unset" marker instead of a guessed id.
+                            const auto& name_argument = instruction.arguments[7];
+                            if ((object.kind == 0x13 || object.kind == 0x14) &&
+                                name_argument.type == 2 &&
+                                name_argument.encoded_value.size() == 2) {
+                                object.name_id = encoded_word(name_argument);
+                            } else {
+                                object.name_id = 0xffffffffu;
+                            }
+                            state.objects.emplace(slot, object);
+                        }
+                    }
+                }
+            }
+            break;
+        }
         case 0x7a:
             // 0x42db22 case 0x7a only copies operand 0 into the dispatcher's
             // scratch word; it has no other side effect. The hotspot rectangle
@@ -1861,6 +1906,10 @@ static SceneTrace trace_scene_from(const std::vector<CcInstruction>& script,
                     throw std::runtime_error("CC hotspot slot not declared");
                 }
                 state.hotspot_enabled[slot] = instruction.opcode == 0x6d;
+                const auto object = state.objects.find(slot);
+                if (object != state.objects.end()) {
+                    object->second.active = instruction.opcode == 0x6d ? 1 : 0;
+                }
             }
             break;
         case 0x71:

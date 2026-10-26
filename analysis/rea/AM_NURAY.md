@@ -116,11 +116,34 @@ Two common safeguards were added:
   the script names a background that is not on disk, instead of leaving the
   window silently black. A missing panorama is already reported by the
   `panorama ... missing under ...` path.
+- `0x72` now creates the `DAT_00464300[slot]` object with the rect (y =
+  operand 2 + 0x14), kind = operand 6, label = operand 5 and, for kinds
+  0x13/0x14, name id = operand 7; other kinds need `FUN_00408bb2`'s string-table
+  resolution, which is not modelled, so they keep the original `0xffffffff`
+  unset marker. `0x6d`/`0x6e` keep the object's `+0x08` active byte in sync. A
+  save object or an earlier creation is not overwritten.
+
+The 17-destination MAP census (`MAP` action → `SHOW.LCX` index) resolves every
+target and runs every entry to a normal return (VB used to stop on
+`missing_object=4`), composing each background or panorama:
+
+```
+223 ft  240 bc  257 mr  263 tk  291 hslower  308 am  325 as  342 hl
+359 bb  376 gt  393 gc  410 nb  427 iu  444 sm  461 ea  478 sp  497 vb
+```
 
 The AM destination works with the same generic travel: MAP action 308
 (`0x73 [4]` → LCX index 2 = AM) loads AM and its entry. The Nuray interaction
 above was reached from the AM save directly; a map→AM→conversation run uses the
 same entry state.
+
+A forward map selection was also driven with real X11 clicks (not
+`--run-label`): on `39.btb`, clicking logical `(289,63)` selects the GT location
+(slot 37/action 365) and a second click at the same point runs slot 2/action 376,
+i.e. `0x73 [15]` → `travel index=15 scene=gt`, `entry scene=GT steps=58 …
+hotspots=1`, `composed panorama=nodes/gt/GT00.jpg`. Recording:
+`port/output/recordings/map_click_to_gt.mp4`; log and frames alongside it. The
+coordinate is example-specific; select-then-go and the travel are common.
 
 ## General support vs example-only
 
@@ -129,6 +152,7 @@ General:
 - the scene travel/load path, sibling table resolution, media path lookup and
   entry execution;
 - the conversation VM/media/audio/answer/continuation path;
+- the `0x72` object declaration and `0x6d`/`0x6e` active byte;
 - the missing-background diagnostic and the launcher media backfill.
 
 Only this AM example:

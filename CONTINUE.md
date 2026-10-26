@@ -63,9 +63,13 @@ claimed. Commit: `829d380`; reports: `analysis/rea/AM_NURAY.md`,
   `background_missing scene=… name=… root=…` instead of leaving a silently
   black window. A 17-destination MAP census
   (`port/output/recordings/map_destinations.txt`) resolves and composes every
-  target background/panorama; 16 entries run clean, VB stops on
-  `missing_object=4` (remaining state/data gap). GT is a panorama + 1 hotspot
-  (its final `background=` is empty by design).
+  target background/panorama; all 17 entries run clean. VB used to stop on
+  `missing_object=4`; the generic `0x72` object creation declares its slot 4
+  and the entry now returns at instruction 217 with 4 hotspots. A real
+  double-click on the map (`289,63` on `39.btb`: select slot 37/365, then go
+  slot 2/376 → `0x73 [15]`) travels to GT (`entry steps=58`, 1 hotspot,
+  `GT00.jpg`); recording `port/output/recordings/map_click_to_gt.mp4`. GT is a
+  panorama + 1 hotspot (its final `background=` is empty by design).
 - **RNG: original startup seed, not a guess.** `0x41535a` calls `0x415a4e`
   (game/render init) before `0x42c8a0`; `0x415a4e` calls
   `FUN_0044d060(0xbeef)` (`_srand`). The player now seeds
@@ -95,8 +99,8 @@ claimed. Commit: `829d380`; reports: `analysis/rea/AM_NURAY.md`,
   `BYZ_DATA=/tmp/byz-conv ./port/scene.sh . MAP 0 39.btb --entry`, click a
   location; TK/AM etc. now load their real backgrounds/panoramas.
 - Still not modelled: the original out-of-script close-up/cursor-zone UI after
-  this conversation; VB's `missing_object=4`; the exact per-instruction
-  `_rand()` draw count from a save; the local-time reseed path.
+  this conversation; the exact per-instruction `_rand()` draw count from a save;
+  the local-time reseed path.
 
 ## Previous step — mouse fix committed, ESC dialog, explicit session end
 

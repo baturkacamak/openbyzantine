@@ -153,8 +153,9 @@ General (no scene/character/label condition in the code):
 - `0xfffe` scene-session end, explicit `R` reload, no silent rollback.
 - Conversation opcodes 0x45/0x46 and the persistent slot tables.
 - Scene travel/load, `copy2hd/nodes` flattening, the `.media_v2` media
-  backfill, `background_missing`, the startup RNG seed/carry, and the
-  conversation media/answer/continuation path.
+  backfill, `background_missing`, the startup RNG seed/carry, the `0x72` object
+  declaration with `0x6d`/`0x6e`, and the conversation media/answer/continuation
+  path.
 
 Only verified in the MR example:
 
@@ -168,7 +169,7 @@ Only verified in the AM example:
 - The four-record sweep is an interpreter regression only; it is not the
   end-to-end claim.
 
-## 5. Map return (prior verified result, unchanged)
+## 5. Map selection (real clicks in both directions)
 
 The MAP return leg is independent of the exit dialog and was verified with real
 mouse input from the conversation-returned MAP state:
@@ -183,6 +184,17 @@ mouse input from the conversation-returned MAP state:
 The earlier “no MAP click travelled back” observation was a one-click test gap.
 See the previous revision of this report and `CONTINUE.md` for the full
 evidence.
+
+A forward selection was also verified with real X11 clicks on save `39.btb`:
+the first click at logical `(289,63)` selects the GT map location (slot
+37/action 365, `click_result steps=6`); the second click at the same point hits
+the revealed slot 2/action 376, which runs `0x73 [15]`:
+`travel index=15 scene=gt`, `entry scene=GT steps=58 stopped_at=36 hotspots=1`,
+`composed panorama=nodes/gt/GT00.jpg`. The 12 s recording is
+`port/output/recordings/map_click_to_gt.mp4` (map frames then the GT
+panorama), the log `map_click_to_gt.log`, and the frames `map_click_map.png` /
+`map_click_gt.png`. The location coordinates are only this example; the
+select-then-go hotspot and travel handling are the common script/VM path.
 
 ## 6. Verified function digests
 
@@ -243,5 +255,6 @@ python3 /tmp/opencode/map_census.py
   carry `DAT_00462ef8`, and the per-instruction `_rand()` draws are not in the
   static trace, so the exact old stream from a mid-game save is not
   reproducible. The `0x42a6aa` local-time reseed remains an explicit stop.
-- The 17-destination MAP census composes every background/panorama; VB's
-  `missing_object=4` is a remaining state/data gap.
+- The 17-destination MAP census composes every background/panorama and runs
+  every entry to a normal return; the generic `0x72` object creation removed
+  VB's `missing_object=4` (entry returns at instruction 217 with 4 hotspots).

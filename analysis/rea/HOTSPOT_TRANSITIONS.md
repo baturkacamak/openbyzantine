@@ -68,3 +68,24 @@ variable 5. The saved `0xb9` branch includes resource/scene setup and external
 state; it cannot safely be reduced to assigning a guessed panorama value.
 The next EA step remains recovering that initialization path and its required
 state, or implementing another command needed along it.
+
+## 0x72 object declaration (26 October 2026)
+
+`0x42db22` case `0x72` also allocates `DAT_00464300[slot]` when that pointer is
+NULL. The fields come from the same instruction: x/y (`operand 2 + 0x14`)/w/h,
+`+0x08 = 0`, label = operand 5, kind = operand 6, `+0x14 = 0xffffffff`, and
+`+0x10` from operand 7 (direct for kinds 0x13/0x14, otherwise
+`FUN_00408bb2` string-table resolution). An existing pointer is not replaced;
+the original only logs `0x40abb4`.
+
+The port previously parsed the rectangle for clicks but never created the
+object, so a saved scene whose entry `0x72` precedes `0xcc` stopped on
+`missing_object` (VB slot 4 via MAP action 497). `trace_scene_from` now creates
+the object from `static_hotspots` (same y offset), and `0x6d`/`0x6e` keep
+`+0x08` in sync. A save object or earlier creation is not overwritten.
+`FUN_00408bb2`'s name-list resolution is not modelled; no current consumer reads
+`object.name_id`, so such objects keep `0xffffffff` instead of a guessed id.
+
+Verification: `scene-state-test` (fields, 0x6d/0x6e, no overwrite, kind 0x13
+direct name) and the 17-destination MAP census, where VB now returns at
+instruction 217 with 4 hotspots.
