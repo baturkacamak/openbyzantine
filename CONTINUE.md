@@ -130,6 +130,10 @@ a background that opens is not counted as scene completion.
   accordingly.
 - **Legitimate hidden content** is labelled `script-gated (hidden)` (declared
   `0x72` slot not enabled at arrival) and is not forced visible.
+- **Real-window check of the active set.** MAP `27.btb` entry now exposes 8
+  hotspot rectangles including slot 0 (`185,71 action 342`, a save-active map
+  record). A real X11 click in Xephyr hit it and ran `click_result steps=9 …
+  scene_switch=17` -> HL; screenshot `port/output/recordings/map27_real.png`.
 - **Tools.** `--print-objects`, `--print-variables`, `--print-records`,
   `--save-dump` channel item ids and the `0x72`/`0x2c`/`0x24` fields.
 
