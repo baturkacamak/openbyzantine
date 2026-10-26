@@ -92,8 +92,8 @@ struct SceneNodeExtra {
 struct SceneRecordState {
     std::int16_t x = 0;          // +0x00
     std::int16_t y = 0x14;       // +0x02
-    std::int16_t field04 = 10;   // +0x04, written by 0x64 (operand 2) and 0x86
-    std::int16_t field06 = 0;    // +0x06, cleared by 0x64
+    std::int16_t field04 = 10;   // +0x04, frame delay (0x64 operand 2, 0x86)
+    std::int16_t field06 = 0;    // +0x06, frame-delay countdown (0x43bb77)
     // +0x24/+0x26: the mode-1 position 0x43c114 uses with the +0x20 frame.
     // 0x64 writes it as x/y; 0x426b9d restores it from the save's raw copy.
     std::int16_t snap_x = 0;
@@ -784,7 +784,15 @@ struct SceneDraw {
     std::uint16_t id = 0;
     std::uint8_t kind = 0;
     bool snap = false;  // drew through +0x20/+0x24/+0x26 (0x43b216 phase 1)
+    // 0x40241c accepted the record (the draw was attempted); false for the
+    // off-window early reject below, which the original never blits.
+    bool visible = false;
     FrameBlit blit;
+    // Frame geometry of the drawn node (0x410078's +0x0c/+0x10). The caller
+    // needs it to restore the rectangle from the layer before the next draw
+    // (0x43b216's DAT_0046caf8 list).
+    std::int32_t width = 0;
+    std::int32_t height = 0;
 };
 
 // Result of composing the record table into a surface.
@@ -825,6 +833,18 @@ SceneRecordPreload preload_scene_records(SceneState& state);
 // the `+0x09 & 0x10` offset pair and the +0x3c trail draw are NOT modelled
 // (see ANIMATION_ASSET.md); records whose frame is unknown are counted.
 SceneCompose compose_scene(SceneState& state, Rgb16Surface& target);
+
+// 0x43bb77, called by 0x43b216 after every visible normal-pass draw
+// (`param_2 != 1`): the frame list is circular (the last node's next points at
+// the head), so `+0x1c` steps through it. `+0x04` is the frame delay and
+// `+0x06` the countdown; when the countdown is zero the record copies `+0x1c`
+// into `+0x20` (the snap pass frame) and reloads the countdown. Flag bit 2
+// (`0x04`) freezes the record, bit 3 (`0x08`) stops at the last frame, bit 0
+// (`0x01`) enables the ping-pong walk and bit 1 (`0x02`) marks the reverse leg.
+// The node's own index (0x410078's node+0x14) is what the reverse leg tests, so
+// `current_frame == 0` is the turnaround. A missing frame list or index is left
+// untouched; the shipped assets and saves decide whether a record animates.
+void advance_record_animation(SceneRecordState& record);
 
 // 0x426b9d marker 1: after the saved 0x40-byte record is copied, 0x40fe70
 // loads the CA asset's animation payload. For an already-allocated record

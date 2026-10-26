@@ -534,28 +534,98 @@ std::size_t load_save_record_assets(SceneState& state) {
     return loaded;
 }
 
+void advance_record_animation(SceneRecordState& record) {
+    const auto snapshot = [&record]() {
+        if (record.current_frame) {
+            record.frame_index_20 = *record.current_frame;
+        }
+    };
+    if ((record.flags & 0x04) != 0) {
+        // 0x43bb77's first branch: a frozen record only refreshes the +0x20
+        // frame the snap pass would draw; the frame list does not move.
+        snapshot();
+        return;
+    }
+    if (record.field06 != 0) {
+        // 0x43bb77's countdown: subtract DAT_004859fc (0x42c8a0 sets it to 1)
+        // and clamp a borrowed value back to 0.
+        record.field06 = static_cast<std::int16_t>(record.field06 - 1);
+        if (record.field06 < 0) record.field06 = 0;
+        return;
+    }
+    record.field06 = record.field04;
+    snapshot();
+    const auto count = record.frame_count;
+    if (!record.current_frame || count < 2 || *record.current_frame >= count) return;
+    const auto index = static_cast<std::uint16_t>(*record.current_frame);
+    const auto last = static_cast<std::uint16_t>(count - 1);
+    if ((record.flags & 0x02) == 0) {
+        // Forward leg. `node->next == record->+0x18` means the current node is
+        // the tail of the circular list.
+        if (index == last) {
+            if ((record.flags & 0x08) != 0) record.flags |= 0x04;
+            if ((record.flags & 0x01) == 0) {
+                if ((record.flags & 0x04) == 0) record.current_frame = 0;
+            } else {
+                record.current_frame = static_cast<std::uint16_t>(count - 2);
+                record.flags |= 0x02;
+            }
+        } else {
+            record.current_frame = static_cast<std::uint16_t>(index + 1);
+        }
+        return;
+    }
+    // Reverse leg. The node index 0 is the turnaround (`node + 0x14 == 0`).
+    if (index == 0) {
+        if ((record.flags & 0x01) == 0) {
+            if ((record.flags & 0x04) == 0) record.current_frame = last;
+        } else {
+            record.current_frame = 1;
+            record.flags = static_cast<std::uint8_t>(record.flags & ~0x02);
+        }
+    } else {
+        record.current_frame = static_cast<std::uint16_t>(index - 1);
+    }
+}
+
 SceneCompose compose_scene(SceneState& state, Rgb16Surface& target) {
     SceneCompose result;
-    // 0x43c114 + 0x40241c + 0x42b679 for one frame at one position. `screen_y`
+    // 0x43c114 + 0x40241c + 0x42b679 for a record at one position. `screen_y`
     // is the record's +0x02/+0x26 value (it carries the +0x14 surface bias).
+    //
+    // 0x43b130's frame node loop: it starts at `record + 0x18` (the list head)
+    // instead of `record + 0x1c` (the current node) when `param_7 == 1` and the
+    // animation signature at +0x28 is non-zero, then walks `node + 4` forward
+    // drawing every node until it reaches the current one. That matters because
+    // 0x40bbfd's command 3 leaves the destination alone: every animation frame
+    // after the full head frame is a delta, so drawing only the current frame
+    // on a freshly repainted layer would show fragments. The port repaints the
+    // layer every frame (the original keeps one surface between frames) and
+    // therefore uses the head walk, which is the original's own complete-draw
+    // branch. `pixels`/`drawn` describe what the surface received.
     const auto draw_frame = [&](std::uint16_t id, const SceneRecordState& record,
                                 const std::optional<std::uint16_t>& frame,
                                 std::int32_t screen_x, std::int32_t screen_y,
                                 bool snap) -> bool {
-        if (!frame || !state.anims_library || id >= state.actor_assets.size()) {
-            ++result.skipped_no_frame;
-            return false;
-        }
-        const auto decoded = state.anims_library->decode(state.actor_assets[id].name,
-                                                         *frame);
-        if (!decoded) {
-            ++result.skipped_no_frame;
-            return false;
-        }
         SceneDraw entry;
         entry.id = id;
         entry.kind = record.kind;
         entry.snap = snap;
+        if (!frame || !state.anims_library || id >= state.actor_assets.size()) {
+            ++result.skipped_no_frame;
+            result.records.push_back(entry);
+            return false;
+        }
+        const auto& name = state.actor_assets[id].name;
+        const auto current = *frame;
+        const auto current_decoded = state.anims_library->decode(name, current);
+        if (!current_decoded) {
+            ++result.skipped_no_frame;
+            result.records.push_back(entry);
+            return false;
+        }
+        entry.width = current_decoded->width;
+        entry.height = current_decoded->height;
         const auto x = screen_x;
         const auto y = screen_y - kPlayfieldTop;
         if (!target.inside(x, y)) {
@@ -564,13 +634,26 @@ SceneCompose compose_scene(SceneState& state, Rgb16Surface& target) {
             // the report so an off-screen record is visible as such.
             entry.blit.x = x;
             entry.blit.y = y;
-            entry.blit.covered = decoded->run_pixels;
-            entry.blit.clipped = decoded->run_pixels;
+            entry.blit.covered = current_decoded->run_pixels;
+            entry.blit.clipped = current_decoded->run_pixels;
             result.records.push_back(entry);
             return false;
         }
-        entry.blit = blit_frame(target, *decoded, x, y);
-        result.pixels_written += entry.blit.written;
+        const std::uint16_t first = record.anims_signature != 0 ? 0 : current;
+        std::size_t written_total = 0;
+        for (std::uint16_t node = first; node <= current; ++node) {
+            const auto decoded = node == current
+                                     ? current_decoded
+                                     : state.anims_library->decode(name, node);
+            if (!decoded) continue;
+            const auto blit = byzantine::blit_frame(target, *decoded, x, y);
+            written_total += blit.written;
+            if (node == current) entry.blit = blit;
+        }
+        entry.blit.written = written_total;
+        entry.blit.drawn = written_total > 0;
+        entry.visible = true;
+        result.pixels_written += written_total;
         if (entry.blit.drawn) ++result.drawn;
         result.records.push_back(entry);
         return true;
@@ -612,7 +695,7 @@ SceneCompose compose_scene(SceneState& state, Rgb16Surface& target) {
     // 0x20 default until a 0x64 writes their kind byte).
     for (std::uint8_t kind = 0; kind < 5; ++kind) {
         for (auto it = state.records.rbegin(); it != state.records.rend(); ++it) {
-            const auto& record = it->second;
+            auto& record = it->second;
             if (record.kind != kind) continue;
             if ((record.flags & 0x20) != 0) {
                 ++result.skipped_snap;
@@ -622,7 +705,13 @@ SceneCompose compose_scene(SceneState& state, Rgb16Surface& target) {
                 ++result.skipped_hidden;
                 continue;
             }
-            draw_frame(it->first, record, record.current_frame, record.x, record.y, false);
+            // 0x43b216 draws the record and then runs 0x43bb77 on the records
+            // it actually drew: the frame only advances while the record is
+            // visible. The head walk above rebuilds the complete picture from
+            // the full frame, so the next step can draw a delta onto it.
+            if (draw_frame(it->first, record, record.current_frame, record.x, record.y, false)) {
+                advance_record_animation(record);
+            }
         }
     }
     for (const auto& [id, record] : state.records) {

@@ -143,6 +143,9 @@ struct Options {
     bool print_objects = false;                // --print-objects
     bool print_variables = false;              // --print-variables
     bool print_records = false;                // --print-records
+    // --compose-frames N: draw N extra record frames before the shot, so the
+    // 0x43bb77 frame walk is observable without a window.
+    std::size_t compose_frames = 0;
 
     // --conversation-choices 1,0,...: deterministic answers for --shot/tests.
     // The interactive player never uses this: an answer is a real mouse click.
@@ -205,6 +208,12 @@ Options parse_options(int argc, char** argv) {
         }
         if (token == "--print-records") {
             options.print_records = true;
+            continue;
+        }
+        if (token == "--compose-frames") {
+            if (index + 1 >= argc) throw std::runtime_error(token + " needs a value");
+            options.compose_frames = static_cast<std::size_t>(
+                std::stoul(argv[++index]));
             continue;
         }
         if (token == "--bar-use") {
@@ -289,7 +298,8 @@ Options parse_options(int argc, char** argv) {
             "[--conversation-video-shot <ppm>] [--bar-select <id>] [--bar-use] "
             "[--bar-next] [--bar-prev] [--no-video] "
             "[--no-hotspots] [--no-audio] [--print-audio] [--print-hotspots] "
-            "[--print-objects] [--print-variables] [--print-records] [--selftest-events]");
+            "[--print-objects] [--print-variables] [--print-records] "
+            "[--compose-frames <n>] [--selftest-events]");
     }
     options.cc_path = positional[0];
     options.cb_path = positional[1];
@@ -1001,9 +1011,17 @@ struct Display {
             // 0x4242bd samples the current node through the camera map; the
             // record pass then draws on top, exactly like the background path.
             view.panorama->render(surface);
-            const auto drawn = byzantine::compose_scene(view.state, surface);
-            draw_text_windows(view, verbose);
-            if (!verbose) return;
+        } else {
+            load_background(view.background_file);
+            if (!background_pixels.empty()) {
+                byzantine::blit_image(surface, kSceneWidth, kSceneHeight,
+                                      background_pixels.data(), 0, 0);
+            }
+        }
+        const auto drawn = byzantine::compose_scene(view.state, surface);
+        draw_text_windows(view, verbose);
+        if (!verbose) return;
+        if (show_panorama) {
             std::cout << "composed panorama=" << view.panorama->path()
                       << " size=" << view.panorama->source_width() << 'x'
                       << view.panorama->source_height()
@@ -1019,14 +1037,6 @@ struct Display {
                       << " drawn_ids=" << drawn_ids(drawn) << '\n';
             return;
         }
-        load_background(view.background_file);
-        if (!background_pixels.empty()) {
-            byzantine::blit_image(surface, kSceneWidth, kSceneHeight,
-                                  background_pixels.data(), 0, 0);
-        }
-        const auto drawn = byzantine::compose_scene(view.state, surface);
-        draw_text_windows(view, verbose);
-        if (!verbose) return;
         std::cout << "composed background="
                   << (view.background_file.empty() ? "none"
                                                    : view.background_file.filename().string())
@@ -1037,6 +1047,28 @@ struct Display {
                   << " skipped_hidden=" << drawn.skipped_hidden
                   << " pixels=" << drawn.pixels_written
                   << " drawn_ids=" << drawn_ids(drawn) << '\n';
+    }
+
+    // True when the visible part of the scene can still change without input:
+    // a record with a loaded frame list, a frame index and at least two frames
+    // that is not frozen by 0x04. Used to decide whether the event loop needs a
+    // 60 Hz recompose; a static scene keeps redrawing only on events.
+    bool scene_animates(const byzantine::SceneState& state) const {
+        for (const auto& [id, record] : state.records) {
+            (void)id;
+            if (!record.frames_known || !record.current_frame) continue;
+            if (record.frame_count < 2) continue;
+            if ((record.flags & (0x04 | 0x20 | 0x40)) != 0) continue;
+            // 0x43b216 only steps records it drew: an off-window origin is
+            // rejected by 0x40241c and never advances, so it must not keep the
+            // window repainting.
+            if (record.kind >= 5) continue;
+            if (record.x < 0 || record.x >= kSceneWidth) continue;
+            const int y = record.y - byzantine::kPlayfieldTop;
+            if (y < 0 || y >= kSceneHeight) continue;
+            return true;
+        }
+        return false;
     }
 
     // Shows any RGB565 image, switching the renderer's logical size when the
@@ -2372,7 +2404,8 @@ void print_records(const SceneView& view) {
                           ? "none"
                           : std::to_string(record.frame_index_20))
                   << " frames=" << record.frame_count
-                  << " frames_known=" << (record.frames_known ? 1 : 0);
+                  << " frames_known=" << (record.frames_known ? 1 : 0)
+                  << " delay=" << record.field04 << " count=" << record.field06;
         if (id < view.state.actor_assets.size()) {
             std::cout << " asset=" << view.state.actor_assets[id].name
                       << " type=" << static_cast<unsigned>(view.state.actor_assets[id].type);
@@ -4355,6 +4388,15 @@ int main(int argc, char** argv) {
                         }
                     }
                 }
+                // 0x43b216 draws once per frame and 0x43bb77 steps the frame
+                // list after every visible record; a scene with an animated
+                // record therefore has to compose at the same cadence instead of
+                // only when an event arrives. Static scenes keep the event-driven
+                // redraw so they do not burn CPU.
+                if (session.display.scene_animates(session.view.state)) {
+                    session.display.compose(session.view, false);
+                    session.display.present(session.view, options.overlay);
+                }
                 SDL_Delay(16);
             }
             if (options.selftest_events) {
@@ -4508,6 +4550,12 @@ int main(int argc, char** argv) {
         }
         refresh_background(options, session.view);
         session.display.compose(session.view);
+        // --compose-frames N: keep drawing without input, exactly like the
+        // interactive loop's 0x43b216 cadence, to observe the frame walk.
+        for (std::size_t frame = 0; frame < options.compose_frames; ++frame) {
+            session.display.compose(session.view, false);
+            session.display.present(session.view, false);
+        }
         session.display.present(session.view, options.overlay);
         if (options.print_hotspots) print_hotspot_screens(session.view);
         if (options.print_objects) print_objects(session.view);

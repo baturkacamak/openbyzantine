@@ -1030,6 +1030,64 @@ int main(int argc, char** argv) {
                 "compose_scene drew a record above the playfield");
         std::filesystem::remove_all(root);
 
+        // 0x43bb77: the frame list is circular, +0x04 is the delay and +0x06
+        // the countdown. Verify the forward walk, the wrap, the frozen flag,
+        // the ping-pong turnaround and the stop-at-last bit.
+        {
+            byzantine::SceneRecordState rec;
+            rec.frames_known = true;
+            rec.frame_count = 4;
+            rec.current_frame = 0;
+            rec.field04 = 2;
+            rec.field06 = 0;
+            rec.flags = 0;
+            byzantine::advance_record_animation(rec);
+            require(rec.current_frame == 1 && rec.field06 == 2 &&
+                        rec.frame_index_20 == 0,
+                    "0x43bb77 first step mismatch");
+            byzantine::advance_record_animation(rec);
+            require(rec.current_frame == 1 && rec.field06 == 1,
+                    "0x43bb77 countdown mismatch");
+            byzantine::advance_record_animation(rec);
+            require(rec.current_frame == 1 && rec.field06 == 0,
+                    "0x43bb77 countdown clamp mismatch");
+            byzantine::advance_record_animation(rec);
+            require(rec.current_frame == 2 && rec.field06 == 2,
+                    "0x43bb77 second step mismatch");
+            rec.current_frame = 3;
+            rec.field06 = 0;
+            byzantine::advance_record_animation(rec);
+            require(rec.current_frame == 0, "0x43bb77 circular wrap mismatch");
+            rec.flags = 0x04;
+            rec.current_frame = 2;
+            rec.frame_index_20 = 0xffff;
+            byzantine::advance_record_animation(rec);
+            require(rec.current_frame == 2 && rec.frame_index_20 == 2,
+                    "0x43bb77 frozen record advanced");
+            rec.flags = 0x01;
+            rec.current_frame = 3;
+            rec.field06 = 0;
+            byzantine::advance_record_animation(rec);
+            require(rec.current_frame == 2 && (rec.flags & 0x02) != 0,
+                    "0x43bb77 ping-pong turnaround mismatch");
+            rec.field06 = 0;
+            byzantine::advance_record_animation(rec);
+            require(rec.current_frame == 1, "0x43bb77 reverse step mismatch");
+            rec.field06 = 0;
+            byzantine::advance_record_animation(rec);
+            require(rec.current_frame == 0, "0x43bb77 reverse tail mismatch");
+            rec.field06 = 0;
+            byzantine::advance_record_animation(rec);
+            require(rec.current_frame == 1 && (rec.flags & 0x02) == 0,
+                    "0x43bb77 forward resume mismatch");
+            rec.flags = 0x08;
+            rec.current_frame = 3;
+            rec.field06 = 0;
+            byzantine::advance_record_animation(rec);
+            require(rec.current_frame == 3 && (rec.flags & 0x04) != 0,
+                    "0x43bb77 stop-at-last mismatch");
+        }
+
         // 0x79 ends the script and only raises the exit reason from 0 to 1.
         byzantine::SceneState end_state;
         const auto end_trace = byzantine::trace_scene_label(

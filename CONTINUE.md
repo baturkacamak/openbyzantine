@@ -20,7 +20,33 @@ game ISOs/archives, `analysis/rea/BETRAYAL.EXE`, `tools/rea`, `upscale_ornek` an
 needs `port/output/`: recreate it from your own copy with `port/byzantine-all`
 (and `port/scene.sh` for the extracted media) before running the suites.
 
-## Latest step — ambient sound records through the SDL2 mixer (`08809c5`, restart follow-up `5a06d8c`)
+## Latest step — record animation playback (`0x43bb77` + the head-walk redraw)
+
+Records now step their frame list after every drawn frame and draw the whole
+animation (head frame plus its delta frames), so a saved frame index that points
+at a delta or blank frame no longer freezes or shreds the character. Report:
+`analysis/rea/ANIMATION_PLAYBACK.md`.
+
+- **Rules.** `0x43bb77` (after every record `0x43b216` draws) uses `+0x04` as the
+  frame delay (`+0x06` countdown, `_DAT_004859fc = 1`) and walks the circular
+  node list (`0x410078`: `node[1]` next, `node[2]` prev, `node[5]` frame index);
+  flag `0x04` freezes, `0x08` stops at the tail, `0x01` enables ping-pong and
+  `0x02` marks the reverse leg. `0x43b130`'s `param_7 == 1` branch draws from the
+  head node to the current one; the animation frames are deltas (`0x40bbfd`
+  command 3 leaves the destination), so that walk is what completes the picture.
+- **Port.** `advance_record_animation` implements the step; `compose_scene` uses
+  the head walk when the animation signature (`+0x28`) is non-zero (the port
+  repaints the layer every compose, unlike the original's persistent surface);
+  `--compose-frames <n>` replays frames for headless checks; the window loop
+  composes at its 16 ms cadence while a record can still animate.
+- **Verified.** Unit tests cover forward/countdown/wrap/frozen/ping-pong/stop.
+  HL `28.btb` entry went from `drawn=1 pixels=4000 ids=0` to `drawn=2
+  pixels=32800 ids=4,0` (slot 4 stores the blank frame 1; the receptionist now
+  appears and animates). IU `61.btb`, HSTMED `43.btb`, MAP `27.btb` and CLOCK
+  `70.btb` keep their documented drawn/pixel values. Real window on Xephyr `:8`:
+  both HL and IU animate and the patches stay complete.
+
+## Previous step — ambient sound records through the SDL2 mixer (`08809c5`, restart follow-up `5a06d8c`)
 
 The script's `0x65` sound records now run through one common SDL2 callback
 mixer, with the original start/stop/loop rules and without waiting on every
