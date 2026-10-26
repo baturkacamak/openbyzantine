@@ -75,12 +75,32 @@ if [ ! -f "$data/.prepared" ]; then
         grep -E '^inventor/[^/]*\.tga$' | sed 's|.*/||; s|\.tga$||' | sort >"$data/inventor.txt"
     # Split the per-scene engine tables (CS CI CY CF CA) the way
     # byzantine-all does: one file per record name.
-    for archive in CS CI CY CF CA CE; do
+    for archive in CS CI CY CF CA CE CCB CCF CD; do
         target="$(lower "$archive")"
         mkdir -p "$data/$target"
         "$here/byzantine-all" "$data/copy2hd/engine/$archive.ALL" "$data/$target" >/dev/null
     done
+    # The conversation text/clip archives are packed separately: CCB.ALL is the
+    # bytecode, CCF.ALL the voice clip names and Byz.all the dialogue lines.
+    7z x -y "$iso1" "copy2hd/engine/Byz.all" -o"$data" >/dev/null
+    mkdir -p "$data/byz"
+    "$here/byzantine-all" "$data/copy2hd/engine/Byz.all" "$data/byz" >/dev/null
     touch "$data/.prepared"
+fi
+
+# A data dir prepared by an older revision has no conversation archives; fetch
+# just those instead of re-extracting everything.
+if [ ! -d "$data/ccb" ] || [ ! -d "$data/ccf" ] || [ ! -d "$data/byz" ] || \
+   [ ! -d "$data/cd" ]; then
+    7z x -y "$iso1" "copy2hd/engine/CCB.ALL" "copy2hd/engine/CCF.ALL" \
+        "copy2hd/engine/CD.ALL" "copy2hd/engine/Byz.all" -o"$data" >/dev/null
+    for archive in CCB CCF CD; do
+        target="$(lower "$archive")"
+        mkdir -p "$data/$target"
+        "$here/byzantine-all" "$data/copy2hd/engine/$archive.ALL" "$data/$target" >/dev/null
+    done
+    mkdir -p "$data/byz"
+    "$here/byzantine-all" "$data/copy2hd/engine/Byz.all" "$data/byz" >/dev/null
 fi
 
 # A data dir prepared before the text step has neither the fonts nor the split
@@ -102,6 +122,22 @@ ce="$data/ce/$upper_scene"
 fonts="$data/copy2hd/fonts"
 [ -d "$fonts" ] || fonts=""
 
+# 0x40d2a1 plays dialog/<conversation>/<clip>.avi. Extract only the
+# conversation folders of this scene (the scene's cd records), not every CD.
+cd_records="$data/cd/$upper_scene"
+if [ -f "$cd_records" ]; then
+    names="$(LC_ALL=C tr '\0' '\n' <"$cd_records" | LC_ALL=C sed $'s/\xff//g' | \
+        awk 'NF && (++n % 2 == 1)')"
+    for name in $names; do
+        folder="$(lower "$name")"
+        [ -d "$data/dialog/$folder" ] && continue
+        for index in 1 2 3 4 5 6; do
+            iso="$(find_iso "$index")" || continue
+            7z x -y "$iso" "dialog/$folder/*" -o"$data" >/dev/null 2>&1 || true
+        done
+    done
+fi
+
 save_path="$data/copy2hd/savegame/$save"
 [ -f "$save_path" ] || { echo "no savegame '$save' in $data/copy2hd/savegame" >&2; exit 1; }
 
@@ -121,6 +157,12 @@ exec "$here/byzantine-play" "$cc" "$cb" "$label" \
     --cs "$data/cs/$upper_scene" \
     --ca "$data/ca/$upper_scene" \
     --co "$co" \
+    --cd "$data/cd/$upper_scene" \
+    --ccb "$data/ccb" \
+    --ccf "$data/ccf" \
+    --byz "$data/byz" \
+    --dialog "$data/dialog" \
+    --dialog-cache "$data/dialog_cache" \
     --anims "$data" \
     --sounds "$data" \
     --backgrounds "$data" \

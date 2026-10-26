@@ -20,6 +20,7 @@
 #include "byzantine/cb.hpp"
 #include "byzantine/cc.hpp"
 #include "byzantine/compose.hpp"
+#include "byzantine/conversation.hpp"
 #include "byzantine/jpeg.hpp"
 #include "byzantine/panorama.hpp"
 #include "byzantine/panorama_view.hpp"
@@ -32,9 +33,12 @@
 #include <array>
 #include <chrono>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <iterator>
 #include <map>
@@ -89,22 +93,39 @@ struct Options {
     std::filesystem::path backgrounds;         // backs/ root or the extracted root
     std::filesystem::path sounds;              // sounds/ root
     std::filesystem::path fonts;               // the DIALOG/klio font files
+    std::filesystem::path ccb;                 // split CCB.ALL (engine/<name>.ccb)
+    std::filesystem::path ccf;                 // split CCF.ALL (engine/<name>.ccf)
+    std::filesystem::path byz;                 // split Byz.all (engine/<name>.byz)
+    std::filesystem::path dialog;              // dialog/<conversation>/<clip>.avi root
+    std::filesystem::path dialog_cache;        // decoded clip cache (created on demand)
     std::string shot;                          // --shot <file.ppm>
+    std::string conversation_shot;             // --conversation-shot <file.ppm>
+    std::string conversation_video_shot;       // first decoded media frame
     bool entry = false;                        // --entry: start at instruction 0
+    std::optional<int> run_label;              // --run-label <n>: after --entry
     std::optional<int> click;                  // --click <slot>
     std::vector<std::pair<int, int>> click_ats;  // --click-at <x>,<y>, repeatable
     std::optional<int> staged_x;               // --staged-x <0..2495>
     bool overlay = true;
     bool print_audio = false;
     bool audio = true;
+    bool video = true;                         // --no-video disables FFmpeg decodes
     bool selftest_events = false;              // --selftest-events (see README)
+    // --conversation-choices 1,0,...: deterministic answers for --shot/tests.
+    // The interactive player never uses this: an answer is a real mouse click.
+    std::vector<std::size_t> conversation_choices;
+    // --conversation-object <slot>: a deterministic scene-object click while an
+    // answer list is up (0x436b01's other return path; --shot only).
+    std::optional<int> conversation_object;
 };
 
 const std::set<std::string> kValued = {
     "--save", "--engine", "--lcx", "--lci", "--ci", "--lcy", "--cy", "--co", "--cf",
     "--ca", "--anims", "--gameprefs", "--inventor", "--hotitems", "--cs", "--ce",
     "--backgrounds", "--sounds", "--shot", "--click", "--click-at", "--staged-x",
-    "--fonts"};
+    "--fonts", "--cd", "--ccb", "--ccf", "--byz", "--dialog", "--dialog-cache",
+    "--run-label", "--conversation-choices", "--conversation-shot",
+    "--conversation-object", "--conversation-video-shot"};
 
 Options parse_options(int argc, char** argv) {
     Options options;
@@ -123,6 +144,10 @@ Options parse_options(int argc, char** argv) {
             options.audio = false;
             continue;
         }
+        if (token == "--no-video") {
+            options.video = false;
+            continue;
+        }
         if (token == "--selftest-events") {
             options.selftest_events = true;
             continue;
@@ -137,7 +162,29 @@ Options parse_options(int argc, char** argv) {
             if (token == "--backgrounds") options.backgrounds = value;
             else if (token == "--sounds") options.sounds = value;
             else if (token == "--fonts") options.fonts = value;
+            else if (token == "--ccb") options.ccb = value;
+            else if (token == "--ccf") options.ccf = value;
+            else if (token == "--byz") options.byz = value;
+            else if (token == "--dialog") options.dialog = value;
+            else if (token == "--dialog-cache") options.dialog_cache = value;
+            else if (token == "--run-label") options.run_label = std::stoi(value);
+            else if (token == "--conversation-choices") {
+                std::size_t at = 0;
+                while (at < value.size()) {
+                    const auto comma = value.find(',', at);
+                    const auto piece = value.substr(
+                        at, comma == std::string::npos ? std::string::npos : comma - at);
+                    if (piece.empty()) throw std::runtime_error("empty conversation choice");
+                    options.conversation_choices.push_back(
+                        static_cast<std::size_t>(std::stoul(piece)));
+                    if (comma == std::string::npos) break;
+                    at = comma + 1;
+                }
+            }
             else if (token == "--shot") options.shot = value;
+            else if (token == "--conversation-shot") options.conversation_shot = value;
+            else if (token == "--conversation-object") options.conversation_object = std::stoi(value);
+            else if (token == "--conversation-video-shot") options.conversation_video_shot = value;
             else if (token == "--click") options.click = std::stoi(value);
             else if (token == "--staged-x") options.staged_x = std::stoi(value);
             else if (token == "--click-at") {
@@ -160,6 +207,10 @@ Options parse_options(int argc, char** argv) {
             "[--lcx --lci --ci --lcy --cy --co --cf --ca --anims --gameprefs "
             "--inventor --hotitems --cs <file>] [--shot <file.ppm>] [--click <slot>] "
             "[--entry] [--click-at <x>,<y> ...] [--staged-x <0..2495>] "
+            "[--cd <file> --ccb --ccf --byz --dialog --dialog-cache <dir>] "
+            "[--run-label <n>] [--conversation-choices <i,...>] "
+            "[--conversation-object <slot>] [--conversation-shot <ppm>] "
+            "[--conversation-video-shot <ppm>] [--no-video] "
             "[--no-hotspots] [--no-audio] [--print-audio] [--selftest-events]");
     }
     options.cc_path = positional[0];
@@ -527,6 +578,9 @@ std::string drawn_ids(const byzantine::SceneCompose& composed) {
 struct EntryPoint {
     std::uint16_t label = 0;
     bool at_entry = false;
+    // A conversation's 0x70 result resumes inside the same script (the original
+    // replaces pc), so this is an instruction index, not a label.
+    std::optional<std::size_t> at_instruction;
 };
 
 byzantine::SceneTrace trace_point(SceneView& view, EntryPoint point,
@@ -536,6 +590,11 @@ byzantine::SceneTrace trace_point(SceneView& view, EntryPoint point,
     if (point.at_entry) {
         return byzantine::trace_scene_entry(view.script, view.entries, view.state,
                                             step_budget);
+    }
+    if (point.at_instruction) {
+        return byzantine::trace_scene_from_instruction(view.script, view.entries,
+                                                       view.state, *point.at_instruction,
+                                                       step_budget);
     }
     return byzantine::trace_scene_label(view.script, view.entries, view.state, point.label,
                                         step_budget);
@@ -685,6 +744,11 @@ struct Display {
     // 0x406cfe's (0xb<<11)|(0xe<<5)|2) share the klio atlas.
     std::optional<byzantine::SfnFont> examine_font;
     std::optional<byzantine::SfnFont> message_font;
+    // Font slot 0 (fonts/DIALOG.SFN + GR_DLG/BK_DLG, fill 0xe2c0). 0x436b01
+    // draws the answer list with slot 0; the port uses it for the dialogue
+    // scrollback too because the original's bottom 60-px band is not part of the
+    // 640x400 ported surface.
+    std::optional<byzantine::SfnFont> dialog_font;
 
     void init() {
         if (SDL_Init(SDL_INIT_VIDEO) != 0) {
@@ -1242,13 +1306,13 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose) {
     const auto probe = byzantine::trace_scene_entry(
         session.view.script, session.view.entries, session.view.entry_state, 0);
     if (session.interactive && audio_gated(session)) {
-        if (!run_label_gated(session, EntryPoint{0, true}, session.view.entry_state, probe,
+        if (!run_label_gated(session, EntryPoint{0, true, std::nullopt}, session.view.entry_state, probe,
                              verbose)) {
             return false;
         }
     } else {
         set_trace(session.view,
-                  trace_point(session.view, EntryPoint{0, true},
+                  trace_point(session.view, EntryPoint{0, true, std::nullopt},
                               session.view.entry_state, 0));
     }
     // The entry's own trace selects the layer for this scene (see update_layer).
@@ -1297,10 +1361,13 @@ void follow_switches(Session& session, bool verbose) {
 struct ClickPlan {
     bool ok = false;
     bool travel = false;
+    bool conversation = false;
     std::uint16_t switch_index = 0;
     std::string message;
     std::uint16_t action = 0;
+    EntryPoint point;                    // where the action's segment starts
     byzantine::SceneState entry;
+    byzantine::SceneState entry_before;  // before the probe (gated replay input)
     byzantine::SceneTrace probe;
 };
 
@@ -1359,7 +1426,9 @@ ClickPlan plan_hotspot(const SceneView& view, int slot) {
         return plan;
     }
     plan.entry = view.state;
+    plan.entry_before = view.state;
     plan.action = found->action;
+    plan.point = EntryPoint{found->action, false, std::nullopt};
     plan.probe = byzantine::trace_scene_label(view.script, view.entries, plan.entry,
                                               found->action);
     // Every stop that means "the port lacks data or settings, or hit a safety
@@ -1381,6 +1450,20 @@ ClickPlan plan_hotspot(const SceneView& view, int slot) {
         plan.message = "slot " + std::to_string(slot) + " action " +
                        std::to_string(plan.action) + " scene_switch=" +
                        std::to_string(plan.switch_index);
+        return plan;
+    }
+    if (plan.probe.conversation_request) {
+        // 0x70 pauses the script while 0x432d6e runs. The caller must run the
+        // real conversation and then resume at the instruction the result
+        // selects; committing the probe's partial state as a finished click
+        // would skip the conversation.
+        plan.ok = true;
+        plan.conversation = true;
+        plan.message = "slot " + std::to_string(slot) + " action " +
+                       std::to_string(plan.action) + " conversation record=" +
+                       std::to_string(plan.probe.conversation_request->record) +
+                       " instruction=" +
+                       std::to_string(plan.probe.conversation_request->instruction);
         return plan;
     }
     plan.ok = true;
@@ -1434,6 +1517,807 @@ std::string describe_trace(const byzantine::SceneTrace& trace,
     return text;
 }
 
+// ---------------------------------------------------------------------------
+// 0x70 CONVERSE: the real conversation VM and its media
+// ---------------------------------------------------------------------------
+// 0x410669 turns a scene-cd record's file stem into engine/<stem>.ccb (the
+// instruction lists and group tables), .ccf (voice-clip names) and .byz (the
+// dialogue lines). The three files are the shipped data; nothing here invents a
+// subtitle or a choice.
+
+std::string shell_quote(const std::string& text) {
+    std::string quoted = "'";
+    for (const char ch : text) {
+        if (ch == '\'') {
+            quoted += "'\\''";
+        } else {
+            quoted += ch;
+        }
+    }
+    quoted += "'";
+    return quoted;
+}
+
+std::optional<std::filesystem::path> find_directory_child(
+    const std::filesystem::path& directory, const std::string& name) {
+    std::error_code error;
+    if (!std::filesystem::is_directory(directory, error)) return std::nullopt;
+    const auto wanted = lower_ascii(name);
+    for (const auto& entry : std::filesystem::directory_iterator(directory, error)) {
+        if (entry.is_directory() && lower_ascii(entry.path().filename().string()) == wanted) {
+            return entry.path();
+        }
+    }
+    return std::nullopt;
+}
+
+std::string strip_ccd(std::string file) {
+    const auto lowered = lower_ascii(file);
+    if (lowered.size() >= 4 && lowered.substr(lowered.size() - 4) == ".ccd") {
+        file.resize(file.size() - 4);
+    }
+    return file;
+}
+
+// Word wrap with 0x40701f's rule: break at the last space that fits the width.
+std::vector<std::string> wrap_dialog_text(const byzantine::SfnFont& font,
+                                          const std::string& text, int width) {
+    std::vector<std::string> lines;
+    std::string line;
+    std::size_t start = 0;
+    while (start <= text.size()) {
+        const auto space = text.find(' ', start);
+        const auto word = text.substr(start, space == std::string::npos ? std::string::npos
+                                                                       : space - start);
+        const auto candidate = line.empty() ? word : line + " " + word;
+        if (byzantine::text_width(font, candidate) > width && !line.empty()) {
+            lines.push_back(line);
+            line = word;
+        } else {
+            line = candidate;
+        }
+        if (space == std::string::npos) break;
+        start = space + 1;
+    }
+    if (!line.empty()) lines.push_back(line);
+    if (lines.empty()) lines.push_back(std::string());
+    return lines;
+}
+
+struct DecodedClip {
+    std::vector<std::filesystem::path> frames;
+    std::optional<std::filesystem::path> audio;
+    int fps = 15;
+    int width = 0;
+    int height = 0;
+};
+
+// The game's talking-head clips are Indeo 4 + PCM16. Indeo is a standard codec
+// this port must not reimplement, so FFmpeg (the ready decoder available here)
+// materialises a per-clip cache of JPEG frames and a PCM WAV once. The runtime
+// then uses the port's existing JPEG and WAV readers; a missing FFmpeg only
+// suppresses media and is reported, never silently hidden.
+std::optional<DecodedClip> dialog_clip_cache(const Options& options,
+                                             const std::filesystem::path& avi,
+                                             const std::string& conversation,
+                                             const std::string& clip, bool verbose) {
+    const auto cache_root = options.dialog_cache.empty() ? options.dialog / ".cache"
+                                                         : options.dialog_cache;
+    if (cache_root.empty()) return std::nullopt;
+    const auto directory = cache_root / lower_ascii(conversation) /
+                           lower_ascii(clip);
+    std::error_code error;
+    std::filesystem::create_directories(directory, error);
+    if (error) {
+        std::cout << "conversation_media clip=" << clip << " cache_error="
+                  << error.message() << '\n';
+        return std::nullopt;
+    }
+    DecodedClip decoded;
+    const auto meta = directory / "meta.txt";
+    if (std::filesystem::is_regular_file(meta)) {
+        std::ifstream input(meta);
+        std::string key;
+        while (input >> key) {
+            const auto equals = key.find('=');
+            if (equals == std::string::npos) continue;
+            const auto name = key.substr(0, equals);
+            const auto value = key.substr(equals + 1);
+            if (name == "fps") decoded.fps = std::max(1, std::stoi(value));
+            if (name == "width") decoded.width = std::stoi(value);
+            if (name == "height") decoded.height = std::stoi(value);
+        }
+        for (std::uint32_t index = 1;; ++index) {
+            char name[32];
+            std::snprintf(name, sizeof(name), "f%04u.jpg", index);
+            const auto frame = directory / name;
+            if (!std::filesystem::is_regular_file(frame)) break;
+            decoded.frames.push_back(frame);
+        }
+        const auto audio = directory / "audio.wav";
+        if (std::filesystem::is_regular_file(audio)) decoded.audio = audio;
+        if (!decoded.frames.empty() && decoded.width > 0 && decoded.height > 0) {
+            return decoded;
+        }
+        // A half-written cache is rebuilt rather than used.
+    }
+
+    // Frame rate comes from the source stream, not from an assumption.
+    const auto fps_file = directory / "fps.txt";
+    const auto probe = "ffprobe -v error -select_streams v:0 "
+                       "-show_entries stream=avg_frame_rate -of default=nw=1:nk=1 " +
+                       shell_quote(avi.string()) + " > " + shell_quote(fps_file.string()) +
+                       " 2>/dev/null";
+    if (std::system(probe.c_str()) != 0 || !std::filesystem::is_regular_file(fps_file)) {
+        std::cout << "conversation_media clip=" << clip
+                  << " decode=ffprobe_failed source=" << avi << '\n';
+        return std::nullopt;
+    }
+    {
+        std::ifstream input(fps_file);
+        std::string rate;
+        input >> rate;
+        const auto slash = rate.find('/');
+        if (slash != std::string::npos) {
+            const int numerator = std::stoi(rate.substr(0, slash));
+            const int denominator = std::stoi(rate.substr(slash + 1));
+            if (denominator != 0) decoded.fps = std::max(1, (numerator + denominator / 2) / denominator);
+        }
+    }
+    const auto frames_command =
+        "ffmpeg -y -loglevel error -i " + shell_quote(avi.string()) +
+        " -vsync 0 -q:v 3 " + shell_quote((directory / "f%04d.jpg").string()) +
+        " >/dev/null 2>&1";
+    if (std::system(frames_command.c_str()) != 0) {
+        std::cout << "conversation_media clip=" << clip
+                  << " decode=ffmpeg_video_failed source=" << avi << '\n';
+        return std::nullopt;
+    }
+    const auto audio_command =
+        "ffmpeg -y -loglevel error -i " + shell_quote(avi.string()) +
+        " -vn -acodec pcm_s16le " + shell_quote((directory / "audio.wav").string()) +
+        " >/dev/null 2>&1";
+    if (std::system(audio_command.c_str()) == 0 &&
+        std::filesystem::is_regular_file(directory / "audio.wav")) {
+        decoded.audio = directory / "audio.wav";
+    }
+    for (std::uint32_t index = 1;; ++index) {
+        char name[32];
+        std::snprintf(name, sizeof(name), "f%04u.jpg", index);
+        const auto frame = directory / name;
+        if (!std::filesystem::is_regular_file(frame)) break;
+        decoded.frames.push_back(frame);
+    }
+    if (decoded.frames.empty()) {
+        std::cout << "conversation_media clip=" << clip
+                  << " decode=no_frames source=" << avi << '\n';
+        return std::nullopt;
+    }
+    {
+        const auto image = byzantine::decode_jpeg_file(decoded.frames.front().string());
+        decoded.width = image.width;
+        decoded.height = image.height;
+    }
+    {
+        std::ofstream output(meta);
+        output << "fps=" << decoded.fps << '\n'
+               << "width=" << decoded.width << '\n'
+               << "height=" << decoded.height << '\n';
+    }
+    if (verbose) {
+        std::cout << "conversation_media clip=" << clip << " source=" << avi.filename().string()
+                  << " frames=" << decoded.frames.size() << " fps=" << decoded.fps
+                  << " size=" << decoded.width << 'x' << decoded.height
+                  << (decoded.audio ? " audio=pcm" : " audio=none") << '\n';
+    }
+    return decoded;
+}
+
+struct DialogUi {
+    std::vector<std::uint16_t> base;
+    std::vector<std::string> scrollback;  // at most 3 visual lines (DAT_0045fdb8)
+    const byzantine::SfnFont* font = nullptr;
+    int line_height = 16;
+
+    void restore(Session& session) const {
+        if (base.size() == session.display.surface.pixels.size()) {
+            std::copy(base.begin(), base.end(), session.display.surface.pixels.begin());
+        }
+    }
+
+    void draw(Session& session, bool answers) const {
+        restore(session);
+        // The original's dialogue is row 0x1a4 of the 640x480 surface, inside
+        // the 60-px band below the playfield. The port has no band, so the same
+        // lines are drawn over the top of the playfield with a black panel.
+        if (font != nullptr) {
+            const int panel_height = static_cast<int>(scrollback.size()) * line_height + 8;
+            for (int y = 0; y < panel_height && y < kSceneHeight; ++y) {
+                for (int x = 48; x < 592; ++x) session.display.surface.at(x, y) = 0;
+            }
+            int y = 4;
+            for (const auto& line : scrollback) {
+                byzantine::draw_text(session.display.surface, *font, line, 55, y - 4,
+                                    1, 3);
+                y += line_height;
+            }
+        }
+        (void)answers;
+    }
+};
+
+void draw_answer_panel(DialogUi& ui, Session& session,
+                       const std::vector<byzantine::ConversationAnswer>& answers,
+                       const std::vector<std::filesystem::path>& /*unused*/,
+                       std::vector<SDL_Rect>* rects) {
+    ui.draw(session, true);
+    if (ui.font == nullptr) return;
+    rects->clear();
+    int bottom = kSceneHeight - 6;
+    for (std::size_t index = answers.size(); index-- > 0;) {
+        const auto& answer = answers[index];
+        const auto lines = wrap_dialog_text(*ui.font, answer.show_text ? answer.text : "",
+                                            480);
+        const int height = static_cast<int>(lines.size()) * ui.line_height + 4;
+        const int top = bottom - height;
+        for (int y = std::max(0, top); y < bottom && y < kSceneHeight; ++y) {
+            for (int x = 92; x < 592; ++x) session.display.surface.at(x, y) = 0;
+        }
+        int y = top + 2;
+        for (const auto& line : lines) {
+            if (!line.empty()) {
+                byzantine::draw_text(session.display.surface, *ui.font, line, 100, y, 1, 3);
+            }
+            y += ui.line_height;
+        }
+        rects->push_back(SDL_Rect{92, std::max(0, top), 500, height});
+        bottom = top - 4;
+    }
+    std::reverse(rects->begin(), rects->end());
+}
+
+bool wait_dialog_ms(Session& session, std::uint64_t milliseconds) {
+    const auto start = std::chrono::steady_clock::now();
+    while (session.running) {
+        pump_window(session);
+        const auto waited = static_cast<std::uint64_t>(
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - start)
+                .count());
+        if (waited >= milliseconds) break;
+        SDL_Delay(8);
+    }
+    return session.running;
+}
+
+struct ConversationOutcome {
+    bool ok = false;
+    std::uint16_t result = 0xffff;
+    std::string name;
+    std::size_t lines = 0;
+    std::size_t answer_lists = 0;
+    std::size_t media = 0;
+};
+
+// Runs the conversation until 0x39/0x436b01 end it. An answer is a real mouse
+// click for the interactive player; --shot consumes --conversation-choices so a
+// deterministic acceptance run can be reproduced. It never invents a choice.
+ConversationOutcome run_conversation(Session& session, std::uint16_t record_index,
+                                     std::uint16_t object_context, bool verbose) {
+    ConversationOutcome outcome;
+    const auto& options = session.options;
+    auto& state = session.view.state;
+    if (!state.conversation_table_known) {
+        std::cout << "conversation record=" << record_index
+                  << " stopped: no --cd conversation table\n";
+        return outcome;
+    }
+    if (record_index >= state.conversation_records.size()) {
+        std::cout << "conversation record=" << record_index << " outside the "
+                  << state.conversation_records.size() << " engine/<scene>cd records\n";
+        return outcome;
+    }
+    const auto& record = state.conversation_records[record_index];
+    outcome.name = record.name;
+    const auto stem = strip_ccd(record.file);
+    const auto ccb = find_child(options.ccb, stem);
+    const auto ccf = find_child(options.ccf, stem);
+    const auto byz = find_child(options.byz, stem);
+    if (!ccb || !ccf || !byz) {
+        std::cout << "conversation record=" << record_index << " name=" << record.name
+                  << " stopped: missing"
+                  << (ccb ? "" : " ccb") << (ccf ? "" : " ccf") << (byz ? "" : " byz")
+                  << " for " << stem << '\n';
+        return outcome;
+    }
+    byzantine::ConversationProgram program;
+    try {
+        program = byzantine::parse_conversation_program(
+            read_file(*ccb), byzantine::parse_conversation_lines(read_file(*ccf), "CCF"),
+            byzantine::parse_conversation_lines(read_file(*byz), "BYZ"), record.name);
+    } catch (const std::exception& error) {
+        std::cout << "conversation record=" << record_index << " name=" << record.name
+                  << " parse_error=" << error.what() << '\n';
+        return outcome;
+    }
+    if (verbose) {
+        std::cout << "conversation record=" << record_index << " name=" << record.name
+                  << " stem=" << stem << " clips=" << program.clips.size()
+                  << " texts=" << program.texts.size()
+                  << " trailing_bytes=" << program.trailing_bytes
+                  << " object_context=" << object_context << '\n';
+    }
+    byzantine::ConversationSession conversation(std::move(program), state);
+    conversation.start();
+
+    // The scene layer under the dialogue is whatever the pre-conversation
+    // segment committed.
+    refresh_background(options, session.view);
+    session.display.compose(session.view, false);
+    DialogUi ui;
+    ui.base = session.display.surface.pixels;
+    ui.font = session.display.dialog_font ? &*session.display.dialog_font : nullptr;
+    if (ui.font != nullptr) ui.line_height = std::max(8, ui.font->line_height);
+
+    std::size_t choice_cursor = 0;
+    bool answer_shot_written = false;
+    bool object_click_used = false;
+    bool video_shot_written = false;
+    const auto wrap = [&ui](const std::string& text) {
+        if (ui.font != nullptr) return wrap_dialog_text(*ui.font, text, 520);
+        std::vector<std::string> lines{text};
+        return lines;
+    };
+    // 0x436b01 calls 0x424780(selected answer) before 0x43340a(entry list): the
+    // player's line enters the same scrollback as the NPC lines.
+    const auto show_answer_line = [&](const byzantine::ConversationAnswer& answer) {
+        if (!answer.show_text) return;
+        const auto lines = wrap(answer.text);
+        for (const auto& line : lines) {
+            ui.scrollback.push_back(line);
+            while (ui.scrollback.size() > 3) ui.scrollback.erase(ui.scrollback.begin());
+        }
+        ui.draw(session, false);
+        session.display.present(session.view, false);
+        if (session.interactive && !wait_dialog_ms(
+                session, static_cast<std::uint64_t>(lines.size()) * 700)) {
+            session.running = false;
+        }
+    };
+    while (session.running) {
+        byzantine::ConversationEvent event;
+        try {
+            event = conversation.next();
+        } catch (const std::exception& error) {
+            std::cout << "conversation record=" << record_index
+                      << " error=" << error.what() << '\n';
+            return outcome;
+        }
+        if (event.kind == byzantine::ConversationEventKind::error) {
+            std::cout << "conversation record=" << record_index
+                      << " error=" << event.error << '\n';
+            return outcome;
+        }
+        if (event.kind == byzantine::ConversationEventKind::finished) {
+            outcome.ok = true;
+            outcome.result = event.result;
+            if (verbose) {
+                std::cout << "conversation_end record=" << record_index
+                          << " name=" << record.name << " result=" << event.result
+                          << " lines=" << outcome.lines
+                          << " answer_lists=" << outcome.answer_lists
+                          << " media=" << outcome.media
+                          << " instructions=" << conversation.executed_instructions() << '\n';
+            }
+            return outcome;
+        }
+        if (event.kind == byzantine::ConversationEventKind::line) {
+            ++outcome.lines;
+            const auto wrapped = wrap(event.line.text);
+            if (event.line.show_text) {
+                for (const auto& line : wrapped) {
+                    ui.scrollback.push_back(line);
+                    while (ui.scrollback.size() > 3) ui.scrollback.erase(ui.scrollback.begin());
+                }
+            }
+            ui.draw(session, false);
+            session.display.present(session.view, false);
+            if (verbose) {
+                std::cout << "conversation_line record=" << record_index
+                          << " index=" << event.line.index
+                          << " clip=" << event.line.clip
+                          << " speaker=" << event.line.speaker
+                          << " text=" << (event.line.show_text ? "yes" : "no")
+                          << " media=" << (event.line.media_allowed ? "yes" : "no")
+                          << " group=" << event.group << '\n';
+            }
+            bool media_played = false;
+            if (event.line.media_allowed && options.dialog.empty()) {
+                std::cout << "conversation_media clip=" << event.line.clip
+                          << " not configured (--dialog); text stays\n";
+            } else if (event.line.media_allowed) {
+                const auto conversation_dir =
+                    find_directory_child(options.dialog, record.name);
+                std::optional<std::filesystem::path> avi;
+                if (conversation_dir) {
+                    avi = find_child(*conversation_dir, event.line.clip);
+                }
+                if (!avi) {
+                    const auto avi_root = options.dialog.parent_path() / "avi";
+                    avi = find_child(avi_root, event.line.clip);
+                }
+                if (!avi) {
+                    std::cout << "conversation_media clip=" << event.line.clip
+                              << " missing (0x40d2a1 logs and returns 0; text stays)\n";
+                } else if (!options.video) {
+                    std::cout << "conversation_media clip=" << event.line.clip
+                              << " skipped (--no-video)\n";
+                } else {
+                    const auto decoded = dialog_clip_cache(options, *avi, record.name,
+                                                           event.line.clip, verbose);
+                    if (!decoded) {
+                        std::cout << "conversation_media clip=" << event.line.clip
+                                  << " unavailable (text stays)\n";
+                    } else {
+                        std::optional<WavClip> sound;
+                        if (decoded->audio && options.audio && session.audio.ready()) {
+                            try {
+                                sound = parse_wav(read_file(*decoded->audio),
+                                                  decoded->audio->string());
+                            } catch (const std::exception& error) {
+                                std::cout << "conversation_media clip=" << event.line.clip
+                                          << " audio_error=" << error.what() << '\n';
+                            }
+                        }
+                        if (sound) session.audio.queue(*sound);
+                        const auto frame_time = std::chrono::microseconds(
+                            1000000 / std::max(1, decoded->fps));
+                        auto next_frame = std::chrono::steady_clock::now();
+                        for (const auto& frame_file : decoded->frames) {
+                            if (!session.running) break;
+                            byzantine::JpegImage image;
+                            try {
+                                image = byzantine::decode_jpeg_file(frame_file.string());
+                            } catch (const std::exception& error) {
+                                std::cout << "conversation_media clip=" << event.line.clip
+                                          << " frame_error=" << error.what() << '\n';
+                                break;
+                            }
+                            const auto pixels = byzantine::rgb_to_rgb565(image);
+                            ui.draw(session, false);
+                            const int x = (kSceneWidth - image.width) / 2;
+                            const int y = (kSceneHeight - image.height) / 2;
+                            byzantine::blit_image(session.display.surface, image.width,
+                                                  image.height, pixels.data(), x, y);
+                            session.display.present(session.view, false);
+                            if (!options.conversation_video_shot.empty() &&
+                                !video_shot_written) {
+                                if (byzantine::write_ppm(
+                                        session.display.surface,
+                                        options.conversation_video_shot)) {
+                                    std::cout << "conversation_video_shot "
+                                              << options.conversation_video_shot
+                                              << " clip=" << event.line.clip << '\n';
+                                }
+                                video_shot_written = true;
+                            }
+                            ++session.wait.frames;
+                            next_frame += frame_time;
+                            const auto now = std::chrono::steady_clock::now();
+                            if (next_frame > now) {
+                                SDL_Delay(static_cast<Uint32>(
+                                    std::chrono::duration_cast<std::chrono::milliseconds>(
+                                        next_frame - now)
+                                        .count()));
+                            } else {
+                                next_frame = now;
+                            }
+                            SDL_Event event_poll;
+                            while (SDL_PollEvent(&event_poll)) {
+                                ++session.wait.events;
+                                if (event_poll.type == SDL_QUIT) session.running = false;
+                                if (event_poll.type == SDL_KEYDOWN &&
+                                    event_poll.key.keysym.sym == SDLK_ESCAPE) {
+                                    session.running = false;
+                                }
+                                if (event_poll.type == SDL_KEYDOWN &&
+                                    event_poll.key.keysym.sym == SDLK_h) {
+                                    session.options.overlay = !session.options.overlay;
+                                }
+                            }
+                        }
+                        if (sound && session.running) {
+                            while (session.audio.queued() != 0 && session.running) {
+                                pump_window(session);
+                                SDL_Delay(4);
+                            }
+                        }
+                        media_played = true;
+                        ++outcome.media;
+                    }
+                }
+            }
+            if (!media_played && event.line.show_text && session.interactive) {
+                // 0x424981's reveal: roughly one second per visual line.
+                if (!wait_dialog_ms(session,
+                                    static_cast<std::uint64_t>(wrapped.size()) * 700))
+                    break;
+            }
+            conversation.line_shown();
+            continue;
+        }
+        if (event.kind == byzantine::ConversationEventKind::answers) {
+            ++outcome.answer_lists;
+            if (verbose) {
+                std::cout << "conversation_answers record=" << record_index
+                          << " group=" << event.group
+                          << " choices=" << event.answers.size() << '\n';
+                for (const auto& answer : event.answers) {
+                    std::cout << "  choice=" << answer.choice
+                              << " line=" << answer.line
+                              << " clip=" << answer.clip
+                              << " text=" << (answer.show_text ? "yes" : "no")
+                              << " media=" << (answer.media_allowed ? "yes" : "no") << '\n';
+                }
+            }
+            if (event.answers.empty()) {
+                std::cout << "conversation record=" << record_index
+                          << " no answers (0x436b01 sets done)\n";
+                return outcome;
+            }
+            if (!options.conversation_shot.empty() && !answer_shot_written) {
+                std::vector<SDL_Rect> shot_rects;
+                draw_answer_panel(ui, session, event.answers, {}, &shot_rects);
+                session.display.present(session.view, false);
+                if (byzantine::write_ppm(session.display.surface,
+                                         options.conversation_shot)) {
+                    std::cout << "conversation_shot " << options.conversation_shot
+                              << " group=" << event.group << '\n';
+                }
+                answer_shot_written = true;
+            }
+            if (!session.interactive) {
+                if (options.conversation_object && !object_click_used) {
+                    object_click_used = true;
+                    std::cout << "conversation_object record=" << record_index
+                              << " slot=" << *options.conversation_object << '\n';
+                    conversation.click_object(
+                        static_cast<std::uint16_t>(*options.conversation_object));
+                    continue;
+                }
+                if (choice_cursor >= options.conversation_choices.size()) {
+                    std::cout << "conversation record=" << record_index
+                              << " waiting for an answer but --conversation-choices "
+                                 "is exhausted\n";
+                    return outcome;
+                }
+                const auto choice = options.conversation_choices[choice_cursor++];
+                if (choice >= event.answers.size()) {
+                    std::cout << "conversation record=" << record_index
+                              << " choice=" << choice << " outside the "
+                              << event.answers.size() << " answers\n";
+                    return outcome;
+                }
+                // Play the selected answer's line before its script (0x436b01
+                // calls 0x424780 before 0x43340a).
+                std::cout << "conversation_choice record=" << record_index
+                          << " choice=" << choice
+                          << " line=" << event.answers[choice].line << '\n';
+                show_answer_line(event.answers[choice]);
+                try {
+                    conversation.choose(choice);
+                } catch (const std::exception& error) {
+                    std::cout << "conversation record=" << record_index
+                              << " answer_error=" << error.what() << '\n';
+                    return outcome;
+                }
+                continue;
+            }
+            std::vector<SDL_Rect> rects;
+            bool picked = false;
+            while (session.running && !picked) {
+                draw_answer_panel(ui, session, event.answers, {}, &rects);
+                session.display.present(session.view, false);
+                if (!options.conversation_shot.empty() && !answer_shot_written) {
+                    if (byzantine::write_ppm(session.display.surface,
+                                             options.conversation_shot)) {
+                        std::cout << "conversation_shot " << options.conversation_shot
+                                  << " group=" << event.group << '\n';
+                    }
+                    answer_shot_written = true;
+                }
+                if (options.selftest_events && !rects.empty()) {
+                    // Prove the real answer hit test: a logical click at the
+                    // centre of the first answer row, delivered through SDL.
+                    int window_x = 0;
+                    int window_y = 0;
+                    SDL_RenderLogicalToWindow(
+                        session.display.renderer,
+                        static_cast<float>(rects.front().x + rects.front().w / 2),
+                        static_cast<float>(rects.front().y + rects.front().h / 2),
+                        &window_x, &window_y);
+                    SDL_Event injected{};
+                    injected.type = SDL_MOUSEBUTTONUP;
+                    injected.button.button = SDL_BUTTON_LEFT;
+                    injected.button.x = window_x;
+                    injected.button.y = window_y;
+                    SDL_PushEvent(&injected);
+                }
+                SDL_Event event_poll;
+                while (SDL_PollEvent(&event_poll)) {
+                    ++session.wait.events;
+                    if (event_poll.type == SDL_QUIT) {
+                        session.running = false;
+                    } else if (event_poll.type == SDL_KEYDOWN &&
+                               event_poll.key.keysym.sym == SDLK_ESCAPE) {
+                        session.running = false;
+                    } else if (event_poll.type == SDL_KEYDOWN &&
+                               event_poll.key.keysym.sym == SDLK_h) {
+                        session.options.overlay = !session.options.overlay;
+                    } else if (event_poll.type == SDL_MOUSEBUTTONUP &&
+                               event_poll.button.button == SDL_BUTTON_LEFT) {
+                        float logical_x = 0;
+                        float logical_y = 0;
+                        SDL_RenderWindowToLogical(session.display.renderer,
+                                                  event_poll.button.x, event_poll.button.y,
+                                                  &logical_x, &logical_y);
+                        bool in_answer = false;
+                        for (std::size_t index = 0; index < rects.size(); ++index) {
+                            const auto& rect = rects[index];
+                            if (logical_x >= rect.x && logical_x <= rect.x + rect.w &&
+                                logical_y >= rect.y && logical_y <= rect.y + rect.h) {
+                                if (verbose) {
+                                    std::cout << "conversation_pick record=" << record_index
+                                              << " choice=" << index << '\n';
+                                }
+                                show_answer_line(event.answers[index]);
+                                try {
+                                    conversation.choose(index);
+                                } catch (const std::exception& error) {
+                                    std::cout << "conversation record=" << record_index
+                                              << " answer_error=" << error.what() << '\n';
+                                    return outcome;
+                                }
+                                in_answer = true;
+                                picked = true;
+                                break;
+                            }
+                        }
+                        if (in_answer) break;
+                        // 0x436b01 also returns a scene-object click to 0x70.
+                        const auto hit = hotspot_at(session.view, static_cast<int>(logical_x),
+                                                    static_cast<int>(logical_y));
+                        if (hit.slot) {
+                            if (verbose) {
+                                std::cout << "conversation_object record=" << record_index
+                                          << " slot=" << *hit.slot << '\n';
+                            }
+                            conversation.click_object(*hit.slot);
+                            picked = true;
+                            break;
+                        }
+                    }
+                }
+                SDL_Delay(16);
+            }
+            if (!picked) return outcome;
+            continue;
+        }
+        return outcome;
+    }
+    return outcome;
+}
+
+// Runs a click plan end to end. For a 0x70 plan the pre-conversation segment is
+// played first (its sounds included), then the real conversation runs on the
+// state at the pause, and the script resumes at the instruction the result
+// selects. `run` is the caller's segment runner (audio-gated interactive or one
+// unbudgeted pass in --shot).
+bool execute_plan(Session& session, const ClickPlan& plan,
+                  const std::function<bool(EntryPoint, const byzantine::SceneState&,
+                                           const byzantine::SceneTrace&)>& run,
+                  bool verbose) {
+    if (!plan.conversation) {
+        return run(plan.point, plan.entry, plan.probe);
+    }
+    const auto request = *plan.probe.conversation_request;
+    if (!run(plan.point, plan.entry_before, plan.probe)) return false;
+    apply_panorama_events(session.view, session.options, verbose);
+    refresh_background(session.options, session.view);
+    session.display.compose(session.view, false);
+    session.display.present(session.view, false);
+    {
+        std::ostringstream entry_state;
+        entry_state << "conversation_entry locals_digest=0x" << std::hex
+                    << locals_digest(session.view.state)
+                    << " state_fingerprint=0x" << state_fingerprint(session.view.state);
+        std::cout << entry_state.str() << std::dec << '\n';
+    }
+
+    const auto before_conversation = session.view.state;
+    const auto outcome = run_conversation(session, request.record, request.object_context,
+                                          verbose);
+    if (!outcome.ok) {
+        std::cout << "conversation stopped before completion; the click is not committed\n";
+        return false;
+    }
+    // The scene state outside the conversation's own variable writes must
+    // survive it: 0x432d6e only edits DAT_00482ad0 plus whatever the .ccb's
+    // 0x67/0x74 commands write.
+    {
+        std::size_t changed = 0;
+        for (const auto& [local, value] : before_conversation.variables) {
+            const auto now = session.view.state.variables.find(local);
+            if (now != session.view.state.variables.end() && now->second != value) {
+                if (verbose) {
+                    std::cout << "conversation_variable local=" << local
+                              << " before=" << value << " after=" << now->second << '\n';
+                }
+                ++changed;
+            }
+        }
+        std::cout << "conversation_state locals=" << before_conversation.variables.size()
+                  << " changed_locals=" << changed
+                  << " objects=" << before_conversation.objects.size() << '/'
+                  << session.view.state.objects.size()
+                  << " hotspots=" << before_conversation.hotspot_enabled.size() << '/'
+                  << session.view.state.hotspot_enabled.size()
+                  << " records=" << before_conversation.records.size() << '/'
+                  << session.view.state.records.size() << '\n';
+    }
+    std::size_t resume = 0;
+    try {
+        resume = byzantine::apply_conversation_result(session.view.script,
+                                                      session.view.state,
+                                                      request.instruction,
+                                                      outcome.result);
+    } catch (const std::exception& error) {
+        std::cout << "conversation result=" << outcome.result
+                  << " cannot be applied: " << error.what() << '\n';
+        return false;
+    }
+    std::cout << "conversation record=" << request.record << " name=" << outcome.name
+              << " result=" << outcome.result << " lines=" << outcome.lines
+              << " answer_lists=" << outcome.answer_lists << " media=" << outcome.media
+              << " resume_instruction=" << resume << '\n';
+    if (outcome.result == 0xffff) {
+        std::cout << "conversation_branch none (0xffff: script continues after the 0x70)\n";
+    } else {
+        std::cout << "conversation_branch object=" << outcome.result << " label="
+                  << (session.view.state.objects.count(outcome.result) != 0
+                          ? std::to_string(
+                                session.view.state.objects.at(outcome.result).label)
+                          : std::string("?"))
+                  << " target=" << resume << '\n';
+    }
+    // The conversation wrote scene variables through 0x67/0x74; those writes are
+    // in session.view.state and are the entry for the resumed segment.
+    const auto resume_entry = session.view.state;
+    byzantine::SceneState resume_probe_state = resume_entry;
+    const auto resumed_probe = byzantine::trace_scene_from_instruction(
+        session.view.script, session.view.entries, resume_probe_state, resume, 0);
+    std::cout << "conversation_resume_probe steps=" << resumed_probe.steps
+              << " stopped_at=" << resumed_probe.stopped_at
+              << " switch="
+              << (resumed_probe.scene_switch_requested
+                      ? std::to_string(*resumed_probe.scene_switch_requested)
+                      : std::string("none"))
+              << " sounds=" << sound_events(resumed_probe).size()
+              << " blocker=" << byzantine::trace_blocker(resumed_probe) << '\n';
+    if (!run(EntryPoint{0, false, resume}, resume_entry, resumed_probe)) return false;
+    // The resumed segment is a real continuation of the same script; if it
+    // stops on data the port lacks, the action must not be committed as a
+    // success (the caller restores the pre-click state).
+    const auto resumed_blocker = byzantine::trace_blocker(session.view.trace);
+    if (!resumed_blocker.empty()) {
+        std::cout << "conversation resumed segment stopped: " << resumed_blocker
+                  << " at instruction " << session.view.trace.stopped_at
+                  << "; the click is not committed\n";
+        return false;
+    }
+    return true;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -1475,6 +2359,29 @@ int main(int argc, char** argv) {
                 }
             } else {
                 std::cout << "fonts disabled: klio.SFN/GR_KLIO.TGA/BK_KLIO.TGA not under "
+                          << options.fonts.string() << '\n';
+            }
+            const auto dlg = find_child(options.fonts, "dialog");
+            const auto dlg_gr = find_child(options.fonts, "gr_dlg");
+            const auto dlg_bk = find_child(options.fonts, "bk_dlg");
+            if (dlg && dlg_gr && dlg_bk) {
+                try {
+                    // 0x406cfe slot 0: DIALOG.SFN + GR_DLG/BK_DLG, fill
+                    // (0x16 << green) | (0x1c << red) = 0xe2c0 in RGB565.
+                    session.display.dialog_font = byzantine::load_sfn_font(
+                        dlg->string(), dlg_gr->string(), dlg_bk->string(), 0xe2c0);
+                    std::cout << "fonts dialog glyphs="
+                              << session.display.dialog_font->glyph_count
+                              << " atlas=" << session.display.dialog_font->atlas_width
+                              << 'x' << session.display.dialog_font->atlas_height
+                              << " line=" << session.display.dialog_font->line_height
+                              << '\n';
+                } catch (const std::exception& error) {
+                    std::cout << "dialog font disabled: " << error.what() << '\n';
+                }
+            } else {
+                std::cout << "dialog font disabled: DIALOG.SFN/GR_DLG.TGA/BK_DLG.TGA "
+                             "not under "
                           << options.fonts.string() << '\n';
             }
         } else {
@@ -1533,14 +2440,26 @@ int main(int argc, char** argv) {
                 return run_label_gated(session, point, entry, look, true);
             };
             session.interactive = true;
-            const bool startup_ok =
-                run(EntryPoint{session.view.label, options.entry}, session.view.entry_state,
-                    probe);
+            const EntryPoint startup_point{session.view.label, options.entry, std::nullopt};
+            bool startup_ok = false;
+            if (probe.conversation_request) {
+                ClickPlan startup;
+                startup.ok = true;
+                startup.conversation = true;
+                startup.point = startup_point;
+                startup.entry = probe_state;
+                startup.entry_before = session.view.entry_state;
+                startup.probe = probe;
+                startup_ok = execute_plan(session, startup, run, true);
+            } else {
+                startup_ok = run(startup_point, session.view.entry_state, probe);
+            }
             // The label's node loads/rotations belong to the renderer, so they
             // are applied exactly once, from the committed trace.
             apply_panorama_events(session.view, options, true);
             show_message_text(session, true);
-            if (options.selftest_events && !options.click && options.click_ats.empty()) {
+            if (options.selftest_events && !options.click && options.click_ats.empty() &&
+                !options.run_label) {
                 push_quit();
             }
             if (!startup_ok) {
@@ -1549,6 +2468,42 @@ int main(int argc, char** argv) {
                 SDL_DestroyWindow(session.display.window);
                 SDL_Quit();
                 return 0;
+            }
+            if (options.run_label) {
+                // The CLI counterpart of a committed hotspot action: run the
+                // label (and its conversation) on the current scene state.
+                ClickPlan plan;
+                plan.ok = true;
+                plan.action = static_cast<std::uint16_t>(*options.run_label);
+                plan.point = EntryPoint{plan.action, false, std::nullopt};
+                plan.entry_before = session.view.state;
+                plan.entry = session.view.state;
+                plan.probe = byzantine::trace_scene_label(session.view.script,
+                                                          session.view.entries,
+                                                          plan.entry, plan.action);
+                plan.conversation = plan.probe.conversation_request.has_value();
+                const auto blocker = byzantine::trace_blocker(plan.probe);
+                const auto before_trace = session.view.trace;
+                if (!blocker.empty()) {
+                    std::cout << "run_label " << plan.action << " stopped: " << blocker
+                              << " at instruction " << plan.probe.stopped_at << '\n';
+                } else if (!execute_plan(session, plan, run, true)) {
+                    session.view.state = plan.entry_before;
+                    set_trace(session.view, before_trace);
+                    std::cout << "run_label " << plan.action
+                              << " not committed\n";
+                } else {
+                    std::cout << "run_label " << plan.action << " click_result "
+                              << describe_trace(session.view.trace, session.view.state)
+                              << '\n';
+                    show_message_text(session, true);
+                    apply_panorama_events(session.view, options, true);
+                    refresh_background(options, session.view);
+                    session.display.compose(session.view);
+                    session.display.present(session.view, options.overlay);
+                    follow_switches(session, true);
+                }
+                if (options.selftest_events) push_quit();
             }
             refresh_background(options, session.view);
             session.display.compose(session.view);
@@ -1572,7 +2527,18 @@ int main(int argc, char** argv) {
                           << (hit.panorama_mapped ? " (panorama)" : "") << ' '
                           << plan.message << '\n';
                 if (!plan.ok) return;
-                if (!run(EntryPoint{plan.action, false}, plan.entry, plan.probe)) return;
+                const auto before_state = session.view.state;
+                const auto before_trace = session.view.trace;
+                if (!execute_plan(session, plan, run, true)) {
+                    // A conversation that stopped before 0x432d6e returned is
+                    // not a completed action: discard its partial variable
+                    // writes instead of leaving them in the scene.
+                    session.view.state = before_state;
+                    set_trace(session.view, before_trace);
+                    session.display.compose(session.view, false);
+                    session.display.present(session.view, options.overlay);
+                    return;
+                }
                 show_object_text(session, *hit.slot, true);
                 show_message_text(session, true);
                 apply_panorama_events(session.view, options, true);
@@ -1603,7 +2569,9 @@ int main(int argc, char** argv) {
                 const auto plan = plan_hotspot(session.view, *options.click);
                 std::cout << "click " << plan.message
                           << " handled=" << (plan.ok ? "true" : "false") << '\n';
-                if (plan.ok && run(EntryPoint{plan.action, false}, plan.entry, plan.probe)) {
+                const auto before_state = session.view.state;
+                const auto before_trace = session.view.trace;
+                if (plan.ok && execute_plan(session, plan, run, true)) {
                     show_object_text(session, static_cast<std::uint16_t>(*options.click), true);
                     show_message_text(session, true);
                     apply_panorama_events(session.view, options, true);
@@ -1615,6 +2583,12 @@ int main(int argc, char** argv) {
                               << " active_slots="
                               << session.view.trace.active_hotspots.size() << '\n';
                     follow_switches(session, true);
+                } else if (plan.ok) {
+                    session.view.state = before_state;
+                    set_trace(session.view, before_trace);
+                    session.display.compose(session.view, false);
+                    session.display.present(session.view, options.overlay);
+                    std::cout << "click not committed\n";
                 }
                 if (options.selftest_events) push_quit();
             }
@@ -1713,25 +2687,79 @@ int main(int argc, char** argv) {
         }
 
         // --shot: one deterministic frame, no audio device wait.
-        session.view.state = session.view.entry_state;
-        set_trace(session.view, probe);
-        session.view.state = std::move(probe_state);
+        // One unbudgeted script segment; a conversation still runs for real,
+        // using --conversation-choices because there is no window input loop.
+        const auto run_shot = [&](EntryPoint point, const byzantine::SceneState& entry,
+                                  const byzantine::SceneTrace&) {
+            set_trace(session.view, trace_point(session.view, point, entry, 0));
+            return true;
+        };
+        if (probe.conversation_request) {
+            ClickPlan startup;
+            startup.ok = true;
+            startup.conversation = true;
+            startup.point = EntryPoint{session.view.label, options.entry, std::nullopt};
+            startup.entry = probe_state;
+            startup.entry_before = session.view.entry_state;
+            startup.probe = probe;
+            if (!execute_plan(session, startup, run_shot, true)) {
+                session.view.state = startup.entry;
+                set_trace(session.view, probe);
+                std::cout << "startup_not_committed\n";
+            }
+        } else {
+            session.view.state = session.view.entry_state;
+            set_trace(session.view, probe);
+            session.view.state = std::move(probe_state);
+        }
         apply_panorama_events(session.view, options, true);
         show_message_text(session, true);
+        if (options.run_label) {
+            ClickPlan plan;
+            plan.ok = true;
+            plan.action = static_cast<std::uint16_t>(*options.run_label);
+            plan.point = EntryPoint{plan.action, false, std::nullopt};
+            plan.entry_before = session.view.state;
+            plan.entry = session.view.state;
+            plan.probe = byzantine::trace_scene_label(session.view.script,
+                                                      session.view.entries, plan.entry,
+                                                      plan.action);
+            plan.conversation = plan.probe.conversation_request.has_value();
+            const auto blocker = byzantine::trace_blocker(plan.probe);
+            const auto before_trace = session.view.trace;
+            if (!blocker.empty()) {
+                std::cout << "run_label " << plan.action << " stopped: " << blocker
+                          << " at instruction " << plan.probe.stopped_at << '\n';
+            } else if (!execute_plan(session, plan, run_shot, true)) {
+                session.view.state = plan.entry_before;
+                set_trace(session.view, before_trace);
+                std::cout << "run_label " << plan.action << " not committed\n";
+            } else {
+                std::cout << "run_label " << plan.action << " click_result "
+                          << describe_trace(session.view.trace, session.view.state) << '\n';
+                show_message_text(session, true);
+                apply_panorama_events(session.view, options, true);
+                follow_switches(session, false);
+            }
+        }
         if (options.click) {
             const auto plan = plan_hotspot(session.view, *options.click);
             std::cout << "click " << plan.message
                       << " handled=" << (plan.ok ? "true" : "false") << '\n';
             if (plan.ok) {
-                set_trace(session.view,
-                          trace_point(session.view, EntryPoint{plan.action, false},
-                                      plan.entry, 0));
-                std::cout << "click_result "
-                          << describe_trace(session.view.trace, session.view.state) << '\n';
-                show_object_text(session, static_cast<std::uint16_t>(*options.click), true);
-                show_message_text(session, true);
-                apply_panorama_events(session.view, options, true);
-                follow_switches(session, true);
+                const auto before_trace = session.view.trace;
+                if (!execute_plan(session, plan, run_shot, true)) {
+                    session.view.state = plan.entry_before;
+                    set_trace(session.view, before_trace);
+                    std::cout << "click_not_committed\n";
+                } else {
+                    std::cout << "click_result "
+                              << describe_trace(session.view.trace, session.view.state) << '\n';
+                    show_object_text(session, static_cast<std::uint16_t>(*options.click), true);
+                    show_message_text(session, true);
+                    apply_panorama_events(session.view, options, true);
+                    follow_switches(session, true);
+                }
             }
         }
         for (const auto& point : options.click_ats) {
@@ -1748,9 +2776,13 @@ int main(int argc, char** argv) {
                 std::cout << '\n';
                 continue;
             }
-            set_trace(session.view,
-                      trace_point(session.view, EntryPoint{plan.action, false},
-                                  plan.entry, 0));
+            const auto before_trace = session.view.trace;
+            if (!execute_plan(session, plan, run_shot, true)) {
+                session.view.state = plan.entry_before;
+                set_trace(session.view, before_trace);
+                std::cout << " click_not_committed\n";
+                continue;
+            }
             std::cout << " click_result "
                       << describe_trace(session.view.trace, session.view.state) << '\n';
             show_object_text(session, *hit.slot, true);

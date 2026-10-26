@@ -101,11 +101,27 @@ etiket kümesinde bulunuyor. Kanıt ve bilinmeyen listesi:
   `engine/<scene>ce` (`CE.ALL`, gerçek Türkçe metin), font
   `klio.SFN`+`GR_KLIO.TGA`/`BK_KLIO.TGA` ve `0x4067e2` karışımıdır (`--ce`,
   `--fonts`). Bir nesneye tıklamak `+0x14` metin indeksini gösterir ve
-  nesnenin `action` etiketi betiği sürdürür. Not: oyunun `0x70` konuşmaları
-  **ses + animasyon**dur; `CCB/CCF` konuşma VM'i (`0x43340a`) metin çizmez,
-  bu yüzden diyalog altyazısı verisi yoktur. Kapsam dışı: mesaj paneli
+  nesnenin `action` etiketi betiği sürdürür. Not (düzeltme 26 Ekim 2026):
+  `0x70` konuşmalarının altyazısı **vardır**; `engine/<stem>.byz` (`Byz.all`
+  içinde paketli) satır satır metni, `.ccf` ses klibi adlarını verir ve
+  `0x424780` metni çizer, `0x40d2a1` eşleşen `dialog/<ad>/<klip>.avi`'yi
+  oynatır. Ayrıntı ve MR örneği: [`CONVERSATION.md`](../analysis/rea/CONVERSATION.md).
+  Kapsam dışı: mesaj paneli
   arkası, saniyede bir satır açılan kaydırma (`0x4177c7`/`0x4176d8`) ve
   `0x4069a4`'ün SFN atlas çizimi. Video (`0xbd`) ve geçiş efektleri yoktur.
+- **Konuşmalar (`0x70`)**: seçilen örnek MR etiketi 413, konuşma kaydı 2 =
+  `IMhMR2a`. `0x70` operand 0'ı nesne değil `engine/<scene>cd` **kayıt indeksi**
+  olarak okur; VM `0x70`'te durur, gerçek `.ccb` komutlarını yürütür, `.byz`
+  altyazısını `DIALOG.SFN` ile çizer ve `.ccf`/`dialog/<ad>/<klip>.avi` medyasını
+  oynatır. Cevap listesi gerçek satırlardır ve fareyle tıklanır; konuşma
+  `0x39`/cevap sonunda `0xffff` dönerse betik `0x70`'ten sonraki komutta sürer,
+  bir sahne nesnesine tıklanırsa o nesnenin `+0x0c` etiketi çalışır. Değişken
+  yazımları `SceneState` üzerinden taşınır; yarım kalan konuşma commit edilmez.
+  İndeo 4 videosu FFmpeg ile bir kez JPEG+PCM önbelleğine çözülür (FFmpeg yoksa
+  metin kalır ve eksiklik bildirilir). Deneme:
+  `./port/scene.sh . MR 0 30.btb --entry --run-label 413` (cevap satırlarına
+  tıklayın). Ayrıntı, opcode tablosu ve doğrulama:
+  [`CONVERSATION.md`](../analysis/rea/CONVERSATION.md).
 - `byzantine-cc --hotspots`, işlem kodu `0x72` olan sabit alan tanımlarını çıkarır. Oyunun `FUN_0042db22` komut yürütücüsü bu tanımları tıklama alanı tablosuna yazıyor: alan numarası, x, y+20, genişlik, yükseklik ve kalan iki değer. Yedinci değerin alt baytı alan durumuna yazılıyor; diğer değerlerin tüm anlamları henüz çözülmedi (`ev_6fae0653eb9d17a560b88cf841ffbe1c2fc3b14d9c5f18ac7a7ef5e9853ca522`). Dinamik operandlı tanımlar atlanır; çıktı betik yürütme sırasını göstermez.
 - `byzantine-cc --backgrounds <CB kaydı>`, sabit `0x69` sahne komutu numaralarını aynı sahnenin `CB.ALL` ad listesiyle eşler. `CB.ALL` kayıtları `ad\0kaynak\0ff` dizilerinden oluşur. Dinamik numaralar ancak çalışan yorumlayıcıda çözülebilir.
 - `byzantine-cc --flow`, `0xe1` etiketleri ile `0x76` atlamalarını ve `0x9b` çağrılarını eşler. Oyunun `FUN_0042d383` işlevi etiketi sonraki komuta bağlar; aynı etiket birden çok kez tanımlanırsa son tanım geçerlidir. `FUN_0043194f` çağrı dönüş adresini saklar; `FUN_0042d8ba` dönüş komutları `0x6f` ve `0x83` için yığını boşaltır. Bu çıktı koşullu dalları çalıştırmaz.

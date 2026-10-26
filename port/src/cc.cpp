@@ -69,6 +69,17 @@ std::uint16_t encoded_word(const CcArgument& argument) {
         argument.encoded_value[0] | (argument.encoded_value[1] << 8));
 }
 
+// The raw u16 the original reads from the operand slot, without the type-2
+// variable resolution 0x4319b3 performs. FUN_00412762 initialises both halves
+// of a slot to 0x00ff: type 0 has no data (0xffff), a one-byte type keeps the
+// byte in the low half, and a two-byte type is little-endian.
+std::uint16_t slot_word(const CcArgument& argument) {
+    if (argument.encoded_value.empty()) return 0xffff;
+    if (argument.encoded_value.size() == 1) return argument.encoded_value[0];
+    return static_cast<std::uint16_t>(
+        argument.encoded_value[0] | (argument.encoded_value[1] << 8));
+}
+
 std::optional<std::uint16_t> scene_value(
     const CcArgument& argument,
     const std::map<std::uint16_t, std::uint16_t>& values) {
@@ -94,6 +105,30 @@ void write_variable(SceneState& state, std::uint16_t local, std::uint16_t value)
     state.variables[local] = value;
     state.variable_writes.push_back(local);
 }
+
+}  // namespace
+
+std::uint8_t cc_argument_count(std::uint8_t opcode) {
+    // 0x460466 + opcode is indexed directly by the opcode byte (0x32..0xe1).
+    if (opcode < 0x32 || opcode > 0xe1) {
+        throw std::runtime_error("CC opcode outside the argument-count table");
+    }
+    return kArgumentCounts[opcode - 0x32];
+}
+
+std::optional<std::uint16_t> read_local_variable(const SceneState& state,
+                                                 std::uint16_t local) {
+    const auto found = state.variables.find(local);
+    if (found == state.variables.end()) return std::nullopt;
+    return found->second;
+}
+
+void write_local_variable(SceneState& state, std::uint16_t local,
+                          std::uint16_t value) {
+    write_variable(state, local, value);
+}
+
+namespace {
 
 // 0x460418 / 0x460428: byte tables applied to the actor flag byte by 0x432904
 // (opcode 0x85) and used by 0x4324b0 (0x64) to derive the kind byte. Objdump
@@ -788,39 +823,23 @@ static SceneTrace trace_scene_from(const std::vector<CcInstruction>& script,
         }
         case 0x70: {
             // 0x42db22 case 0x70 CONVERSE. The original runs the nested
-            // conversation runner 0x432d6e and, when it returns an object id,
-            // replaces pc with DAT_004654e0[object->+0x0c] (0x42d383 fills that
-            // table with every 0xe1 node). That runner, the object-name lists
-            // (DAT_0046e870/DAT_00485a10) and the per-scene record table
-            // DAT_00482ad0 are not reconstructed, so the port takes operand 0
-            // (0x436652, the raw encoded word) as the conversation's object id
-            // and performs the same label lookup. A trace therefore models the
-            // branch the original takes when its conversation returns that
-            // object; it does not simulate the conversation UI.
-            //
-            // DAT_0047a280 gates the block in the original (nonzero takes the
-            // else branch, which only redraws); that flag is not SceneState.
-            const auto id = encoded_word(instruction.arguments.at(0));
-            const auto found = state.objects.find(id);
-            if (found == state.objects.end()) {
-                trace.missing_object = id;
-                trace.stopped_at = current;
-                pc = script.size();
-                break;
-            }
-            const auto label = found->second.label;
-            const auto target = label <= 0xffff
-                ? flow.labels.find(static_cast<std::uint16_t>(label))
-                : flow.labels.end();
-            if (target == flow.labels.end()) {
-                trace.unresolved_object_label = label;
-                trace.stopped_at = current;
-                pc = script.size();
-                break;
-            }
-            trace.converse_jumps.push_back(SceneConverseJump{current, id, label,
-                                                             target->second});
-            pc = target->second;
+            // conversation runner 0x432d6e and uses its result as the branch:
+            //   0xffff -> pc stays after the 0x70
+            //   0xfffe -> 0x42db22 sets the dispatcher's "stop" result
+            //   other  -> an object id; pc becomes DAT_004654e0[object->+0x0c]
+            // Operand 0 is the conversation-record index into engine/<scene>cd
+            // (DAT_0046e870), NOT an object slot; 0x410f09 maps its name into
+            // DAT_00485a10 and DAT_00482ad0 holds the loaded .ccb state. Operand
+            // 1 is the object id the conversation starts with (0x432d6e's third
+            // argument). The conversation itself needs its CCB/CCF/BYZ data and
+            // player input, so the VM pauses here and the caller resumes with
+            // apply_conversation_result(). The old operand-as-object lookup was
+            // wrong and is removed.
+            trace.conversation_request = SceneTrace::ConversationRequest{
+                current, slot_word(instruction.arguments.at(0)),
+                slot_word(instruction.arguments.at(1))};
+            trace.stopped_at = current;
+            pc = script.size();
             break;
         }
         case 0xcc: {
@@ -2074,6 +2093,49 @@ SceneTrace trace_scene_label(const std::vector<CcInstruction>& script,
                              std::uint16_t label) {
     SceneState state;
     return trace_scene_label(script, entries, state, label);
+}
+
+SceneTrace trace_scene_from_instruction(const std::vector<CcInstruction>& script,
+                                        const std::vector<BackgroundEntry>& entries,
+                                        SceneState& state, std::size_t instruction,
+                                        std::size_t step_budget) {
+    if (instruction > script.size()) {
+        throw std::runtime_error("conversation resume instruction outside the script");
+    }
+    return trace_scene_from(script, entries, state, instruction, step_budget);
+}
+
+std::size_t apply_conversation_result(const std::vector<CcInstruction>& script,
+                                      const SceneState& state,
+                                      std::size_t instruction,
+                                      std::uint16_t result,
+                                      SceneConverseJump* jump) {
+    if (instruction >= script.size() || script[instruction].opcode != 0x70) {
+        throw std::runtime_error("conversation result applied to a non-0x70 instruction");
+    }
+    if (result == 0xffff) return instruction + 1;
+    if (result == 0xfffe) {
+        throw std::runtime_error("conversation aborted (0xfffe) without a script continuation");
+    }
+    const auto object = state.objects.find(result);
+    if (object == state.objects.end()) {
+        throw std::runtime_error("conversation returned object " + std::to_string(result) +
+                                 " which the scene does not define");
+    }
+    const auto label = object->second.label;
+    if (label > 0xffff) {
+        throw std::runtime_error("conversation object label outside 16-bit range");
+    }
+    const auto flow = resolve_control_flow(script);
+    const auto target = flow.labels.find(static_cast<std::uint16_t>(label));
+    if (target == flow.labels.end()) {
+        throw std::runtime_error("conversation object " + std::to_string(result) +
+                                 " has no CC label " + std::to_string(label));
+    }
+    if (jump != nullptr) {
+        *jump = SceneConverseJump{instruction, result, label, target->second};
+    }
+    return target->second;
 }
 
 std::string trace_blocker(const SceneTrace& trace) {

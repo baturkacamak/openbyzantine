@@ -34,6 +34,7 @@ port/anims-test
 port/compose-test
 port/jpeg-test
 port/text-test
+port/conversation-test
 *.o
 *.a
 *.so

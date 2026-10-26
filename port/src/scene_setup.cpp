@@ -106,6 +106,12 @@ void apply_dialogue_inputs(SceneState& state,
         state.video_records = parse_named_records(read_metadata_file(video->second));
         state.video_table_known = true;
     }
+    const auto conversations = options.find("--cd");
+    if (conversations != options.end()) {
+        state.conversation_records =
+            parse_conversation_records(read_metadata_file(conversations->second));
+        state.conversation_table_known = true;
+    }
     const auto anims = options.find("--anims");
     if (anims != options.end()) {
         // 0x40fe70 resolves "anims\<name[0]><name[1]>\<name>.rle"; the library

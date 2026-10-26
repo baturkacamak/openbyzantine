@@ -350,7 +350,21 @@ struct SceneConverseJump {
 // Mutable state retained while one scene script is running. Keys are the
 // script-local variable and hotspot identifiers; the original EXE maps them to
 // process-global storage, which is intentionally outside this first VM layer.
+// One engine/<scene>cd record (FUN_00411dfc). The file is a flat sequence of
+//   name1 '\0' name2 '\0' separator (0xff)
+// records: name1 is the conversation name 0x40d2a1 uses for
+// dialog/<name>/<clip>.avi, name2 is the .ccd stem that 0x410669 turns into
+// .ccb/.ccf/.byz. 0x70's operand 0 indexes this table.
+struct ConversationRecord {
+    std::string name;
+    std::string file;
+};
+
 struct SceneState {
+    // engine/<scene>cd (DAT_0046e870): 0x70's operand 0 indexes this table and
+    // the record's file stem names the .ccb/.ccf/.byz conversation files.
+    std::vector<ConversationRecord> conversation_records;
+    bool conversation_table_known = false;
     // 0xba stages a horizontal pixel position (DAT_0045c064, clamped to
     // 0..0x9bf). 0x401ddf converts it to degrees and clears it back to -1 when
     // the panorama load reaches it.
@@ -628,6 +642,19 @@ struct SceneTrace {
     // 0xb9 with a nonzero resolved operand 1 clears DAT_0047e2f0 through the
     // 0x46ee00 per-scene index table. The table's meaning is not recovered.
     std::size_t panorama_flag_clears = 0;
+    // 0x70 CONVERSE. The original calls 0x432d6e (the nested conversation VM)
+    // and uses its return value as the branch: 0xffff continues after the 0x70,
+    // any other value is an object id whose +0x0c selects the next pc. Operand 0
+    // is the conversation-record index (engine/<scene>cd), NOT an object slot,
+    // and operand 1 is the object id the conversation starts with. Without a
+    // supplied conversation runner the trace stops here so a caller can run the
+    // real conversation and resume with apply_conversation_result().
+    struct ConversationRequest {
+        std::size_t instruction = 0;
+        std::uint16_t record = 0;         // operand 0 (0x436652 raw value)
+        std::uint16_t object_context = 0; // operand 1 (raw u16 at +0x0e)
+    };
+    std::optional<ConversationRequest> conversation_request;
     std::size_t stopped_at = 0;
 };
 
@@ -637,6 +664,21 @@ struct SceneTrace {
 // cannot reproduce. Returns an empty string for a real end (0x6f return, 0x79
 // script end) and for a 0x73 scene switch, otherwise a short "reason=detail".
 std::string trace_blocker(const SceneTrace& trace);
+
+// 0x460466 + opcode: the argument count FUN_00412762 reads. Exposed so the
+// conversation bytecode parser (.ccb) uses the same recovered table.
+std::uint8_t cc_argument_count(std::uint8_t opcode);
+
+// FUN_00411dfc on engine/<scene>cd; strict about the 0xff record separator.
+std::vector<ConversationRecord> parse_conversation_records(
+    const std::vector<std::uint8_t>& file);
+
+// Local variable access through the scene's 300-entry projection (0x46ee00).
+// A local index outside the projection is "not known" instead of 0.
+std::optional<std::uint16_t> read_local_variable(const SceneState& state,
+                                                 std::uint16_t local);
+void write_local_variable(SceneState& state, std::uint16_t local,
+                          std::uint16_t value);
 
 // One record the scene composer drew.
 struct SceneDraw {
@@ -746,5 +788,27 @@ SceneTrace trace_scene_label(const std::vector<CcInstruction>& script,
 SceneTrace trace_scene_entry(const std::vector<CcInstruction>& script,
                             const std::vector<BackgroundEntry>& entries,
                             SceneState& state, std::size_t step_budget = 0);
+
+// Continues a scene script at a known instruction index. Used after a 0x70
+// conversation pause: the original replaces pc inside the same dispatcher and
+// keeps executing, which is not the same as starting a new label (the 0x6f
+// return stack and the carried state must stay with the running script).
+SceneTrace trace_scene_from_instruction(const std::vector<CcInstruction>& script,
+                                        const std::vector<BackgroundEntry>& entries,
+                                        SceneState& state, std::size_t instruction,
+                                        std::size_t step_budget = 0);
+
+// Applies a completed conversation's result to the state at the paused 0x70 and
+// returns the instruction the script continues at:
+//   result == 0xffff  -> instruction + 1 (0x42db22 leaves pc after the 0x70)
+//   otherwise         -> flow.labels[state.objects[result].label]
+// 0xfffe (the original's ESC result) is not a script continuation; the caller
+// must not resume. Throws when the object or its label is absent, exactly like
+// the original's NULL dereference would be a fault the port refuses to guess.
+std::size_t apply_conversation_result(const std::vector<CcInstruction>& script,
+                                      const SceneState& state,
+                                      std::size_t instruction,
+                                      std::uint16_t result,
+                                      SceneConverseJump* jump = nullptr);
 
 }  // namespace byzantine

@@ -236,10 +236,12 @@ void check_restore_and_object_opcodes() {
                 state.variables.at(299) == 2990,
             "load_save_variables LCV/identity mapping mismatch");
 
-    // 0x70 jumps to the object's +0x0c label; 0xcc then writes +0x14.
+    // 0x70 pauses at the conversation record; the caller applies the result and
+    // resumes inside the same script. Operand 0 is the engine/<scene>cd record
+    // index (2), not an object slot; the result object selects the label.
     const std::vector<CcInstruction> script{
         {0xe1, {word(10)}},       // 0
-        {0x70, {word(2), word(0)}},  // 1 -> label 70 at instruction 4
+        {0x70, {word(2), word(0)}},  // 1: conversation record 2
         {0x6f, {}},               // 2
         {0xe1, {word(70)}},       // 3
         {0x69, {word(0)}},        // 4
@@ -247,16 +249,24 @@ void check_restore_and_object_opcodes() {
         {0xcc, {word(9), word(7)}},       // 6: slot 9 is absent
         {0x6f, {}}                // 7
     };
-    const auto jumped = byzantine::trace_scene_label(script, {{"bg", ""}}, state, 10);
-    require(jumped.converse_jumps.size() == 1 &&
-                jumped.converse_jumps[0].id == 2 &&
-                jumped.converse_jumps[0].label == 70 &&
-                jumped.converse_jumps[0].target == 4 &&
-                jumped.background && jumped.background->id == 0,
-            "0x70 did not replace pc through the object label");
+    const auto paused = byzantine::trace_scene_label(script, {{"bg", ""}}, state, 10);
+    require(paused.conversation_request.has_value() &&
+                paused.conversation_request->record == 2 &&
+                paused.conversation_request->object_context == 0 &&
+                paused.conversation_request->instruction == 1,
+            "0x70 did not report the conversation request");
+    require(!paused.background, "0x70 continued past the conversation");
+    byzantine::SceneConverseJump jump;
+    const auto resume = byzantine::apply_conversation_result(script, state, 1, 2, &jump);
+    require(resume == 4 && jump.id == 2 && jump.label == 70 && jump.target == 4,
+            "conversation result did not select the object label");
+    const auto resumed =
+        byzantine::trace_scene_from_instruction(script, {{"bg", ""}}, state, resume);
+    require(resumed.background && resumed.background->id == 0,
+            "resumed segment did not run the target label");
     require(state.objects.at(2).argument == 0x1234,
             "0xcc did not write the object argument");
-    require(jumped.missing_object.has_value() && *jumped.missing_object == 9,
+    require(resumed.missing_object.has_value() && *resumed.missing_object == 9,
             "0xcc on an absent object did not report the NULL dereference");
 
     // A missing object must never be created implicitly.
@@ -267,17 +277,29 @@ void check_restore_and_object_opcodes() {
                 empty.objects.empty(),
             "0xcc allocated an absent object");
 
-    // 0x70 with an absent slot and with a label that is not in this script.
+    // 0x70 with an absent result object and with an object label outside the
+    // script: applying the result must refuse instead of guessing.
     const auto missing_converse = byzantine::trace_scene_label(
         {{0xe1, {word(10)}}, {0x70, {word(9), word(0)}}, {0x6f, {}}}, {}, empty, 10);
-    require(missing_converse.missing_object.has_value() &&
-                *missing_converse.missing_object == 9,
-            "0x70 accepted an absent object");
-    const auto bad_label = byzantine::trace_scene_label(
-        {{0xe1, {word(10)}}, {0x70, {word(5), word(0)}}, {0x6f, {}}}, {}, state, 10);
-    require(bad_label.unresolved_object_label.has_value() &&
-                *bad_label.unresolved_object_label == 999,
-            "0x70 accepted an object label outside the script");
+    require(missing_converse.conversation_request.has_value() &&
+                missing_converse.conversation_request->record == 9,
+            "0x70 did not report record 9");
+    bool missing_threw = false;
+    try {
+        (void)byzantine::apply_conversation_result(
+            {{0xe1, {word(10)}}, {0x70, {word(9), word(0)}}, {0x6f, {}}}, empty, 1, 9);
+    } catch (const std::runtime_error&) {
+        missing_threw = true;
+    }
+    require(missing_threw, "a conversation result object was invented");
+
+    bool label_threw = false;
+    try {
+        (void)byzantine::apply_conversation_result(script, state, 1, 5);
+    } catch (const std::runtime_error&) {
+        label_threw = true;
+    }
+    require(label_threw, "a conversation object label outside the script was accepted");
 
     // The raw operand widens as the original's short->uint assignment does.
     byzantine::SceneState negative;
@@ -411,8 +433,10 @@ void check_real_save(const std::filesystem::path& path, const std::vector<std::s
     }
 
     // Real-save acceptance for the two object opcodes. VT label 356 runs six
-    // 0xcc writes; EA label 1779 reaches a 0x70 that jumps through object 3.
-    // The labels are labels of the shipped scene scripts, not synthetic input.
+    // 0xcc writes; EA label 1779 reaches a 0x70 whose operand 0 is the
+    // conversation-record index 3 (not object 3). The conversation itself is
+    // interactive, so the trace pauses; applying a scripted result object 3
+    // resumes at object 3's +0x0c label 544.
     if (*scene == "vt") {
         const auto script = byzantine::parse_cc(read_file(cc_path));
         const auto trace = byzantine::trace_scene_label(script, {}, restored, 356);
@@ -425,10 +449,19 @@ void check_real_save(const std::filesystem::path& path, const std::vector<std::s
         // rather than depending on a CB fixture the save test does not receive.
         const std::vector<byzantine::BackgroundEntry> entries(1024, {"bg", ""});
         const auto trace = byzantine::trace_scene_label(script, entries, restored, 1779);
-        require(!trace.converse_jumps.empty() &&
-                    trace.converse_jumps[0].id == 3 &&
-                    trace.converse_jumps[0].label == 544,
-                tag + ": EA label 1779 did not jump through object 3");
+        require(trace.conversation_request.has_value() &&
+                    trace.conversation_request->record == 3 &&
+                    trace.conversation_request->instruction == 2246,
+                tag + ": EA label 1779 did not pause at conversation record 3");
+        byzantine::SceneConverseJump jump;
+        const auto resume = byzantine::apply_conversation_result(
+            script, restored, trace.conversation_request->instruction, 3, &jump);
+        require(jump.id == 3 && jump.label == 544,
+                tag + ": EA conversation result did not select object 3's label 544");
+        const auto resumed = byzantine::trace_scene_from_instruction(
+            script, entries, restored, resume);
+        require(resumed.background.has_value(),
+                tag + ": EA resumed conversation segment did not run its label");
     }
 
     // Truncation must fail, never silently parse a prefix.

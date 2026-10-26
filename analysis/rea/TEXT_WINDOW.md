@@ -95,32 +95,20 @@ draws directly on the scene), the one-line-per-second reveal/scroll of
 `0x4177c7` (the block is drawn at its final position), the 0x4176d8 tick, and
 the `0x4069a4` path that blits the `.SFN` atlas itself.
 
-## 5. The conversations have no text
+## 5. The conversations have text (correction, 26 October 2026)
 
-The `0x70` CONVERSE path is real and reachable (MR label 413 →
-`converse_jump id=2 label=265 target=324`, for example), but its content is
-voice + talking-head animation:
+The earlier claim that conversations are voice-only was **wrong**. `0x410669`
+(`1a4831f4aa67ebf9`) loads three packed records for a cd entry:
+`engine/<stem>.ccb` (bytecode), `.ccf` (voice-clip names) and `.byz` (the
+dialogue lines, e.g. `MMhmr1a`, `IMhMR2a` inside `Byz.all`). `0x424780` draws the
+BYZ line and `0x40d2a1` plays the paired `dialog/<name>/<clip>.avi` when the
+speaker is in `0x40ced0`'s 16-name list. A "conversation with text" therefore uses
+the shipped text; see `analysis/rea/CONVERSATION.md` for the format, the MR
+example (IMhMR2a, real subtitles and AVIs), and the implemented VM slice.
 
-- `0x410669` (`1a4831f4aa67ebf9`) loads `engine/<name>.ccb` (the conversation
-  bytecode, parsed by `0x4119e3`/`0x412762` into two instruction lists) and
-  `engine/<name>.ccf` (a list of voice-clip names, e.g. `Mr2meh00…`,
-  `Mr2pro00…`).
-- `0x43340a` (`3a9555ec83f82adc`) is the conversation VM. It calls the text
-  drawer **nowhere**; its only `0x4177c7` calls are `0x4177c7(0)` (clear) inside
-  its `0x69`/`0xb9` background/node cases. Its opcodes play lines/replies and
-  build linked answer entries (`0x4367eb`) but no character text exists.
-- The answer selection itself is the real object/inventory list (CI names such
-  as `INurayP`, `inewspap`). There is no subtitle asset: `CAPTIONS.SFN/TGA` are
-  the video-caption font, and the only shipped prose is `CE.ALL` and
-  `setupart/MESSAGES.TXT`.
+The text-bearing examine/message window described above remains the other real
+text interaction; it is not a substitute for the conversation subtitles.
 
-So a "conversation with text" cannot use dialogue text without inventing it.
-The text-bearing interaction the game really has is the examine/message window,
-implemented above. Demonstration scene: CLOCK (save `70.btb`), whose entry leaves
-the clock (object 31, `+0x14 = 0`) and six other hotspots active; clicking the
-clock shows `CE.ALL` CLOCK entry 0 in the examine window and runs its label 576;
-clicking the pendulum (object 0) clears the window and runs label 264, which
-enables the twelve mechanism hotspots (the real "answer" set).
 
 ## 6. Real results
 

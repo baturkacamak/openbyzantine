@@ -2,45 +2,45 @@
  "scope": "fresh SceneState per label; static scripts only",
  "engine_tables": true,
  "scene_saves": {
-  "am": "/tmp/byz-census-_c2t6kdj/copy2hd/savegame/66.btb",
-  "as": "/tmp/byz-census-_c2t6kdj/copy2hd/savegame/38.btb",
-  "bc": "/tmp/byz-census-_c2t6kdj/copy2hd/savegame/29.btb",
-  "clock": "/tmp/byz-census-_c2t6kdj/copy2hd/savegame/71.btb",
-  "ea": "/tmp/byz-census-_c2t6kdj/copy2hd/savegame/26.btb",
-  "gc": "/tmp/byz-census-_c2t6kdj/copy2hd/savegame/67.btb",
-  "hl": "/tmp/byz-census-_c2t6kdj/copy2hd/savegame/28.btb",
-  "hstmed": "/tmp/byz-census-_c2t6kdj/copy2hd/savegame/55.btb",
-  "iu": "/tmp/byz-census-_c2t6kdj/copy2hd/savegame/63.btb",
-  "lintel": "/tmp/byz-census-_c2t6kdj/copy2hd/savegame/59.btb",
-  "map": "/tmp/byz-census-_c2t6kdj/copy2hd/savegame/tempsave.btb",
-  "mr": "/tmp/byz-census-_c2t6kdj/copy2hd/savegame/autosave.btb",
-  "nb": "/tmp/byz-census-_c2t6kdj/copy2hd/savegame/57.btb",
-  "va": "/tmp/byz-census-_c2t6kdj/copy2hd/savegame/64.btb",
-  "vb": "/tmp/byz-census-_c2t6kdj/copy2hd/savegame/42.btb",
-  "vc": "/tmp/byz-census-_c2t6kdj/copy2hd/savegame/60.btb",
-  "vh": "/tmp/byz-census-_c2t6kdj/copy2hd/savegame/69.btb",
-  "vt": "/tmp/byz-census-_c2t6kdj/copy2hd/savegame/73.btb"
+  "am": "/tmp/byz-census-uzl21p8z/copy2hd/savegame/66.btb",
+  "as": "/tmp/byz-census-uzl21p8z/copy2hd/savegame/38.btb",
+  "bc": "/tmp/byz-census-uzl21p8z/copy2hd/savegame/29.btb",
+  "clock": "/tmp/byz-census-uzl21p8z/copy2hd/savegame/71.btb",
+  "ea": "/tmp/byz-census-uzl21p8z/copy2hd/savegame/26.btb",
+  "gc": "/tmp/byz-census-uzl21p8z/copy2hd/savegame/67.btb",
+  "hl": "/tmp/byz-census-uzl21p8z/copy2hd/savegame/28.btb",
+  "hstmed": "/tmp/byz-census-uzl21p8z/copy2hd/savegame/55.btb",
+  "iu": "/tmp/byz-census-uzl21p8z/copy2hd/savegame/63.btb",
+  "lintel": "/tmp/byz-census-uzl21p8z/copy2hd/savegame/59.btb",
+  "map": "/tmp/byz-census-uzl21p8z/copy2hd/savegame/tempsave.btb",
+  "mr": "/tmp/byz-census-uzl21p8z/copy2hd/savegame/autosave.btb",
+  "nb": "/tmp/byz-census-uzl21p8z/copy2hd/savegame/57.btb",
+  "va": "/tmp/byz-census-uzl21p8z/copy2hd/savegame/64.btb",
+  "vb": "/tmp/byz-census-uzl21p8z/copy2hd/savegame/42.btb",
+  "vc": "/tmp/byz-census-uzl21p8z/copy2hd/savegame/60.btb",
+  "vh": "/tmp/byz-census-uzl21p8z/copy2hd/savegame/69.btb",
+  "vt": "/tmp/byz-census-uzl21p8z/copy2hd/savegame/73.btb"
  },
  "scenes": 44,
  "labels": 7693,
  "totals": {
-  "_skipped_node_commands": 1925,
-  "_records_created": 733,
+  "_skipped_node_commands": 1924,
+  "_records_created": 730,
   "_anims_load_failures": 8,
   "_frame_overflow_logs": 1,
-  "return": 5913,
+  "return": 5877,
   "unresolved_variable": 1296,
-  "scene_switch": 119,
-  "unresolved_random": 245,
+  "scene_switch": 112,
+  "conversation_request": 80,
+  "unresolved_random": 241,
   "script_end": 22,
-  "missing_object": 80,
   "missing_media_record": 2,
-  "step_limit": 5,
+  "missing_object": 52,
   "unresolved_disc_request": 9,
   "missing_dialogue_chain": 2
  },
- "skipped_node_commands": 1925,
- "records_created": 733,
+ "skipped_node_commands": 1924,
+ "records_created": 730,
  "anims_load_failures": 8,
  "frame_overflow_logs": 1,
  "blocking_opcodes": [],
@@ -58,11 +58,12 @@
   "AM": {
    "_labels": 468,
    "_skipped_node_commands": 0,
-   "_records_created": 42,
+   "_records_created": 41,
    "_anims_load_failures": 0,
    "_frame_overflow_logs": 0,
-   "return": 444,
-   "unresolved_random": 22,
+   "return": 423,
+   "conversation_request": 22,
+   "unresolved_random": 21,
    "scene_switch": 1,
    "script_end": 1
   },
@@ -74,7 +75,8 @@
    "_frame_overflow_logs": 0,
    "return": 85,
    "unresolved_random": 17,
-   "scene_switch": 4
+   "conversation_request": 3,
+   "scene_switch": 1
   },
   "BB": {
    "_labels": 159,
@@ -84,17 +86,18 @@
    "_frame_overflow_logs": 0,
    "return": 96,
    "unresolved_variable": 53,
-   "missing_object": 10
+   "conversation_request": 10
   },
   "BC": {
    "_labels": 214,
-   "_skipped_node_commands": 10,
+   "_skipped_node_commands": 9,
    "_records_created": 19,
    "_anims_load_failures": 8,
    "_frame_overflow_logs": 0,
-   "return": 188,
-   "unresolved_random": 21,
+   "return": 187,
+   "unresolved_random": 20,
    "script_end": 3,
+   "conversation_request": 2,
    "scene_switch": 2
   },
   "CLOCK": {
@@ -113,8 +116,9 @@
    "_records_created": 43,
    "_anims_load_failures": 0,
    "_frame_overflow_logs": 0,
-   "return": 430,
-   "unresolved_random": 25,
+   "return": 427,
+   "unresolved_random": 23,
+   "conversation_request": 5,
    "script_end": 5,
    "missing_media_record": 1,
    "scene_switch": 1
@@ -178,7 +182,7 @@
    "return": 43,
    "unresolved_variable": 35,
    "script_end": 5,
-   "missing_object": 2,
+   "conversation_request": 2,
    "scene_switch": 2,
    "missing_media_record": 1,
    "unresolved_random": 1
@@ -202,7 +206,7 @@
    "_frame_overflow_logs": 0,
    "unresolved_variable": 17,
    "return": 10,
-   "missing_object": 3,
+   "conversation_request": 3,
    "scene_switch": 2,
    "unresolved_random": 1
   },
@@ -212,7 +216,7 @@
    "_records_created": 0,
    "_anims_load_failures": 0,
    "_frame_overflow_logs": 0,
-   "missing_object": 1
+   "conversation_request": 1
   },
   "HL": {
    "_labels": 121,
@@ -220,7 +224,8 @@
    "_records_created": 6,
    "_anims_load_failures": 0,
    "_frame_overflow_logs": 0,
-   "return": 120,
+   "return": 116,
+   "conversation_request": 4,
    "scene_switch": 1
   },
   "HSLOWER": {
@@ -231,7 +236,7 @@
    "_frame_overflow_logs": 0,
    "return": 226,
    "unresolved_variable": 163,
-   "missing_object": 3,
+   "conversation_request": 3,
    "scene_switch": 2
   },
   "HSTMED": {
@@ -252,7 +257,7 @@
    "_frame_overflow_logs": 0,
    "unresolved_variable": 81,
    "return": 74,
-   "missing_object": 1,
+   "conversation_request": 1,
    "scene_switch": 1
   },
   "IU": {
@@ -261,10 +266,10 @@
    "_records_created": 46,
    "_anims_load_failures": 0,
    "_frame_overflow_logs": 0,
-   "return": 136,
+   "return": 133,
    "unresolved_random": 22,
    "scene_switch": 9,
-   "step_limit": 2
+   "conversation_request": 5
   },
   "IUEND": {
    "_labels": 21,
@@ -318,11 +323,12 @@
   "MR": {
    "_labels": 174,
    "_skipped_node_commands": 47,
-   "_records_created": 28,
+   "_records_created": 26,
    "_anims_load_failures": 0,
    "_frame_overflow_logs": 0,
-   "return": 164,
-   "scene_switch": 9,
+   "return": 161,
+   "conversation_request": 7,
+   "scene_switch": 5,
    "script_end": 1
   },
   "MZ2": {
@@ -341,10 +347,10 @@
    "_records_created": 33,
    "_anims_load_failures": 0,
    "_frame_overflow_logs": 0,
-   "return": 156,
+   "return": 155,
    "unresolved_random": 20,
+   "conversation_request": 4,
    "script_end": 4,
-   "step_limit": 3,
    "missing_dialogue_chain": 2,
    "scene_switch": 2
   },
@@ -357,7 +363,7 @@
    "return": 206,
    "unresolved_variable": 105,
    "unresolved_random": 8,
-   "missing_object": 6
+   "conversation_request": 6
   },
   "SP": {
    "_labels": 32,
@@ -367,7 +373,7 @@
    "_frame_overflow_logs": 0,
    "return": 17,
    "unresolved_variable": 13,
-   "missing_object": 1,
+   "conversation_request": 1,
    "unresolved_random": 1
   },
   "STAR": {
@@ -398,7 +404,7 @@
    "_frame_overflow_logs": 0,
    "return": 16,
    "unresolved_variable": 12,
-   "missing_object": 1
+   "conversation_request": 1
   },
   "VA": {
    "_labels": 248,

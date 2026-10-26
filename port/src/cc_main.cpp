@@ -50,7 +50,7 @@ const std::set<std::string> kValued = {
     "--ci", "--lci", "--cy", "--lcy", "--inventor", "--hotitems", "--cf", "--co",
     "--ca", "--anims", "--gameprefs", "--lcc", "--cc", "--save", "--engine", "--lcx",
     "--compose-out", "--surface", "--background", "--panorama", "--panorama-x",
-    "--cs"};
+    "--cs", "--cd"};
 
 Arguments parse_arguments(int argc, char** argv) {
     Arguments arguments;
@@ -378,6 +378,12 @@ int main(int argc, char** argv) {
                     } else if (trace.missing_media_record) {
                         outcome = "missing_media_record";
                         reason = " media=" + std::to_string(*trace.missing_media_record);
+                    } else if (trace.conversation_request) {
+                        outcome = "conversation_request";
+                        reason = " record=" +
+                                 std::to_string(trace.conversation_request->record) +
+                                 " instruction=" +
+                                 std::to_string(trace.conversation_request->instruction);
                     } else if (trace.step_limit_exceeded) {
                         outcome = "step_limit";
                     } else if (trace.script_end_requested) {
@@ -592,6 +598,14 @@ int main(int argc, char** argv) {
             }
             if (trace.unresolved_save_setting) {
                 std::cout << " unresolved_save_setting=true";
+            }
+            if (trace.conversation_request) {
+                std::cout << " conversation_request_record="
+                          << trace.conversation_request->record
+                          << " object_context="
+                          << trace.conversation_request->object_context
+                          << " instruction="
+                          << trace.conversation_request->instruction;
             }
             if (trace.step_limit_exceeded) {
                 std::cout << " step_limit_exceeded=true";

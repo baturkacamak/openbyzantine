@@ -18,7 +18,84 @@ game ISOs/archives, `analysis/rea/BETRAYAL.EXE`, `tools/rea`, `upscale_ornek` an
 needs `port/output/`: recreate it from your own copy with `port/byzantine-all`
 (and `port/scene.sh` for the extracted media) before running the suites.
 
-## Latest step — the game's text windows (real font + real CE.ALL text)
+## Latest step — one real MR conversation end to end (`0x70`)
+
+MR label 413 now runs the shipped conversation instead of treating operand 0 as
+an object. **Correction:** `0x70` operand 0 is the **`engine/<scene>cd` record
+index** (`DAT_0046e870`, resolved by `0x410f09`/`DAT_00482ad0`), not an object
+slot; operand 1 is the object id the conversation starts with. The old
+`operand 0 -> object -> +0x0c label` guess produced `missing_object=2` (MR save
+`30.btb`) and, when object 2 existed, the door label 265 — the wrong branch.
+`0xffff` means "continue after the 0x70"; any other result is an object the
+player clicked during the answer list, whose `+0x0c` selects the pc; `0xfffe` is
+ESC/stop.
+
+- Data: `0x410669` loads three **packed** records from a cd entry:
+  `engine/<stem>.ccb` (bytecode: two instruction lists + two 50-slot group
+  arrays), `.ccf` (voice-clip names) and `.byz` (**the dialogue text**).
+  `IMhMR2a` uses `Mr2meh02..09/11..14` AVIs; `mr2meh00/01/10` and all `Mr2pro*`
+  files are not shipped (`pro` is not in `0x40ced0`'s speaker list, so the
+  original never plays them). This corrects the earlier "conversations are
+  voice-only" claim: `Byz.all` was simply not a loose file
+  (`analysis/rea/TEXT_WINDOW.md` §5 updated).
+- VM slice: `0x432d6e` outer loop, `0x43688b` line branch, `0x436b01` answer
+  list/input. Opcodes implemented for IMhMR2a: `0x3a,0x3e,0x32,0x33,0x36,
+  0x37,0x38,0x39,0x40,0x42,0x43,0x44,0x49,0x4a,0x4b,0x67,0x74`. Every other
+  conversation opcode is an explicit error, never skipped. Text/lines come from
+  BYZ; `null`/`#` follow `0x424780`.
+- Port: `conversation.{hpp,cpp}` (strict `.ccb`/`.ccf`/`.byz`/`cd` parsers,
+  `ConversationSession`), `--cd/--ccb/--ccf/--byz`, `--dialog/
+  --dialog-cache`, `--run-label`, `--conversation-choices`, `--conversation-
+  object`, `--conversation-shot`, `--conversation-video-shot`. `0x70` now stops
+  with `SceneTrace::conversation_request`; `trace_scene_from_instruction` resumes
+  and `apply_conversation_result` performs the real branch. An unfinished
+  conversation is not committed (the pre-click state is restored).
+- Media: Indeo 4 + PCM16 AVIs are decoded once by FFmpeg (`ffprobe` fps,
+  `ffmpeg` JPEG frames + WAV) into a per-clip cache; playback uses the port's
+  JPEG decoder and SDL2 audio. Missing FFmpeg/AVI keeps the text and reports the
+  gap. Video is centred at 320x200 (original placement unrecovered); the
+  original's bottom 60-px dialogue band is not in the 640x400 surface, so the
+  3-line scrollback is drawn over the playfield top (real text, changed layout).
+- Real MR `30.btb` entry + label 413 result (headless): 8 lines, 4 answer lists,
+  7 media clips, 43 instructions, `result=0xffff`, `resume_instruction=524`;
+  only locals 14..17 of 300 changed (`0x67/0x74`), objects/hotspots/records
+  unchanged. Choices `1,0,0,0,0,0` stop after 3 resumed instructions
+  (fingerprint `0x1e6d3b1d25532648`); choices `0,0,0,0` continue through the
+  label's `0x73` at 547 and travel to MAP (18 steps, fingerprint
+  `0xc8470f2394d7e98a`, `pool_changed=7 (8,79,80,480,713,714,715)`, MAP entry
+  `steps=147 stopped_at=133 hotspots=8`). Without `--inventor/--hotitems` the
+  resumed `0xab` at 550 stops with `unresolved_dialogue_inventory` and the click
+  is not committed (honest data blocker). A door click during the answer list
+  returns object 2 -> label 265 -> target 324 (20-step resume, fingerprint
+  `0xefcc0d48e65d85ef`) — the real branch, now from a real click.
+  The interactive SDL path (answer rect hit test, `--selftest-events`) with the
+  same choices/tables gives the same `steps=18` travel and fingerprint; answer
+  and first-video PPMs were inspected (real Turkish text + decoded 320x200
+  frame).
+- Tests: new `conversation-test` (synthetic CCB/CCF/BYZ/CD, both group arrays,
+  empty slot, branch/end, 0x37/0x42/0x67/0x74, object result, rejections, real
+  `Byz.all` IMHMR2A); `save-test` asserts the new 0x70 request +
+  `apply_conversation_result` for the real EA 1779 (record 3, object 3 -> label
+  544). `make -C port -j2 all test` passes all eleven suites. Census: 80/7,693
+  labels are `conversation_request` (interactive), `blocking_total=0`; completed
+  5,899 (5,877 return + 22 script_end), unresolved variable 1,296. Reports:
+  `analysis/rea/CONVERSATION.md`, `analysis/rea/reconstruction/vm-census.*`.
+- Try: `./port/scene.sh . MR 0 30.btb --entry --run-label 413`; click an answer
+  row at the bottom (logical y≈274/302/350). Headless:
+  `… --conversation-choices 1,0,0,0,0,0 --shot /tmp/mr-final.ppm` (~60 s real
+  video).
+- Not modelled: repeated 0x70 calls on the same record keep `DAT_00482ad0`
+  across calls in the original (unspeak/done/group), the port starts a fresh
+  session per call; the `DAT_0047a280` gate; conversation opcodes outside the
+  table above (`0x34/0x35,0x45/0x46`, inventory/cursor branches, `0x69/0xb9/
+  0xbd/0x8d`); `0x436b01`'s ESC/menu result, the original video window
+  placement, the 0x4176d8/0x424981 reveal tick, and a scene **entry** that
+  starts a conversation inside `travel_to` (travel commits the pre-conversation
+  pause; MR's entry does not reach one).
+
+
+
+## Previous step — the game's text windows (real font + real CE.ALL text)
 
 The port now renders the game's own text: the **examine scroller** (`0x4177c7`,
 font 1, x=5, y=0x14a, 3 lines) and the **message block** (`0x417a17`, font 3,
@@ -26,7 +103,12 @@ right-aligned to 0x26e/0x2d). The content is the shipped `engine/<scene>ce`
 table (`CE.ALL`), the font is `klio.SFN` + `GR_KLIO.TGA`/`BK_KLIO.TGA` with
 `0x4067e2`'s gr-over-bk blend.
 
-- **Conversations are voice-only.** The `0x70` CONVERSE path is real (MR label
+- **Correction (26 Oct 2026): conversations are not voice-only.** The paragraph
+  below was based on the loose-file view; `.byz` (the dialogue text) is packed
+  inside `Byz.all` and `0x424780` draws it. `CONVERSATION.md` and the new latest
+  step above implement it. The text windows below remain the other real text
+  interaction.
+- **Conversations are voice-only (superseded).** The `0x70` CONVERSE path is real (MR label
   413 → `converse_jump id=2 label=265`), but `0x410669` loads
   `engine/<name>.ccb` (bytecode) + `.ccf` (voice-clip names: `Mr2meh00…`) and
   the conversation VM `0x43340a` never calls the text drawer. There is no

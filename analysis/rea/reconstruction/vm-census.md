@@ -39,22 +39,23 @@ everything else is an opcode the port stops on.
 - Scenes: **44**
 - Scenes with a shipped save restored: **18**
 - Labels traced: **7693**
-- Completed: **5935** (`return` 5913 + `script_end` 22)
+- Completed: **5899** (`return` 5877 + `script_end` 22)
+- 0x70 conversation pauses (interactive input, not a missing branch): **80**
 - Blocked by unknown variable state: **1296**
-- Blocked by an unknown RNG seed: **245**
+- Blocked by an unknown RNG seed: **241**
 - Blocked by an unknown panorama node: **0**
-- Blocked by an absent/unresolved object table entry: **80**
+- Blocked by an absent/unresolved object table entry: **52**
 - Blocked by an undecidable/absent record asset: **0**
 - Blocked by a missing dialogue chain: **2**
 - Blocked by an absent media record: **2**
 - Stopped on a CD request (0x8d, host drive state): **9**
 - Blocked by an input/timer or save-gate unknown: **0**
-- Stopped by the instruction bound after a 0x70 loop: **5**
-- Scene switches requested by 0x73: **119**
-- Records created from the CA asset table, with their animation frame count/offsets (0x40fd7b/0x40fe70): **733**
+- Stopped by the instruction bound after a 0x70 loop: **0**
+- Scene switches requested by 0x73: **112**
+- Records created from the CA asset table, with their animation frame count/offsets (0x40fd7b/0x40fe70): **730**
 - Record commands skipped because the animation file did not load (0x40fe70 failed): **8**
 - `0x91` frame walks past the last frame (0x40cf73 logged): **1**
-- Record commands skipped because the CA asset type is not 0..3 (0x431b0f returns 1; the script continues): **1925**
+- Record commands skipped because the CA asset type is not 0..3 (0x431b0f returns 1; the script continues): **1924**
 - Blocked by an unknown video name/setting: **0**
 - Blocked by an unknown dialogue table/style: **0**
 - Blocked by an unsupported opcode: **0**
@@ -69,12 +70,12 @@ everything else is an opcode the port stops on.
 | Scene | Labels | Return | Unresolved | Blocking opcodes |
 | --- | ---: | ---: | ---: | --- |
 | AL | 90 | 52 | 35 | — |
-| AM | 468 | 445 | 0 | rng×22 |
+| AM | 468 | 424 | 0 | rng×21 |
 | AS | 106 | 85 | 0 | rng×17 |
 | BB | 159 | 96 | 53 | — |
-| BC | 214 | 191 | 0 | rng×21 |
+| BC | 214 | 190 | 0 | rng×20 |
 | CLOCK | 137 | 131 | 0 | rng×4 |
-| EA | 462 | 435 | 0 | rng×25 |
+| EA | 462 | 432 | 0 | rng×23 |
 | EXAMINE | 496 | 322 | 166 | — |
 | EXAMVB | 16 | 1 | 0 | — |
 | EXAMVC | 13 | 1 | 0 | — |
@@ -84,19 +85,19 @@ everything else is an opcode the port stops on.
 | GC | 188 | 178 | 0 | rng×8 |
 | GT | 33 | 10 | 17 | rng×1 |
 | HINTS | 1 | 0 | 0 | — |
-| HL | 121 | 120 | 0 | — |
+| HL | 121 | 116 | 0 | — |
 | HSLOWER | 394 | 226 | 163 | — |
 | HSTMED | 409 | 400 | 0 | rng×6 |
 | HSUPPER | 157 | 74 | 81 | — |
-| IU | 169 | 136 | 0 | rng×22 |
+| IU | 169 | 133 | 0 | rng×22 |
 | IUEND | 21 | 12 | 8 | — |
 | IUOVER | 4 | 2 | 2 | — |
 | LINTEL | 177 | 171 | 0 | rng×2 |
 | MAP | 90 | 67 | 0 | — |
 | MORRIS | 549 | 382 | 166 | — |
-| MR | 174 | 165 | 0 | — |
+| MR | 174 | 162 | 0 | — |
 | MZ2 | 206 | 104 | 98 | — |
-| NB | 187 | 160 | 0 | rng×20 |
+| NB | 187 | 159 | 0 | rng×20 |
 | SM | 325 | 206 | 105 | rng×8 |
 | SP | 32 | 17 | 13 | rng×1 |
 | STAR | 419 | 138 | 276 | — |

@@ -200,7 +200,8 @@ def main() -> int:
                 totals[key.split("=", 1)[1]] += counts[key.split("=", 1)[1]]
         per_scene[scene.name] = counts
 
-    state_outcomes = ("return", "script_end", "unresolved_variable",
+    state_outcomes = ("return", "script_end", "conversation_request",
+                      "unresolved_variable",
                       "unresolved_random", "unresolved_sound_name",
                       "unresolved_dialogue", "unresolved_dialogue_inventory",
                       "unresolved_video_name", "unresolved_video_setting",
@@ -293,6 +294,7 @@ def main() -> int:
         f"- Labels traced: **{labels_total}**",
         f"- Completed: **{totals.get('return', 0) + totals.get('script_end', 0)}**"
         f" (`return` {totals.get('return', 0)} + `script_end` {totals.get('script_end', 0)})",
+        f"- 0x70 conversation pauses (interactive input, not a missing branch): **{totals.get('conversation_request', 0)}**",
         f"- Blocked by unknown variable state: **{totals.get('unresolved_variable', 0)}**",
         f"- Blocked by an unknown RNG seed: **{totals.get('unresolved_random', 0)}**",
         f"- Blocked by an unknown panorama node: **{totals.get('unresolved_panorama_node', 0)}**",
