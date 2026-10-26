@@ -20,7 +20,7 @@ game ISOs/archives, `analysis/rea/BETRAYAL.EXE`, `tools/rea`, `upscale_ornek` an
 needs `port/output/`: recreate it from your own copy with `port/byzantine-all`
 (and `port/scene.sh` for the extracted media) before running the suites.
 
-## Latest step — ambient sound records through the SDL2 mixer (`08809c5`)
+## Latest step — ambient sound records through the SDL2 mixer (`08809c5`, restart follow-up `5a06d8c`)
 
 The script's `0x65` sound records now run through one common SDL2 callback
 mixer, with the original start/stop/loop rules and without waiting on every
