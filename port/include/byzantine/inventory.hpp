@@ -28,6 +28,11 @@ bool inventory_select(SceneState& state, std::uint16_t id);
 bool inventory_on_page(const SceneState& state, std::uint16_t id);
 void inventory_scroll(SceneState& state, int delta);
 bool inventory_mark_using(SceneState& state, std::uint16_t id);
+// One atomic "this is the item in the close-up" update: selection (DAT_0045d1c8),
+// examined item (DAT_0045d1cc) and record state 4. Used when the strip is clicked
+// inside an examine close-up, so the image, highlight and hitboxes cannot drift
+// apart. A previous examined record returns to state 1 (0x4085e7's reset).
+bool inventory_examine(SceneState& state, std::uint16_t id);
 std::optional<std::uint16_t> inventory_using(const SceneState& state);
 std::string inventory_name(const SceneState& state, std::uint16_t id);
 

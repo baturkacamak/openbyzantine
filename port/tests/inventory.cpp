@@ -51,6 +51,49 @@ int main() {
         require(examine_image_stem(inventory_name(state, 11)) == "ebeering",
                 "0x40860e examine stem mismatch");
 
+        // The close-up switch is atomic: selection (DAT_0045d1c8), examined
+        // item (DAT_0045d1cc), record state and therefore the image stem all
+        // move together, and the previous examined record returns to state 1
+        // (0x4085e7's reset). The real case is HSTMED page 5: 66 ihstd and
+        // 72 icrwbar are both on the page.
+        {
+            SceneState switch_state;
+            switch_state.dialogue_channels[5] = {66, 70, 67, 64, 68, 72};
+            switch_state.current_dialogue_channel = 5;
+            switch_state.dialogue_tables.names.resize(80);
+            switch_state.dialogue_tables.names[66].name = "ihstd";
+            switch_state.dialogue_tables.names[72].name = "icrwbar";
+            for (std::uint16_t id = 0; id < 80; ++id) {
+                switch_state.dialogue_records[id] = SceneDialogueRecord{1, false};
+            }
+            require(inventory_examine(switch_state, 72), "close-up examine rejected 72");
+            require(switch_state.current_dialogue_record &&
+                        *switch_state.current_dialogue_record == 72 &&
+                        switch_state.current_use_item &&
+                        *switch_state.current_use_item == 72 &&
+                        switch_state.dialogue_records[72].state == 4,
+                    "close-up examine did not set one item for selection/use/state");
+            require(examine_image_stem(inventory_name(switch_state,
+                                                      *switch_state.current_use_item)) ==
+                        "ecrwbar",
+                    "close-up image stem does not follow the examined item");
+            require(inventory_examine(switch_state, 66), "close-up switch rejected 66");
+            require(switch_state.current_dialogue_record &&
+                        *switch_state.current_dialogue_record == 66 &&
+                        switch_state.current_use_item &&
+                        *switch_state.current_use_item == 66 &&
+                        switch_state.dialogue_records[66].state == 4,
+                    "close-up switch left selection/use/state disagreeing");
+            require(switch_state.dialogue_records[72].state == 1,
+                    "previous examined record did not return to state 1");
+            require(examine_image_stem(inventory_name(switch_state,
+                                                      *switch_state.current_use_item)) ==
+                        "ehstd",
+                    "close-up image stem did not move to the switched item");
+            require(!inventory_examine(switch_state, 5),
+                    "close-up examine accepted an off-page item");
+        }
+
         require(examine_scene_for("AM") == "examine", "AM should use EXAMINE");
         require(examine_scene_for("vh") == "examvh", "vh group mismatch");
         require(examine_scene_for("hstmed") == "examvb", "hstmed group mismatch");

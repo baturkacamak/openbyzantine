@@ -159,9 +159,11 @@ consume/combine path of `0x407bd7`, and the remaining strip page tabs.
 
 **Close-up exit — common, implemented.**
 Now: transition-4 `0x69` image, original scene-group table, snapshot return,
-close-up exit hotspot. Missing: the exact original snapshot table layout (the
-port snapshots the whole `SceneView`), the `va` out-of-range group, and
-close-up animations/transitions.
+close-up exit hotspot, atomic item switch inside the close-up
+(`analysis/rea/EXAMINE_SWITCH.md`) and the `0x4085e7` examine-state clear on
+return. Missing: the exact original snapshot table layout (the port snapshots
+the whole `SceneView`), the `va` out-of-range group, and close-up
+animations/transitions.
 
 **Camera — common, partial.**
 Now: yaw and pitch via left-drag, wheel and arrow keys; the same
@@ -177,9 +179,9 @@ effects around the conversation.
 
 **Item use — common, partial.**
 Now: selection, state 3→1, state 4 examine flag, examine image and close-up
-travel. Missing: using an item on a scene object (`0x407c5a` compatibility,
-`0x407bd7`), combining/consuming, and item-specific scripted effects outside
-the examine scene.
+travel, and the `0x407c5a` item-on-object gate with the shipped script's own
+consume (`0xab`) — see `analysis/rea/ITEM_USE.md`. Missing: item combining and
+the `0x407bd7` cursor drawing.
 
 **Scene transitions — common, partial.**
 Now: `0x73`/LCX resolution, target sibling tables, variable-pool carry,

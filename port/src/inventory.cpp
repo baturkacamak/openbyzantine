@@ -74,6 +74,20 @@ std::optional<std::uint16_t> inventory_using(const SceneState& state) {
     return state.current_use_item;
 }
 
+bool inventory_examine(SceneState& state, std::uint16_t id) {
+    if (!inventory_on_page(state, id)) return false;
+    if (state.current_use_item && *state.current_use_item != id) {
+        auto previous = state.dialogue_records.find(*state.current_use_item);
+        if (previous != state.dialogue_records.end() && previous->second.state == 4) {
+            previous->second.state = 1;
+        }
+    }
+    state.current_dialogue_record = id;
+    state.current_use_item = id;
+    state.dialogue_records[id].state = 4;
+    return true;
+}
+
 namespace {
 
 // DAT_0045d1c8 == 0 means nothing is selected; the original compares the item

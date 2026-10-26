@@ -521,9 +521,10 @@ std::filesystem::path background_path(const Options& options, const std::string&
 // replaced by 'e'>.jpg. The item name is not trimmed at eight characters
 // anywhere else, so this stays separate from the raw LCI record.
 std::filesystem::path examine_background_path(const Options& options,
-                                              const byzantine::SceneState& state) {
-    if (!state.current_use_item || options.backgrounds.empty()) return {};
-    const auto name = byzantine::inventory_name(state, *state.current_use_item);
+                                              const byzantine::SceneState& state,
+                                              std::uint16_t item) {
+    if (options.backgrounds.empty()) return {};
+    const auto name = byzantine::inventory_name(state, item);
     if (name.empty()) return {};
     const auto stem = byzantine::examine_image_stem(name);
     auto root = options.backgrounds;
@@ -654,14 +655,22 @@ std::string pick_background(const SceneView& view) {
 
 void refresh_background(const Options& options, SceneView& view) {
     if (view.trace.examine_image) {
-        const auto name = byzantine::inventory_name(view.state, *view.trace.examine_image);
+        const auto item = *view.trace.examine_image;
+        const auto name = byzantine::inventory_name(view.state, item);
         const auto stem = byzantine::examine_image_stem(name);
         view.background_name = "examine/" + stem;
-        view.background_file = examine_background_path(options, view.state);
+        view.background_file = examine_background_path(options, view.state, item);
+        if (view.state.current_use_item && *view.state.current_use_item != item) {
+            // The script's 0x69 read DAT_0045d1cc and the live examine pointer
+            // names another item: that is the drift the close-up switch fixes.
+            std::cout << "examine_state_mismatch image_item=" << item
+                      << " current_use_item=" << *view.state.current_use_item
+                      << " (the image follows the script request)\n";
+        }
         if (view.background_file.empty() &&
             view.missing_background_logged != view.background_name) {
             std::cout << "examine_image_missing scene=" << view.name
-                      << " item=" << *view.trace.examine_image
+                      << " item=" << item
                       << " name=" << name << " stem=" << stem
                       << " root=" << options.backgrounds
                       << " (extract inventor/examine with port/scene.sh; the "
@@ -1349,6 +1358,9 @@ struct Session {
     // and carries the examine scene's inventory edits back into it.
     SceneView return_view;
     bool return_armed = false;
+    // The SHOW.LCC index of the active close-up scene. 0x408076's examine
+    // branch + 0x438c80 reload that same scene when another item is examined.
+    std::optional<std::uint16_t> closeup_index;
     // Set by the interactive branch: a scene entry may then wait on audio like
     // any other script. --shot stays deterministic and never waits.
     bool interactive = false;
@@ -1699,7 +1711,18 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose) {
         session.view = std::move(session.return_view);
         session.return_view = SceneView{};
         session.return_armed = false;
+        session.closeup_index.reset();
         carry_inventory(current, session.view.state);
+        // 0x439349 calls 0x4085e7: DAT_0045d1cc is cleared and the examined
+        // record returns to state 1. The strip's own selection (DAT_0045d1c8)
+        // is process-global and stays, but no item is "being examined" in the
+        // parent any more.
+        if (current.current_use_item) {
+            auto& record =
+                session.view.state.dialogue_records[*current.current_use_item];
+            if (record.state == 4) record.state = 1;
+            session.view.state.current_use_item.reset();
+        }
         session.view.state.random_state = current.random_state;
         refresh_background(options, session.view);
         session.display.compose(session.view, verbose);
@@ -1860,7 +1883,46 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose) {
 // mapping is the original data table (0x438afa/0x438173), not a per-scene port
 // branch. A click on the close-up's exit runs 0x73 and travel_to restores the
 // snapshot instead of loading the requested index.
+//
+// Pressing examine *inside* a close-up is the original's 0x408076 -> 0x438c80
+// path: 0x438c80 maps the scene to itself, 0x43c8d2 stops the script, and
+// 0x42c8a0 reloads the same close-up scene, whose 0x69 transition-4 request now
+// reads the newly examined DAT_0045d1cc. The parent snapshot stays armed, so
+// the exit still returns to the original parent.
+bool reload_closeup(Session& session, bool verbose) {
+    if (!session.return_armed || !session.closeup_index) return false;
+    auto parent = std::move(session.return_view);
+    session.return_view = SceneView{};
+    session.return_armed = false;
+    const auto index = *session.closeup_index;
+    session.closeup_index.reset();
+    const bool ok = travel_to(session, index, verbose);
+    session.return_view = std::move(parent);
+    session.return_armed = true;
+    session.closeup_index = index;
+    return ok;
+}
+
 bool enter_examine(Session& session, bool verbose) {
+    const auto use = session.view.state.current_use_item;
+    if (!use) {
+        std::cout << "bar_examine skipped: no examined item (DAT_0045d1cc)\n";
+        return false;
+    }
+    if (session.return_armed) {
+        if (!reload_closeup(session, verbose)) return false;
+        std::cout << "closeup_switch scene=" << session.view.name
+                  << " item=" << *use
+                  << " name=" << byzantine::inventory_name(session.view.state, *use)
+                  << " image="
+                  << byzantine::examine_image_stem(
+                         byzantine::inventory_name(session.view.state, *use))
+                  << " index="
+                  << (session.closeup_index ? std::to_string(*session.closeup_index)
+                                            : "none")
+                  << '\n';
+        return true;
+    }
     if (!session.metadata) {
         std::cout << "bar_examine skipped: --engine (SHOW.LCC) is required\n";
         return false;
@@ -1869,11 +1931,6 @@ bool enter_examine(Session& session, bool verbose) {
     if (!wanted) {
         std::cout << "bar_examine skipped: scene=" << session.view.name
                   << " has the original's out-of-range va group\n";
-        return false;
-    }
-    if (lower_ascii(session.view.name) == *wanted) {
-        std::cout << "bar_examine skipped: scene=" << session.view.name
-                  << " is already the close-up\n";
         return false;
     }
     std::size_t target_index = 0;
@@ -1891,15 +1948,19 @@ bool enter_examine(Session& session, bool verbose) {
         return false;
     }
     const auto parent_name = session.view.name;
-    const auto use = session.view.state.current_use_item;
     SceneView parent = session.view;
     if (!travel_to(session, static_cast<std::uint16_t>(target_index), verbose)) {
         return false;
     }
     session.return_view = std::move(parent);
     session.return_armed = true;
+    session.closeup_index = static_cast<std::uint16_t>(target_index);
     std::cout << "closeup_enter scene=" << session.view.name << " parent=" << parent_name
-              << " item=" << (use ? std::to_string(*use) : "none")
+              << " item=" << *use
+              << " name=" << byzantine::inventory_name(session.view.state, *use)
+              << " image="
+              << byzantine::examine_image_stem(
+                     byzantine::inventory_name(session.view.state, *use))
               << " index=" << target_index << '\n';
     return true;
 }
@@ -1928,6 +1989,27 @@ bool handle_bar_click(Session& session, int x, int y, bool verbose) {
             if (x < left || x > left + 0x3c) continue;
             const auto id = page.items[index];
             const auto name = byzantine::inventory_name(state, id);
+            if (session.return_armed) {
+                // Inside a close-up the strip is the item switch of
+                // 0x408076+0x438c80: selection, DAT_0045d1cc, the image and the
+                // close-up hitboxes all move together. Clicking the item that is
+                // already being examined is a no-op (0x408076's
+                // `pcVar1 != DAT_0045d1cc` guard), not a deselect.
+                if (state.current_use_item && *state.current_use_item == id) {
+                    std::cout << "closeup_item slot=" << index << " id=" << id
+                              << " name=" << name << " already_examined=yes\n";
+                    return true;
+                }
+                if (!byzantine::inventory_examine(state, id)) {
+                    std::cout << "closeup_item slot=" << index << " id=" << id
+                              << " skipped: item is not on the current page\n";
+                    return true;
+                }
+                std::cout << "closeup_item slot=" << index << " id=" << id
+                          << " name=" << name << " selected=yes examined=yes\n";
+                enter_examine(session, verbose);
+                return true;
+            }
             const bool selected = byzantine::inventory_select(state, id);
             std::cout << "bar_item slot=" << index << " id=" << id
                       << " name=" << name << " selected=" << (selected ? "yes" : "no")
@@ -1950,7 +2032,7 @@ bool handle_bar_click(Session& session, int x, int y, bool verbose) {
             return true;
         }
         const auto id = *state.current_dialogue_record;
-        if (!byzantine::inventory_mark_using(state, id)) {
+        if (!byzantine::inventory_examine(state, id)) {
             std::cout << "bar_examine skipped: item=" << id
                       << " is not on the current page\n";
             return true;
@@ -2007,7 +2089,7 @@ void apply_bar_options(Session& session, const Options& options, bool verbose) {
         return;
     }
     const auto id = *session.view.state.current_dialogue_record;
-    if (!byzantine::inventory_mark_using(session.view.state, id)) {
+    if (!byzantine::inventory_examine(session.view.state, id)) {
         std::cout << "bar_use skipped: item=" << id
                   << " is not on the current page\n";
         return;
