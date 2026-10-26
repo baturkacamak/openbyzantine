@@ -79,10 +79,11 @@ Port behaviour:
   It logs `scene_session_ended reason=conversation_exit hotspots=0` and
   `reload_choice available=yes key=R … (explicit user choice; not automatic)`.
 - Only when the user presses `R` does `restart_scene` perform the 0x42c8a0-head
-  fresh load from the supplied save/entry (`scene_restart
-  reason=conversation_session_exit_user_choice`). This is the port's substitute
-  for the original's return to the main menu; no progress is rolled back
-  silently.
+  load from the scene's **arrival entry_state**: the save state for the start
+  scene, the carried pool/state for a 0x73 target (`scene_restart
+  reason=conversation_session_exit_user_choice`). It does not reopen the global
+  save into a traveled scene. This is the port's substitute for the original's
+  return to the main menu; no progress is rolled back silently.
 - `--conversation-cancel N` is the deterministic terminate path: it leaves
   `hotspots=0`, prints the explicit choice and does not reload. The interactive
   R path is what reloads.

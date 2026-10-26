@@ -61,8 +61,9 @@ exposed a missing generic opcode pair. Report:
   (`scene_session_ended … hotspots=0`), draws
   `OTURUM SONLANDI / YENİDEN YÜKLE: R / ÇIKIŞ: ESC` in the message window and
   logs `reload_choice … (explicit user choice; not automatic)`. Only pressing
-  R performs the fresh save/entry load
-  (`scene_restart reason=conversation_session_exit_user_choice … hotspots=2`).
+  R performs the load from the scene's arrival entry_state (save state for the
+  start scene, carried pool/state for a 0x73 target;
+  `scene_restart reason=conversation_session_exit_user_choice … hotspots=2`).
   `--conversation-cancel N` is the deterministic terminate path: hotspots=0,
   notice printed, no reload. No silent rollback.
 - **Verification and recording.** `step_mouse_esc_menu_reload.mp4` (22.3 s,

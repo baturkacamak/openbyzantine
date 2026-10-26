@@ -398,6 +398,15 @@ private:
 // committed trace contains (see update_layer).
 enum class SceneLayer { none, background, panorama };
 
+// Where an explicit reload restarts this scene: the startup label/entry for the
+// first scene, the instruction head (entry) after a 0x73 travel, like
+// 0x42c8a0's reload. The state it starts from is the scene's arrival
+// entry_state, not the global save file (a travel already removed --save).
+struct SceneReloadPoint {
+    std::uint16_t label = 0;
+    bool at_entry = true;
+};
+
 struct SceneView {
     std::string name;
     // The scene's own files, kept so a 0x73 switch can derive the target's
@@ -432,6 +441,8 @@ struct SceneView {
     // compares its departure pool with this to report what the scene wrote.
     std::vector<std::uint16_t> pool_on_arrival;
     std::uint16_t label = 0;
+    // The point an explicit reload restarts this scene from.
+    SceneReloadPoint reload_point;
 };
 
 // One sound the label queues, in script order.
@@ -1462,6 +1473,8 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose) {
     next_view.panorama_size = session.view.panorama_size;
     next_view.panorama = std::move(session.view.panorama);
     next_view.layer = SceneLayer::none;
+    // 0x42c8a0's scene reload starts the target at its instruction head.
+    next_view.reload_point = SceneReloadPoint{0, true};
 
     // 0x42c8a0 -> 0x41316f -> 0x40fbf6 -> 0x40f98c frees every conversation
     // state on a scene load; next_view.state is built fresh, so this map cannot
@@ -2797,18 +2810,28 @@ bool restart_scene(Session& session,
                    const std::function<bool(EntryPoint, const byzantine::SceneState&,
                                             const byzantine::SceneTrace&)>& run,
                    bool verbose, const char* reason) {
-    const auto label_value = session.options.label.empty()
-                                 ? 0u
-                                 : std::stoul(session.options.label, nullptr, 0);
-    SceneView fresh = open_scene(session.options.scene, session.options.cc_path,
-                                 session.options.cb_path,
-                                 static_cast<std::uint16_t>(label_value));
-    fresh.pool_on_arrival = fresh.state.variable_pool;
+    // Reload this scene from its arrival entry_state, not from the global save:
+    // a 0x73 travel removed --save and carries its own pool. The startup scene's
+    // entry_state is the save state, so this is the same fresh load there.
+    SceneView fresh;
+    fresh.name = session.view.name;
+    fresh.cc_path = session.view.cc_path;
+    fresh.cb_path = session.view.cb_path;
+    fresh.script = std::move(session.view.script);
+    fresh.entries = std::move(session.view.entries);
+    fresh.entry_state = session.view.entry_state;
+    fresh.state = fresh.entry_state;
+    fresh.pool_on_arrival = session.view.pool_on_arrival;
+    fresh.panorama_size = session.view.panorama_size;
+    fresh.panorama = std::move(session.view.panorama);
+    fresh.layer = SceneLayer::none;
+    fresh.reload_point = session.view.reload_point;
+    fresh.label = session.view.reload_point.label;
     session.view = std::move(fresh);
     session.reload_available = false;
     load_scene_text(session, verbose);
-    const EntryPoint point{static_cast<std::uint16_t>(label_value),
-                           session.options.entry, std::nullopt};
+    const EntryPoint point{session.view.reload_point.label,
+                           session.view.reload_point.at_entry, std::nullopt};
     byzantine::SceneState probe_state = session.view.entry_state;
     const auto probe = point.at_entry
         ? byzantine::trace_scene_entry(session.view.script, session.view.entries,
@@ -2991,6 +3014,8 @@ int main(int argc, char** argv) {
         session.view = open_scene(options.scene, options.cc_path, options.cb_path,
                                   static_cast<std::uint16_t>(label_value));
         session.view.pool_on_arrival = session.view.state.variable_pool;
+        session.view.reload_point = SceneReloadPoint{
+            static_cast<std::uint16_t>(label_value), options.entry};
         session.metadata = byzantine::read_variable_metadata(options.scene);
         load_scene_text(session, false);
         load_messages(session, true);
