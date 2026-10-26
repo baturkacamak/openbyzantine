@@ -76,7 +76,9 @@ exposed a missing generic opcode pair. Report:
   actions 1512/1530/1546/1633: records 6 `icuam1a` (8 lines, 7 lists, 44
   instructions, resume 1898), 7 `ICuAm3a` (8/6/18, 1918), 8 `icuam5a`
   (11/10/30, 1937), 10 `INuTK3a` (7/4/20, 2051), all result 0xffff with no
-  unsupported opcode. The AM resumed segments stop at `unresolved_random`
+  unsupported opcode. The AM first answer list also opened and resumed the same
+  exit dialog (`am_curator_menu.log`/`.png`). The AM resumed segments stop at
+  `unresolved_random`
   (instruction 1777/2005; the CRT seed is not in the save). The AM entry uses
   `--run-label` only because the save's active hotspot set lacks those slots;
   this is an interpreter test, not physical-mouse verification. AM dialog media

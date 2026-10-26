@@ -124,6 +124,11 @@ All four reach `result=0xffff` with no unsupported opcode. `icuam1a` initially
 stopped at `unsupported conversation opcode 0x46`; that was a real gap in the
 shared interpreter, not an AM special case.
 
+The same exit dialog was also exercised on the AM curator's first answer list:
+`conversation_answers record=6 group=3` → ESC opens the menu → ESC resumes the
+same list (`conversation_menu result=2 action=resume`). Log/screenshot:
+`port/output/recordings/am_curator_menu.log`, `am_curator_menu.png`.
+
 ### 0x45 / 0x46
 
 `0x43340a` (`3a9555ec83f82adc`) cases 0x45/0x46 write an 8-byte record:
