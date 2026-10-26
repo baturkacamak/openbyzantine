@@ -8,9 +8,11 @@ codec reconstruction. Keep working JPEG code for now, use established libraries
 for missing standard media support, and focus custom work on game rules and
 playable integration. Do not search for original engine sources. The full audit
 and decision are in `analysis/rea/LIBRARY_STRATEGY.md` (final section).
-Audio output is implemented, but this does not complete audio behavior: session
-timing, mixing/loops/parameters and original-game fidelity require their own
-evidence and validation.
+Audio output is implemented, and the script sound records now run through a
+common SDL2 mixer with the original start/stop/loop/transition rules
+(`analysis/rea/AMBIENT_AUDIO.md`); volume/pan parameters, the saved loop chain
+and the `0xd3` follow-up records are still open. Audio fidelity beyond those
+points requires its own evidence and validation.
 
 **Repository contents:** git holds `port/`, `analysis/` and the docs only. The
 game ISOs/archives, `analysis/rea/BETRAYAL.EXE`, `tools/rea`, `upscale_ornek` and
@@ -18,7 +20,120 @@ game ISOs/archives, `analysis/rea/BETRAYAL.EXE`, `tools/rea`, `upscale_ornek` an
 needs `port/output/`: recreate it from your own copy with `port/byzantine-all`
 (and `port/scene.sh` for the extracted media) before running the suites.
 
-## Latest step — shared item use on scene objects (commits `5d2687c`, `ee7a3d8`)
+## Latest step — ambient sound records through the SDL2 mixer (`08809c5`)
+
+The script's `0x65` sound records now run through one common SDL2 callback
+mixer, with the original start/stop/loop rules and without waiting on every
+sound. Report: `analysis/rea/AMBIENT_AUDIO.md`.
+
+- **Rules.** `0x427de1` uses `Play(...,1)` when `+0x14` is set (loop) and
+  `Play(...,0)` otherwise; it does not block. `0xc4` is the ambient start
+  (`0x427de1(id,1)`, `+0x34` for loops); `0xd1` waits only in interactive mode 0
+  (`0x428cbd`'s `param_2 == 0` loop, `0x428143` poll); `0xd3` waits a timed
+  session; `0xbc`/`0xcf`/`0xd0` stop, release and stop all. A scene load frees
+  the per-scene sound table, so a `0x73` does not keep the old ambience; the
+  saved loop chain `DAT_0046019c` (block 21) is not reconstructed.
+- **Port.** `AudioMixer` (`port/{include/byzantine,src}/ambient_audio.*`) opens
+  one S16 stereo device with a callback and mixes tagged voices at the device
+  rate (loops wrap, one-shots finish, clamped). Conversation AVI audio keeps the
+  `queue`/`queued` drain contract. `0xc4` now emits a `SceneSoundStart` with
+  `opcode/loop/allowed`; `0xbc` emits `SceneSoundStop`; `0xcf`/`0xd0` keep
+  per-step release/stop-all records. `play_events` starts every event and waits
+  only for `blocking` (0xd1 mode 0 or a session). `resume_ambient` starts the
+  arrival state's active `+0x14` loops; a normal travel stops all voices first
+  (`ambient_scene_stop`); the close-up return re-arms the parent's loops.
+- **Verification (AM `62.btb`).** Entry: `audio step=259 opcode=0xc4 id=10
+  name=amotambr duration_ms=4795 loop=1 blocking=0 (ambient started)` and the
+  same for id 9 `amotambl` 5132 ms; `ambient_resume loops=2 started=0`; the
+  entry finishes without waiting. Real window (Xephyr `:8`, 1280x960) with
+  `SDL_AUDIODRIVER=disk`: 10.40 s PCM, RMS 1427/peak 7351, non-silent through
+  t=10 (past both clip lengths) -> the loop repeats; screenshot
+  `am_ambient_window.png`. Click object 85 (label 339) -> `0xbc 11/10/9`
+  (`ambient_stop … voices=2/1/0`) -> `0x73 [1]` -> MAP; the capture is silent
+  after the stop. Examine `ibeering` -> `ambient_scene_stop from=AM voices=2`,
+  `closeup_return … ambient=2`, `ambient_resume id=9/10`.
+- **Blocking dialogue.** VT `72.btb` label 497: `opcode=0xd1 id=35
+  name=voTins1 duration_ms=4709 blocking=1 waited_ms=4706 frames=323
+  events=17 (script continues)`; VT's `0xc4 0 tkamb` loop does not block.
+  `--print-audio` now lists `kind/opcode/loop/blocking`.
+- **Tests.** `audio-test` (SDL dummy): WAV strictness + 5 rejections, loop
+  start/restart, two ambient voices, stop one, stop_all, queue drain.
+  `scene-state-test`: 0xc4 start trace (opcode/loop), 0xbc stop, 0xcf release
+  step, 0xd0 stop-all. `make -C port -j2 all test` passes.
+- **Extraction.** `port/scene.sh` now extracts `copy2hd/sounds/*`
+  (`endgame`/`Emre2`/`Pxstart`) into `sounds/`; the lookup also accepts the
+  original `copy2hd/sounds` layout.
+- **Open.** Volume/pan fields `+0x1c/+0x20/+0x24/+0x28` and
+  `0xbf/0xc0/0xc2` are not applied (full volume); `0xd3` follow-up records are
+  not executed; the saved loop chain is not resumed; `endgame` stays a flag.
+  The real-device check proves the device opens and receives mixes, not an
+  acoustic measurement; the PCM capture is the content evidence.
+
+## Previous step — shared record draw paths (`49faebb`)
+
+The census's "snap pass" gap was completed and the census reading corrected.
+Report: `analysis/rea/DRAW_PATHS.md`.
+
+- **Snap pass.** `0x43b216` phase 1 runs only when `DAT_004859cd == 0`: a
+  record with `+0x09 & 0x20` (or CA type 1/2 with bit 4 clear) and a non-NULL
+  `+0x20` frame is drawn once at `+0x24/+0x26`, the matching `+0x3c` trail node
+  is removed (`0x43264d`), then `+0x20` is cleared. `SceneRecordState` gained
+  `snap_x/snap_y`; `0x64` writes them as x/y, `load_save` restores them, and
+  `frame_index_20` defaults to `0xffff` (NULL) like `0x40ffee`. `compose_scene`
+  counts `snap_drawn`.
+- **Correction.** The 103 `skipped_snap` records are **not** missing art: every
+  shipped save record with the flag has `+0x20 = 0xffff` (the original's phase 1
+  rejects it) and a save load sets `DAT_004859cd = 1` (phase 1 off). No shipped
+  script sets a `+0x20` frame, so the path has no visible arrival effect; it is
+  implemented and unit-tested, not claimed as a visual fix.
+- **Save record assets.** `0x426b9d` marker 1 also loads the CA animation
+  payload through `0x40fe70`; for an existing record `0x410078` fills the frame
+  list/count/signature **without** adding the frame-0 offsets again (the save
+  already has them). `load_save_record_assets` runs after the CA/anims inputs in
+  the player and `--trace-save`. VH `25.btb` now reports `record_assets=3` for
+  `vh04helm`/`vh04chal`/`vh04divd`.
+- **Verification.** `scene-state-test` snap unit test (draw/clear; no draw when
+  `flag_4859cd`). Real entries keep their exact counts: HSTMED 10 rec/14237 px,
+  MAP 7/37885, AM 0, VT 0, CLOCK 3/9949, VH 0; `record_assets` 37/6/1/0/2/3.
+  Logs `port/output/recordings/draw_paths/<scene>_entry.log`.
+- **Open (unexercised, not guessed).** The `+0x09 & 0x10` offset pair
+  (`+0x0a/+0x0c = 0` in every shipped save), the `+0x3c` trail **draw**
+  (`0x43b216` is called with `param_3 = 0` by the normal renderer), and the
+  `+0x09 & 0x80` destination blend.
+
+## Previous step — per-scene content coverage census (`ab02a84`)
+
+`analysis/rea/CONTENT_COVERAGE.md` (generated by
+`analysis/rea/build_content_coverage.py` + `render_content_coverage.py`) covers
+all 44 scenes with static tables + one player entry each. It answers what object,
+character and media assets a scene needs, what loads, what is not drawn and why;
+a background that opens is not counted as scene completion.
+
+- **Aggregate.** 970 CA sprite entries: 278 createable, 692 type 255 (`0x431b0f`
+  leaves the slot NULL). At arrival only 7 scenes draw records (CLOCK, HL,
+  HSTMED, IU, MAP, STAR, VOICE; 34 records total). `skipped_hidden`=0,
+  `skipped_no_frame`=0; the 103 `+0x09 & 0x20` records are explained above.
+  Background-only arrivals: `start`, `hints`, `iuover`, `vbdisc`, `vcdisc`,
+  `vhdisc`, `vtdisc`.
+- **Missing media.** 3 backgrounds are genuinely absent (ALGDoor2, BCCountr,
+  EAPhne2); the 7 close-up CB names are expected placeholders. MZ2's
+  mz18/mz19/mz21..mz29/mz31..mz36 panorama nodes are not on the CDs (only
+  MZ01..MZ10/mz30 are). BC `bckill1`/`bckill2` are type 0 with no anims file.
+  3 CD records have no dialog clip folder (EA `VOemphn1/2`, HINTS `Hints1`).
+  5 CS sounds are not shipped. `endgame`/`Emre2`/`Pxstart` live only under
+  `copy2hd/sounds` (now extracted).
+- **Common fixes exposed by the census.** A no-save entry now applies
+  `0x42c8a0`'s 3000-zero pool (`apply_variable_pool`), so identity locals
+  resolve to 0 instead of "unresolved". The click/active set uses the object
+  table's own `+0x08` byte like `0x40c02c` (the `hotspot_enabled` list alone
+  lost save-active objects); arrival hotspot counts for AM/MAP/NB/VH/VT rise
+  accordingly.
+- **Legitimate hidden content** is labelled `script-gated (hidden)` (declared
+  `0x72` slot not enabled at arrival) and is not forced visible.
+- **Tools.** `--print-objects`, `--print-variables`, `--print-records`,
+  `--save-dump` channel item ids and the `0x72`/`0x2c`/`0x24` fields.
+
+## Previous step — shared item use on scene objects (commits `5d2687c`, `ee7a3d8`, `011cf4a`)
 
 The inventory strip is now also a real item-use system: the selected item,
 the clicked object's kind/name id, the shipped script and the item's own
