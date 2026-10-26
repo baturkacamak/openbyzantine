@@ -55,6 +55,14 @@ using byzantine::kPlayfieldTop;
 
 constexpr int kSceneWidth = 640;
 constexpr int kSceneHeight = 400;
+// The original scene surface is 640x480: the playfield is rows 0x14..0x413
+// and the dialogue band is rows 0x1a4..0x1df. The port's composed scene stays
+// 640x400; the conversation presents it at kScreenPlayfieldTop inside this
+// 640x480 screen, exactly like 0x40d3af's y=0x14 and 0x424981's y=0x1a4.
+constexpr int kScreenWidth = 640;
+constexpr int kScreenHeight = 480;
+constexpr int kScreenPlayfieldTop = byzantine::kPlayfieldTop;
+constexpr int kScreenBandTop = 0x1a4;
 constexpr Uint32 kAudioRate = 22050;
 
 std::string lower_ascii(std::string value) {
@@ -79,6 +87,21 @@ std::optional<std::filesystem::path> find_child(const std::filesystem::path& dir
     const auto wanted = lower_ascii(name);
     for (const auto& entry : std::filesystem::directory_iterator(directory, error)) {
         if (entry.is_regular_file() && lower_ascii(entry.path().stem().string()) == wanted) {
+            return entry.path();
+        }
+    }
+    return std::nullopt;
+}
+
+// CAPTIONS.SFN and CAPTIONS.TGA share a stem, so find_child cannot tell them
+// apart. Match the full filename instead.
+std::optional<std::filesystem::path> find_filename(const std::filesystem::path& directory,
+                                                   const std::string& name) {
+    std::error_code error;
+    if (!std::filesystem::is_directory(directory, error)) return std::nullopt;
+    const auto wanted = lower_ascii(name);
+    for (const auto& entry : std::filesystem::directory_iterator(directory, error)) {
+        if (entry.is_regular_file() && lower_ascii(entry.path().filename().string()) == wanted) {
             return entry.path();
         }
     }
@@ -753,18 +776,23 @@ struct Display {
     std::optional<byzantine::SfnFont> examine_font;
     std::optional<byzantine::SfnFont> message_font;
     // Font slot 0 (fonts/DIALOG.SFN + GR_DLG/BK_DLG, fill 0xe2c0). 0x436b01
-    // draws the answer list with slot 0; the port uses it for the dialogue
-    // scrollback too because the original's bottom 60-px band is not part of the
-    // 640x400 ported surface.
+    // draws the answer list with slot 0.
     std::optional<byzantine::SfnFont> dialog_font;
+    // Font slot 4 (fonts/CAPTIONS.SFN + CAPTIONS.TGA, fill 0x03eb). 0x424981
+    // draws the conversation subtitle with this slot at (55, 420).
+    std::optional<byzantine::SfnFont> caption_font;
+    int logical_width = kSceneWidth;
+    int logical_height = kSceneHeight;
 
     void init() {
         if (SDL_Init(SDL_INIT_VIDEO) != 0) {
             throw std::runtime_error(std::string("SDL video init failed: ") + SDL_GetError());
         }
+        // 640x480 at 2x: the conversation screen fills the window exactly; the
+        // 640x400 playfield is letterboxed by SDL when it is presented.
         window = SDL_CreateWindow("Byzantine: The Betrayal - scene player",
                                   SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                                  kSceneWidth * 2, kSceneHeight * 2,
+                                  kScreenWidth * 2, kScreenHeight * 2,
                                   SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
         if (window == nullptr) throw std::runtime_error(SDL_GetError());
         renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
@@ -837,8 +865,24 @@ struct Display {
                   << " drawn_ids=" << drawn_ids(drawn) << '\n';
     }
 
-    void present(const SceneView& view, bool overlay) {
-        SDL_UpdateTexture(texture, nullptr, surface.pixels.data(), surface.width * 2);
+    // Shows any RGB565 image, switching the renderer's logical size when the
+    // image size differs. The conversation uses this for its 640x480 screen.
+    // `hotspot_offset_y` maps the playfield-only hotspot coordinates into the
+    // image (0 for the 640x400 playfield, kScreenPlayfieldTop for the
+    // 640x480 conversation screen, whose playfield starts at row 0x14).
+    void present_image(const byzantine::Rgb16Surface& image, const SceneView& view,
+                       bool overlay, int hotspot_offset_y) {
+        if (logical_width != image.width || logical_height != image.height) {
+            SDL_DestroyTexture(texture);
+            texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB565,
+                                        SDL_TEXTUREACCESS_STREAMING, image.width,
+                                        image.height);
+            if (texture == nullptr) throw std::runtime_error(SDL_GetError());
+            logical_width = image.width;
+            logical_height = image.height;
+            SDL_RenderSetLogicalSize(renderer, logical_width, logical_height);
+        }
+        SDL_UpdateTexture(texture, nullptr, image.pixels.data(), image.width * 2);
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
         SDL_RenderCopy(renderer, texture, nullptr, nullptr);
@@ -848,24 +892,31 @@ struct Display {
         // the panorama outline is not invented (the click still works).
         if (overlay && !panorama_layer(view)) {
             for (const auto& hotspot : view.trace.active_hotspots) {
-                SDL_Rect bounds{hotspot.x, hotspot.y - kPlayfieldTop, hotspot.width,
-                                hotspot.height};
+                SDL_Rect bounds{hotspot.x,
+                                hotspot.y - kPlayfieldTop + hotspot_offset_y,
+                                hotspot.width, hotspot.height};
                 if (bounds.y < 0) {
                     bounds.h += bounds.y;
                     bounds.y = 0;
                 }
-                if (bounds.y + bounds.h > kSceneHeight) bounds.h = kSceneHeight - bounds.y;
+                if (bounds.y + bounds.h > image.height) {
+                    bounds.h = image.height - bounds.y;
+                }
                 if (bounds.x < 0) {
                     bounds.w += bounds.x;
                     bounds.x = 0;
                 }
-                if (bounds.x + bounds.w > kSceneWidth) bounds.w = kSceneWidth - bounds.x;
+                if (bounds.x + bounds.w > image.width) bounds.w = image.width - bounds.x;
                 if (bounds.w <= 0 || bounds.h <= 0) continue;
                 SDL_SetRenderDrawColor(renderer, 255, 200, 0, 255);
                 SDL_RenderDrawRect(renderer, &bounds);
             }
         }
         SDL_RenderPresent(renderer);
+    }
+
+    void present(const SceneView& view, bool overlay) {
+        present_image(surface, view, overlay, 0);
     }
 
     // 0x4177c7 (examine, font 1, 0x14a, 3 lines, left) and 0x417a17 (message,
@@ -934,6 +985,9 @@ struct Session {
     bool interactive = false;
     bool running = true;
     WaitStats wait;
+    // While a conversation is running its 640x480 screen is what the window
+    // shows, including during audio waits. run_conversation sets and clears it.
+    const byzantine::Rgb16Surface* conversation_frame = nullptr;
 };
 
 // Processed while a sound plays: the script is waiting, so a click must not
@@ -959,7 +1013,12 @@ void pump_window(Session& session) {
             ++session.wait.clicks_ignored;
         }
     }
-    session.display.present(session.view, session.options.overlay);
+    if (session.conversation_frame != nullptr) {
+        session.display.present_image(*session.conversation_frame, session.view,
+                                      session.options.overlay, kScreenPlayfieldTop);
+    } else {
+        session.display.present(session.view, session.options.overlay);
+    }
     ++session.wait.frames;
 }
 
@@ -1721,71 +1780,140 @@ std::optional<DecodedClip> dialog_clip_cache(const Options& options,
     return decoded;
 }
 
-struct DialogUi {
-    std::vector<std::uint16_t> base;
-    std::vector<std::string> scrollback;  // at most 3 visual lines (DAT_0045fdb8)
-    const byzantine::SfnFont* font = nullptr;
-    int line_height = 16;
+// The conversation screen is the original 640x480 surface: the composed
+// 640x400 playfield at rows 0x14..0x413, the black 60-px dialogue band at rows
+// 0x1a4..0x1df, and the subtitle drawn by 0x424981 at (0x37, 0x1a4) with font
+// slot 4 (green 0x03eb). The answers are 0x436b01: x=100, wrap width 440, a
+// 0x7f star prefix, font slot 0 (orange 0xe2c0 / white 0xffff when hovered),
+// and the block bottom at 0x19f - 0x2d = 370.
+struct ConversationUi {
+    byzantine::Rgb16Surface screen =
+        byzantine::make_surface(kScreenWidth, kScreenHeight, 0);
+    std::vector<std::uint16_t> answer_base;  // playfield under the answer list
+    std::vector<std::string> caption;        // wrapped subtitle, at most 3 lines
+    const byzantine::SfnFont* answers_font = nullptr;
+    const byzantine::SfnFont* caption_font = nullptr;
+    int line_height = 20;
+    static constexpr int kCaptionLines = 3;
 
-    void restore(Session& session) const {
-        if (base.size() == session.display.surface.pixels.size()) {
-            std::copy(base.begin(), base.end(), session.display.surface.pixels.begin());
+    // 0x40d5ff clears all 0x4b000 words of the 640x480 surface when a character
+    // video starts. The port keeps the playfield (640x400) as its scene surface
+    // and blacks it, so the shop JPEG is not visible through the dialogue.
+    void clear_playfield(Session& session) {
+        std::fill(session.display.surface.pixels.begin(),
+                  session.display.surface.pixels.end(), 0);
+        answer_base = session.display.surface.pixels;
+    }
+
+    void snapshot_playfield(Session& session) {
+        answer_base = session.display.surface.pixels;
+    }
+
+    // 0x424780 wraps at 0x212 (530) and 0x424b15 keeps the last three lines.
+    void set_caption(const std::string& text) {
+        caption.clear();
+        if (caption_font == nullptr || text.empty()) return;
+        caption = wrap_dialog_text(*caption_font, text, 530);
+        if (static_cast<int>(caption.size()) > kCaptionLines) {
+            caption.resize(kCaptionLines);
         }
     }
 
-    void draw_text_overlay(Session& session) const {
-        // The original's dialogue is row 0x1a4 of the 640x480 surface, inside
-        // the 60-px band below the playfield. The port has no band, so the same
-        // lines are drawn over the top of the playfield with a black panel.
-        if (font != nullptr) {
-            const int panel_height = static_cast<int>(scrollback.size()) * line_height + 8;
-            for (int y = 0; y < panel_height && y < kSceneHeight; ++y) {
-                for (int x = 48; x < 592; ++x) session.display.surface.at(x, y) = 0;
+    void clear_caption() { caption.clear(); }
+
+    // 0x424981 clears 0x12c00 bytes (rows 0x1a4..0x1df) on every draw; the port
+    // clears the whole 60-px band so the old line cannot survive a redraw.
+    void draw_caption(byzantine::Rgb16Surface& target) const {
+        for (int y = kScreenBandTop; y < kScreenHeight; ++y) {
+            for (int x = 0; x < kScreenWidth; ++x) target.at(x, y) = 0;
+        }
+        if (caption_font == nullptr) return;
+        int y = kScreenBandTop;
+        for (const auto& line : caption) {
+            byzantine::draw_text(target, *caption_font, line, 0x37, y, 1, 3, 0x03eb);
+            y += caption_font->line_height;
+        }
+    }
+
+    void draw_answers(Session& session,
+                      const std::vector<byzantine::ConversationAnswer>& answers,
+                      int hovered, std::vector<SDL_Rect>* rects) {
+        if (answer_base.size() == session.display.surface.pixels.size()) {
+            std::copy(answer_base.begin(), answer_base.end(),
+                      session.display.surface.pixels.begin());
+        }
+        rects->clear();
+        if (answers_font == nullptr) return;
+        std::vector<std::vector<std::string>> wrapped;
+        int total_lines = 0;
+        for (const auto& answer : answers) {
+            std::string text;
+            if (answer.show_text) {
+                // 0x436b01 builds "0x7f ' '" + answer text before wrapping;
+                // 0x7f selects the DIALOG font's star glyph.
+                text.push_back(static_cast<char>(0x7f));
+                text.push_back(' ');
+                text += answer.text;
             }
-            int y = 4;
-            for (const auto& line : scrollback) {
-                byzantine::draw_text(session.display.surface, *font, line, 55, y - 4,
-                                    1, 3);
+            wrapped.push_back(wrap_dialog_text(*answers_font, text, 440));
+            total_lines += static_cast<int>(wrapped.back().size());
+        }
+        // 0x19f - 0x2d: 0x436b01 leaves 45 rows for the subtitle band.
+        int top = 0x19f - 0x2d - total_lines * line_height;
+        for (std::size_t index = 0; index < answers.size(); ++index) {
+            const auto& lines = wrapped[index];
+            int width = 0;
+            for (const auto& line : lines) {
+                width = std::max(width, byzantine::text_width(*answers_font, line));
+            }
+            int y = top - kScreenPlayfieldTop;  // playfield coordinate
+            for (const auto& line : lines) {
+                if (!line.empty()) {
+                    byzantine::draw_text(session.display.surface, *answers_font, line,
+                                         100, y, 1, 3,
+                                         index == static_cast<std::size_t>(hovered)
+                                             ? 0xffff
+                                             : 0xe2c0);
+                }
                 y += line_height;
             }
+            rects->push_back(SDL_Rect{100, top, width,
+                                      static_cast<int>(lines.size()) * line_height});
+            top += static_cast<int>(lines.size()) * line_height;
         }
     }
 
-    void draw(Session& session, bool answers) const {
-        restore(session);
-        draw_text_overlay(session);
-        (void)answers;
+    void compose(Session& session) {
+        std::fill(screen.pixels.begin(), screen.pixels.end(), 0);
+        for (int y = 0; y < kSceneHeight; ++y) {
+            for (int x = 0; x < kSceneWidth; ++x) {
+                screen.at(x, y + kScreenPlayfieldTop) =
+                    session.display.surface.at(x, y);
+            }
+        }
+        draw_caption(screen);
+    }
+
+    void present(Session& session) {
+        compose(session);
+        session.display.present_image(screen, session.view, session.options.overlay,
+                                      kScreenPlayfieldTop);
+    }
+
+    bool write(Session& session, const std::string& path) {
+        compose(session);
+        return byzantine::write_ppm(screen, path);
     }
 };
 
-void draw_answer_panel(DialogUi& ui, Session& session,
-                       const std::vector<byzantine::ConversationAnswer>& answers,
-                       const std::vector<std::filesystem::path>& /*unused*/,
-                       std::vector<SDL_Rect>* rects) {
-    ui.draw(session, true);
-    if (ui.font == nullptr) return;
-    rects->clear();
-    int bottom = kSceneHeight - 6;
-    for (std::size_t index = answers.size(); index-- > 0;) {
-        const auto& answer = answers[index];
-        const auto lines = wrap_dialog_text(*ui.font, answer.show_text ? answer.text : "",
-                                            480);
-        const int height = static_cast<int>(lines.size()) * ui.line_height + 4;
-        const int top = bottom - height;
-        for (int y = std::max(0, top); y < bottom && y < kSceneHeight; ++y) {
-            for (int x = 92; x < 592; ++x) session.display.surface.at(x, y) = 0;
+int answer_at(const std::vector<SDL_Rect>& rects, float x, float y) {
+    for (std::size_t index = 0; index < rects.size(); ++index) {
+        const auto& rect = rects[index];
+        if (x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h) {
+            return static_cast<int>(index);
         }
-        int y = top + 2;
-        for (const auto& line : lines) {
-            if (!line.empty()) {
-                byzantine::draw_text(session.display.surface, *ui.font, line, 100, y, 1, 3);
-            }
-            y += ui.line_height;
-        }
-        rects->push_back(SDL_Rect{92, std::max(0, top), 500, height});
-        bottom = top - 4;
     }
-    std::reverse(rects->begin(), rects->end());
+    return -1;
 }
 
 bool wait_dialog_ms(Session& session, std::uint64_t milliseconds) {
@@ -1867,10 +1995,30 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
     // segment committed.
     refresh_background(options, session.view);
     session.display.compose(session.view, false);
-    DialogUi ui;
-    ui.base = session.display.surface.pixels;
-    ui.font = session.display.dialog_font ? &*session.display.dialog_font : nullptr;
-    if (ui.font != nullptr) ui.line_height = std::max(8, ui.font->line_height);
+    ConversationUi ui;
+    ui.answers_font =
+        session.display.dialog_font ? &*session.display.dialog_font : nullptr;
+    ui.caption_font =
+        session.display.caption_font ? &*session.display.caption_font : nullptr;
+    if (ui.answers_font == nullptr) {
+        std::cout << "conversation record=" << record_index
+                  << " ERROR: fonts/DIALOG.SFN is not loaded; the answer list "
+                     "cannot be drawn\n";
+        return outcome;
+    }
+    if (ui.caption_font == nullptr) {
+        std::cout << "conversation record=" << record_index
+                  << " ERROR: fonts/CAPTIONS.SFN + CAPTIONS.TGA are not loaded; "
+                     "the original green subtitle cannot be drawn\n";
+        return outcome;
+    }
+    ui.line_height = std::max(1, ui.answers_font->line_height);
+    ui.snapshot_playfield(session);
+    session.conversation_frame = &ui.screen;
+    if (verbose) {
+        std::cout << "conversation_caption source=cleared reason=start\n";
+    }
+    ui.present(session);
 
     std::size_t choice_cursor = 0;
     bool answer_shot_written = false;
@@ -1884,24 +2032,20 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
         std::cout << "conversation_video mode=unknown (no --gameprefs; using the "
                      "BSS mode 0, 320x200)\n";
     }
-    const auto wrap = [&ui](const std::string& text) {
-        if (ui.font != nullptr) return wrap_dialog_text(*ui.font, text, 520);
-        std::vector<std::string> lines{text};
-        return lines;
-    };
     // 0x436b01 calls 0x424780(selected answer) before 0x43340a(entry list): the
-    // player's line enters the same scrollback as the NPC lines.
+    // player's line becomes the subtitle, like any other spoken line.
     const auto show_answer_line = [&](const byzantine::ConversationAnswer& answer) {
         if (!answer.show_text) return;
-        const auto lines = wrap(answer.text);
-        for (const auto& line : lines) {
-            ui.scrollback.push_back(line);
-            while (ui.scrollback.size() > 3) ui.scrollback.erase(ui.scrollback.begin());
+        ui.set_caption(answer.text);
+        if (verbose) {
+            std::cout << "conversation_caption source=answer line=" << answer.line
+                      << " visual_lines=" << ui.caption.size() << '\n';
         }
-        ui.draw(session, false);
-        session.display.present(session.view, false);
-        if (session.interactive && !wait_dialog_ms(
-                session, static_cast<std::uint64_t>(lines.size()) * 700)) {
+        ui.present(session);
+        const auto lines = wrap_dialog_text(*ui.caption_font, answer.text, 530);
+        if (session.interactive &&
+            !wait_dialog_ms(session,
+                            static_cast<std::uint64_t>(lines.size()) * 700)) {
             session.running = false;
         }
     };
@@ -1922,7 +2066,12 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
         if (event.kind == byzantine::ConversationEventKind::finished) {
             outcome.ok = true;
             outcome.result = event.result;
+            // The subtitle belongs to the conversation screen only; 0x432d6e
+            // clears DAT_0045fdb4/0x424c4e before the scene returns.
+            ui.clear_caption();
             if (verbose) {
+                std::cout << "conversation_caption source=cleared reason=end result="
+                          << event.result << '\n';
                 std::cout << "conversation_end record=" << record_index
                           << " name=" << record.name << " result=" << event.result
                           << " lines=" << outcome.lines
@@ -1935,15 +2084,17 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
         }
         if (event.kind == byzantine::ConversationEventKind::line) {
             ++outcome.lines;
-            const auto wrapped = wrap(event.line.text);
+            // 0x424780 only replaces the subtitle for a line with text; a
+            // "null"/no-text line leaves the previous line visible.
             if (event.line.show_text) {
-                for (const auto& line : wrapped) {
-                    ui.scrollback.push_back(line);
-                    while (ui.scrollback.size() > 3) ui.scrollback.erase(ui.scrollback.begin());
+                ui.set_caption(event.line.text);
+                if (verbose) {
+                    std::cout << "conversation_caption source=npc index="
+                              << event.line.index
+                              << " visual_lines=" << ui.caption.size() << '\n';
                 }
             }
-            ui.draw(session, false);
-            session.display.present(session.view, false);
+            ui.present(session);
             if (verbose) {
                 std::cout << "conversation_line record=" << record_index
                           << " index=" << event.line.index
@@ -2019,6 +2170,10 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                                           << " ERROR queue: " << error.what() << '\n';
                             }
                         }
+                        // 0x40d5ff clears the 640x480 surface when gamepref[1]
+                        // is 0 (the 320x200 mode-0 window); mode 2's 640x400
+                        // frame covers the playfield by itself.
+                        if (!fullscreen_video) ui.clear_playfield(session);
                         const auto frame_time = std::chrono::microseconds(
                             1000000 / std::max(1, decoded->fps));
                         auto next_frame = std::chrono::steady_clock::now();
@@ -2033,7 +2188,6 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                                 break;
                             }
                             const auto pixels = byzantine::rgb_to_rgb565(image);
-                            ui.restore(session);
                             bool placed = false;
                             if (fullscreen_video) {
                                 placed = byzantine::blit_image_2x(
@@ -2057,13 +2211,11 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                                              .placed;
                             }
                             if (!placed) break;
-                            ui.draw_text_overlay(session);
-                            session.display.present(session.view, false);
+                            ui.present(session);
                             if (!options.conversation_video_shot.empty() &&
                                 !video_shot_written) {
-                                if (byzantine::write_ppm(
-                                        session.display.surface,
-                                        options.conversation_video_shot)) {
+                                if (ui.write(session,
+                                             options.conversation_video_shot)) {
                                     std::cout << "conversation_video_shot "
                                               << options.conversation_video_shot
                                               << " clip=" << event.line.clip << '\n';
@@ -2101,6 +2253,10 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                                 SDL_Delay(4);
                             }
                         }
+                        // The last frame stays on the surface, exactly like the
+                        // original's DirectDraw target; 0x436b01 draws the
+                        // answers over it.
+                        ui.snapshot_playfield(session);
                         media_played = true;
                         ++outcome.media;
                     }
@@ -2108,9 +2264,10 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
             }
             if (!media_played && event.line.show_text && session.interactive) {
                 // 0x424981's reveal: roughly one second per visual line.
-                if (!wait_dialog_ms(session,
-                                    static_cast<std::uint64_t>(wrapped.size()) * 700))
+                if (!wait_dialog_ms(
+                        session, static_cast<std::uint64_t>(ui.caption.size()) * 700)) {
                     break;
+                }
             }
             conversation.line_shown();
             continue;
@@ -2136,10 +2293,17 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
             }
             if (!options.conversation_shot.empty() && !answer_shot_written) {
                 std::vector<SDL_Rect> shot_rects;
-                draw_answer_panel(ui, session, event.answers, {}, &shot_rects);
-                session.display.present(session.view, false);
-                if (byzantine::write_ppm(session.display.surface,
-                                         options.conversation_shot)) {
+                ui.draw_answers(session, event.answers, -1, &shot_rects);
+                ui.present(session);
+                if (verbose) {
+                    for (std::size_t index = 0; index < shot_rects.size(); ++index) {
+                        const auto& rect = shot_rects[index];
+                        std::cout << "conversation_answer_rect choice=" << index
+                                  << " x=" << rect.x << " y=" << rect.y
+                                  << " w=" << rect.w << " h=" << rect.h << '\n';
+                    }
+                }
+                if (ui.write(session, options.conversation_shot)) {
                     std::cout << "conversation_shot " << options.conversation_shot
                               << " group=" << event.group << '\n';
                 }
@@ -2183,13 +2347,32 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                 continue;
             }
             std::vector<SDL_Rect> rects;
+            int hovered = -1;
+            int last_hovered = -2;
             bool picked = false;
             while (session.running && !picked) {
-                draw_answer_panel(ui, session, event.answers, {}, &rects);
-                session.display.present(session.view, false);
+                // 0x436b01 redraws the list on every pointer move: the option
+                // under the pointer uses its white (0xffff) colour. The rects
+                // are screen coordinates, so the hit area is exactly the drawn
+                // text's width and line block.
+                int pointer_x = 0;
+                int pointer_y = 0;
+                SDL_GetMouseState(&pointer_x, &pointer_y);
+                float mouse_x = 0;
+                float mouse_y = 0;
+                SDL_RenderWindowToLogical(session.display.renderer, pointer_x,
+                                          pointer_y, &mouse_x, &mouse_y);
+                hovered = answer_at(rects, mouse_x, mouse_y);
+                if (verbose && hovered != last_hovered) {
+                    std::cout << "conversation_hover choice=" << hovered
+                              << " logical=" << static_cast<int>(mouse_x) << ','
+                              << static_cast<int>(mouse_y) << '\n';
+                    last_hovered = hovered;
+                }
+                ui.draw_answers(session, event.answers, hovered, &rects);
+                ui.present(session);
                 if (!options.conversation_shot.empty() && !answer_shot_written) {
-                    if (byzantine::write_ppm(session.display.surface,
-                                             options.conversation_shot)) {
+                    if (ui.write(session, options.conversation_shot)) {
                         std::cout << "conversation_shot " << options.conversation_shot
                                   << " group=" << event.group << '\n';
                     }
@@ -2230,40 +2413,40 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                         SDL_RenderWindowToLogical(session.display.renderer,
                                                   event_poll.button.x, event_poll.button.y,
                                                   &logical_x, &logical_y);
-                        bool in_answer = false;
-                        for (std::size_t index = 0; index < rects.size(); ++index) {
-                            const auto& rect = rects[index];
-                            if (logical_x >= rect.x && logical_x <= rect.x + rect.w &&
-                                logical_y >= rect.y && logical_y <= rect.y + rect.h) {
+                        const auto index = answer_at(rects, logical_x, logical_y);
+                        if (index >= 0) {
+                            if (verbose) {
+                                std::cout << "conversation_pick record=" << record_index
+                                          << " choice=" << index << '\n';
+                            }
+                            show_answer_line(event.answers[index]);
+                            try {
+                                conversation.choose(static_cast<std::size_t>(index));
+                            } catch (const std::exception& error) {
+                                std::cout << "conversation record=" << record_index
+                                          << " answer_error=" << error.what() << '\n';
+                                return outcome;
+                            }
+                            picked = true;
+                            break;
+                        }
+                        // 0x436b01 also returns a scene-object click to 0x70.
+                        // The conversation screen places the playfield at row
+                        // 0x14, while hotspot_at wants playfield coordinates.
+                        if (logical_y >= kScreenPlayfieldTop) {
+                            const auto hit = hotspot_at(
+                                session.view, static_cast<int>(logical_x),
+                                static_cast<int>(logical_y) - kScreenPlayfieldTop);
+                            if (hit.slot) {
                                 if (verbose) {
-                                    std::cout << "conversation_pick record=" << record_index
-                                              << " choice=" << index << '\n';
+                                    std::cout << "conversation_object record="
+                                              << record_index << " slot=" << *hit.slot
+                                              << '\n';
                                 }
-                                show_answer_line(event.answers[index]);
-                                try {
-                                    conversation.choose(index);
-                                } catch (const std::exception& error) {
-                                    std::cout << "conversation record=" << record_index
-                                              << " answer_error=" << error.what() << '\n';
-                                    return outcome;
-                                }
-                                in_answer = true;
+                                conversation.click_object(*hit.slot);
                                 picked = true;
                                 break;
                             }
-                        }
-                        if (in_answer) break;
-                        // 0x436b01 also returns a scene-object click to 0x70.
-                        const auto hit = hotspot_at(session.view, static_cast<int>(logical_x),
-                                                    static_cast<int>(logical_y));
-                        if (hit.slot) {
-                            if (verbose) {
-                                std::cout << "conversation_object record=" << record_index
-                                          << " slot=" << *hit.slot << '\n';
-                            }
-                            conversation.click_object(*hit.slot);
-                            picked = true;
-                            break;
                         }
                     }
                 }
@@ -2306,7 +2489,13 @@ bool execute_plan(Session& session, const ClickPlan& plan,
     const auto before_conversation = session.view.state;
     const auto outcome = run_conversation(session, request.record, request.object_context,
                                           verbose);
+    // The conversation screen is local to run_conversation; stop showing it (and
+    // with it the last subtitle) before the game scene returns.
+    session.conversation_frame = nullptr;
     if (!outcome.ok) {
+        refresh_background(session.options, session.view);
+        session.display.compose(session.view, false);
+        session.display.present(session.view, false);
         std::cout << "conversation stopped before completion; the click is not committed\n";
         return false;
     }
@@ -2457,6 +2646,58 @@ int main(int argc, char** argv) {
                 std::cout << "dialog font disabled: DIALOG.SFN/GR_DLG.TGA/BK_DLG.TGA "
                              "not under "
                           << options.fonts.string() << '\n';
+            }
+            const auto cap = find_filename(options.fonts, "CAPTIONS.SFN");
+            const auto cap_tga = find_filename(options.fonts, "CAPTIONS.TGA");
+            if (cap && cap_tga) {
+                try {
+                    // 0x406cfe slot 4: CAPTIONS.SFN + CAPTIONS.TGA, green
+                    // 0x03eb. 0x424981 draws the conversation subtitle.
+                    session.display.caption_font =
+                        byzantine::load_sfn_font_single_atlas(cap->string(),
+                                                              cap_tga->string(), 0x03eb);
+                    std::cout << "fonts captions glyphs="
+                              << session.display.caption_font->glyph_count
+                              << " atlas=" << session.display.caption_font->atlas_width
+                              << 'x' << session.display.caption_font->atlas_height
+                              << " line=" << session.display.caption_font->line_height
+                              << '\n';
+                    // The shipped Turkish CAPTIONS.SFN/TGA only carries some of
+                    // the Turkish glyphs: metrics 0x62..0x66 and 0x69..0x6c are
+                    // 2-pixel blanks. Its ASCII glyphs are pixel-identical to
+                    // DIALOG's (62 of 63), so the subtitle keeps the verified
+                    // position/colour and uses DIALOG's glyph shapes rather
+                    // than dropping letters.
+                    const char turkish_bytes[] = {'\xa1', '\xa2', '\xa3', '\xa4',
+                                                  '\xa5', '\xa6', '\xa7', '\xa8',
+                                                  '\xaa', '\xab', '\xac', '\xad'};
+                    std::string missing;
+                    for (const char byte : turkish_bytes) {
+                        const auto* glyph = session.display.caption_font->glyph(byte);
+                        if (glyph == nullptr || glyph->advance <= 2) {
+                            missing.push_back(byte);
+                        }
+                    }
+                    if (!missing.empty() && session.display.dialog_font) {
+                        std::cout << "fonts captions: " << missing.size()
+                                  << " Turkish glyph(s) are blank in CAPTIONS.SFN";
+                        for (const char byte : missing) {
+                            std::cout << " 0x" << std::hex
+                                      << static_cast<int>(
+                                             static_cast<unsigned char>(byte))
+                                      << std::dec;
+                        }
+                        std::cout << "; using DIALOG.SFN's identical glyph shapes for "
+                                     "the green subtitle\n";
+                        session.display.caption_font = session.display.dialog_font;
+                    }
+                } catch (const std::exception& error) {
+                    std::cout << "caption font disabled: " << error.what() << '\n';
+                }
+            } else {
+                std::cout << "caption font disabled: CAPTIONS.SFN/CAPTIONS.TGA not under "
+                          << options.fonts.string()
+                          << " (conversations report an error instead of guessing)\n";
             }
         } else {
             std::cout << "fonts disabled: no --fonts (the text windows stay blank)\n";

@@ -18,7 +18,62 @@ game ISOs/archives, `analysis/rea/BETRAYAL.EXE`, `tools/rea`, `upscale_ornek` an
 needs `port/output/`: recreate it from your own copy with `port/byzantine-all`
 (and `port/scene.sh` for the extracted media) before running the suites.
 
-## Latest step — conversation screen fixes (text, video, audio)
+## Latest step — match the reference conversation screen layout
+
+The reference frames show the 640x480 original layout: the full-playfield video
+on black, a green subtitle in the bottom 60-px band, and the answer list over
+the video. The port now models that instead of its earlier top orange panel and
+bottom answer boxes.
+
+- **Screen/background:** the conversation screen is 640x480. The composed
+  640x400 scene sits at rows `0x14..0x413`; the video's mode-2 destination is
+  `(0,0x14)..(640,0x414)` (source*2), the whole playfield. The shop JPEG is not
+  the conversation background: `0x40d5ff` clears the `0x4b000`-word surface in
+  the mode-0 branch, and a mode-2 frame covers the playfield; the last decoded
+  frame stays under the answers. `--shot`/`--conversation-shot` images are
+  640x480 for the conversation.
+- **Subtitle:** `0x424981` clears rows 420..479 (`0x12c00` bytes at `0x83400`)
+  every draw and draws `DAT_0045fdb4` at **x=55, y=420**, font slot 4, left,
+  max 3 lines; `0x424780` wraps at **530 px**. The fill is green **0x03eb**
+  (`0x1f<<5 | 0xb`). The port draws exactly that and keeps the line while the
+  answer list is up.
+- **Subtitle font blocker:** the Turkish `CAPTIONS.SFN/TGA` has 2-pixel blanks
+  for 9 of the 12 Turkish letters and places the remaining accents at odd
+  indices; its ASCII glyphs are pixel-identical to `DIALOG` (62/63 compared), so
+  the port uses `DIALOG`'s glyph shapes with the green fill and reports the
+  missing CAPTIONS glyphs at startup. Coordinates, wrap, max lines and colour
+  still come from the original code.
+- **Answers:** `0x436b01` x=100, wrap 440, prefix `0x7f` + space (DIALOG glyph
+  0x5f star), font slot 0 normal 0xe2c0 / hovered 0xffff, line step 20, block
+  bottom `0x19f-0x2d=370`. The hit rect is the drawn block
+  (`x=100..100+max line width`, answer lines*20). Hover redraws the option white.
+  The first list's rects are `(100,250,234x20)`, `(100,270,440x40)`,
+  `(100,310,440x60)`.
+- **Text lifetime:** clear at conversation start; replace on each NPC text;
+  keep when the answers open; the chosen answer becomes the subtitle; clear at
+  the end. Logs: `conversation_caption source=start|npc|answer|cleared`. The
+  caption is local to the 640x480 conversation screen, so no text can reach the
+  next scene.
+- **Conversation end:** the 0xffff path resumes at 524 and travels (`0x73`) to
+  scene 25 = **MAP**; the object-click path also travels there. The shop frame
+  is the pre-conversation scene. The port does not draw the inventory bar in the
+  band outside conversations; the after-exit comparison image pads the 640x400
+  scene shot into 640x480.
+- **Verification:** `port/output/recordings/shot_talk.png`,
+  `shot_answers.png`, `shot_answers_hover.png`, `shot_after_480.png` (all
+  640x480) and `mr_new_layout.mp4` (9 s, 1280x960 H.264 + AAC, mean -21.8 dB).
+  The recording's envelope matches `Mr2meh03` at **0.999** correlation, offset
+  -1.825 s (the recording starts inside the clip). `shot_answers_hover.png`
+  shows the third option white under the pointer while the other two stay
+  orange; the real-device recording is the talk image's source.
+- Tests: `text-test` now covers the single-atlas CAPTIONS loader, the
+  zero-advance out-of-atlas sentinel and the green fill override. `make -C port
+  -j2 all test` passes all eleven suites.
+- Try: `./port/scene.sh . MR 0 30.btb --entry --run-label 413` (real window;
+  options at logical y 250/270/310, subtitle at 420; hover an option to see it
+  turn white).
+
+## Previous step — conversation screen fixes (text, video, audio)
 
 The IMhMR2a screen had three real defects; this step fixes only those.
 
@@ -39,9 +94,9 @@ The IMhMR2a screen had three real defects; this step fixes only those.
   playfield. `blit_image_2x` doubles the 320x200 frame exactly (nearest 2x); the
   frame is opaque (no key/mask/background blend in this path). If gamepref[1] is
   0 the original's other branch is mode 0, 320x200 at (160,120), which the port
-  also implements. The exact DirectDraw stretch filter is not recovered. The subtitle scrollback stays a
-  documented port adaptation (top of the 640x400 surface; the original's bottom
-  60-px band is not part of it).
+  also implements. The exact DirectDraw stretch filter is not recovered. The
+  subtitle/answer layout was superseded by the latest step (original 640x480
+  green band and middle answer list).
 - **Audio:** the voice is inside the AVI (PCM16 stereo 22050 Hz; `ffprobe` for
   every IMhMR2a `meh` clip), not a separate file. The cached `audio.wav` is
   parsed and queued through SDL2 before the frame loop and drained after it.
@@ -58,8 +113,8 @@ The IMhMR2a screen had three real defects; this step fixes only those.
   -j2 all test` passes all eleven suites. `analysis/rea/TEXT_WINDOW.md` §3 and
   `analysis/rea/CONVERSATION.md` were corrected.
 - Try: `./port/scene.sh . MR 0 30.btb --entry --run-label 413` (real window;
-  answer rows at logical y≈274/302/350). The first clip's voice and the
-  fullscreen frame are in the recording above.
+  the current option/subtitle coordinates are in the latest step above). The
+  first clip's voice and the fullscreen frame are in the recording above.
 
 ## Previous step — one real MR conversation end to end (`0x70`)
 

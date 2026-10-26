@@ -4,6 +4,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -49,6 +50,13 @@ struct SfnFont {
 SfnFont load_sfn_font(const std::string& sfn_path, const std::string& gr_tga_path,
                       const std::string& bk_tga_path, std::uint16_t fill);
 
+// 0x406cfe slot 4 (CAPTIONS.SFN + CAPTIONS.TGA): the original calls only
+// 0x40612a for this slot (no 0x406153 bk atlas), so the shadow mask is zero.
+// The single TGA is the coverage atlas; the fill is the green 0x03eb.
+SfnFont load_sfn_font_single_atlas(const std::string& sfn_path,
+                                   const std::string& atlas_tga_path,
+                                   std::uint16_t fill);
+
 // 0x4063e0: draws `text` with `font` into `surface` at (x, y), one line per
 // '\n', at most `max_lines` lines. `alignment` follows the original: 1 centres
 // on x, 2 and 4 right-align to x, 3 left-aligns from x. Each byte is a glyph
@@ -56,7 +64,8 @@ SfnFont load_sfn_font(const std::string& sfn_path, const std::string& gr_tga_pat
 // fonts). Bytes outside the font's range are skipped, never substituted.
 // Returns the number of lines drawn.
 int draw_text(Rgb16Surface& surface, const SfnFont& font, const std::string& text, int x,
-              int y, int max_lines, int alignment);
+              int y, int max_lines, int alignment,
+              std::optional<std::uint16_t> fill = std::nullopt);
 
 // 0x4061e7/0x4062bc: the maximum line width / the width of one line.
 int text_width(const SfnFont& font, const std::string& text);

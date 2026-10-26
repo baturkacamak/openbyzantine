@@ -1,5 +1,6 @@
 #include "byzantine/text.hpp"
 
+#include <algorithm>
 #include <array>
 #include <filesystem>
 #include <fstream>
@@ -126,6 +127,35 @@ int main() {
                     "high byte used the direct -0x20 glyph index");
             require(byzantine::text_width(turkish, "\xa7\xa8") == 6,
                     "Turkish high-byte advances are wrong");
+        }
+
+        // 0x406cfe slot 4 loads only CAPTIONS.TGA (0x40612a), never a bk mask.
+        // A zero-advance metric may point outside the atlas (the shipped
+        // CAPTIONS.SFN's last two entries do) and must load as an empty glyph,
+        // while a non-empty glyph outside the atlas still fails.
+        {
+            std::vector<std::array<unsigned, 4>> metrics(0x69, {0, 0, 0, 0});
+            metrics[0] = {0, 0, 4, 4};
+            metrics[0x66] = {4, 0, 3, 3};
+            metrics[0x68] = {1000, 0, 0, 4};
+            write_file(root / "cap.SFN", make_sfn(8, 8, metrics));
+            write_file(root / "CAP.TGA", make_tga(8, 8, gr));
+            const auto captions = byzantine::load_sfn_font_single_atlas(
+                (root / "cap.SFN").string(), (root / "CAP.TGA").string(), 0x03eb);
+            require(captions.glyph('\xa7') == &captions.glyphs[0x66],
+                    "single-atlas Turkish glyph lookup");
+            require(captions.glyphs[0x68].advance == 0 &&
+                        captions.glyphs[0x68].x == 0,
+                    "zero-advance glyph outside the atlas was not emptied");
+            require(captions.bk.size() == 64 &&
+                        std::all_of(captions.bk.begin(), captions.bk.end(),
+                                    [](std::uint8_t value) { return value == 0; }),
+                    "single-atlas font must have no shadow mask");
+            auto surface = byzantine::make_surface(8, 8, 0);
+            byzantine::draw_text(surface, captions, "\xa7", 0, 0, 1, 3, 0x03eb);
+            require(surface.at(0, 0) == 0x03eb,
+                    "green caption fill override did not reach the glyph");
+            require(surface.at(4, 0) == 0, "caption glyph wrote at the atlas x");
         }
 
         // 0x4067e2: the bk mask blends black, the gr mask the fill colour.

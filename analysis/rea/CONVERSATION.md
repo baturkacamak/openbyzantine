@@ -170,18 +170,52 @@ media opcodes are outside this one-conversation slice.
   `execute_plan` runs the pre-conversation segment (with its sounds), the real
   conversation, and the resumed segment; a conversation that does not finish is
   **not committed** (the pre-click state is restored).
-- UI: `fonts/DIALOG.SFN + GR_DLG/BK_DLG`, fill `0xe2c0` (slot 0). The NPC lines go
-  into a 3-line scrollback and the answers are drawn as click targets at the
-  bottom. The text is the shipped Turkish single-byte font encoding, not
-  CP1254: `0x4061e7`/`0x4063e0` call `FUN_00405bf4` for bytes above 0x7f, which
-  maps them by `byte - 0x41` (`0xa7` -> ç, `0xa8` -> ş, `0xaa` -> ı, `0xab` ->
-  ğ, `0xac` -> ü, `0xad` -> ö, with capitals at `0xa1..0xa6`). The port applies
-  that mapping in `SfnFont::glyph`, so width and drawing use the same index; no
-  re-encoding table is invented. `0x406cbf`'s English branch (`DAT_0045d0ac`)
-  would keep the direct `byte - 0x20` index; the shipped build uses the Turkish
-  path. The original's bottom 60-px band is not part of the ported 640x400
-  surface, so the scrollback is drawn over the top of the playfield (documented
-  adaptation, not different text). Window titles are ASCII.
+- UI (the original 640x480 surface): rows `0x14..0x413` are the playfield, rows
+  `0x1a4..0x1df` the 60-px dialogue band. The port composes its 640x400 scene at
+  row `0x14` and the conversation screen is 640x480; the shop JPEG is **not**
+  the conversation background. When a character video starts, `0x40d5ff`
+  clears all `0x4b000` words of the 640x480 surface (the mode-0 branch); a mode-2
+  640x400 frame covers the whole playfield. The port clears the playfield in
+  mode 0 and lets the last decoded frame stay under the answers, like the
+  original's DirectDraw target; the scene JPEG never shows through a mode-2
+  clip.
+- Subtitle (`0x424981`): it clears `0x12c00` bytes at offset `0x83400` (rows
+  420..479, 640x60) on every draw, then draws `DAT_0045fdb4` at
+  **x=0x37 (55), y=0x1a4 (420)** with font slot 4, left alignment, at most
+  `DAT_0045fdb8` = 3 lines. `0x424780` wraps the line at `0x212` = 530 px and
+  `0x424b15` keeps a 3-line buffer. The slot-4 fill is green:
+  `(0x1f << 5) | 0xb = 0x03eb` (the same `0x03eb` the port passes to
+  `draw_text`). The port reproduces the x/y/wrap/max-lines/colour and keeps the
+  current subtitle visible while the answers are open.
+- **Subtitle font data blocker:** the shipped Turkish `fonts/CAPTIONS.SFN` +
+  `CAPTIONS.TGA` does not carry the full Turkish set. Metrics `0x62..0x66`
+  (İ Ğ Ü Ö ç) and `0x69..0x6c` (ı ğ ü ö) are 2-pixel blanks, and the remaining
+  accents sit at non-contiguous indices (`0x61` is ü, `0x67` is ç, `0x74` is ö,
+  `0x7c` is ş, `0x8b` is ğ, `0x8c` is ı). Rendering the `.byz` bytes with it drops
+  letters. Its ASCII glyphs are pixel-identical to `GR_DLG.TGA`'s (62 of 63
+  compared glyphs), so the port uses `DIALOG.SFN`/`GR_DLG`/`BK_DLG` with the green
+  `0x03eb` fill for the subtitle; the position, width, line count, shadow blend
+  and colour still come from `0x424981`/`0x406cfe`. This is reported at startup
+  (`fonts captions: N Turkish glyph(s) are blank in CAPTIONS.SFN … using
+  DIALOG.SFN's identical glyph shapes`), not hidden. If a release has a complete
+  CAPTIONS font, the port uses it directly.
+- Answers (`0x436b01`): x=100, wrap width `0x1b8` = 440, font slot 0 (DIALOG,
+  normal `0xe2c0`, selected/hovered `0xffff` white), line step = slot 0's glyph
+  height (20 in the shipped font), and the block bottom is
+  `0x19f - 0x2d = 370` (45 rows are left for the subtitle band). Each answer is
+  prefixed with byte `0x7f` + space; `0x7f` selects DIALOG glyph `0x5f`, the
+  star-shaped bullet. The hit rectangle is exactly the drawn block:
+  `x=100..100+max(line widths)`, `y=answer top..top+lines*line_step`. The list
+  is redrawn on pointer motion, so the option under the pointer uses the white
+  colour. The port draws the same star, colours, x/wrap/bottom and click rects.
+- Text lifetime: a new conversation starts with no caption (`0x432d6e` calls
+  `0x424c4e(1)`); each NPC line with text replaces it; opening the answer list
+  does **not** clear it (the reference frame shows both); the selected answer's
+  line becomes the subtitle (`0x436b01` calls `0x424780` before `0x43340a`);
+  the conversation end clears it (`0x424c4e`). The port logs
+  `conversation_caption source=start|npc|answer|cleared` so the changes are
+  observable. The caption is local to the conversation screen; the resumed
+  scene composes from the scene surface, so it cannot carry into the next scene.
 - Media: Indeo 4 is a standard codec the port must not reimplement. The player
   asks the available FFmpeg tools (`ffprobe` for the stream fps, `ffmpeg` for
   `f%04d.jpg` + PCM `audio.wav`) to materialise a per-clip cache once; playback
@@ -197,16 +231,24 @@ media opcodes are outside this one-conversation slice.
   DirectDraw/driver detail that is not recovered. A decoded frame is opaque, so
   there is no key/mask or background blend in this path. If gamepref[1] is 0,
   `0x40d3af` takes the other branch: mode 0, 320x200 at x=160, y=0x14+100=120
-  in the 640x480 surface (the old centred rectangle); the port implements both
-  branches from `--gameprefs` and reports when that file is absent.
+  in the 640x480 surface; the port implements both branches from `--gameprefs`
+  and reports when that file is absent.
 - Audio: the AVI carries PCM16 stereo 22050 Hz (verified with `ffprobe` for all
   IMhMR2a `meh` clips); there is no separate voice file. `ffmpeg -vn` writes
   `audio.wav` into the clip cache, `parse_wav` reads it and `SoundPlayer::queue`
   converts it through `SDL_AudioStream` to the device format. The clip is queued
   before the frame loop and drained after it, so audio and video start and end
-  together. The port now prints a per-clip error if the device is not open,
+  together. The port prints a per-clip error if the device is not open,
   `--no-audio` is set, the WAV is malformed or the queue fails, and a summary
   `conversation_audio ERROR …`; it never silently plays nothing.
+- Conversation end: the 0xffff branch resumes at instruction 524 and executes
+  the travel `0x73` to scene index 25 = **MAP** (`travel index=25 scene=map
+  from=MR`). The object-click branch (door slot 2 -> label 265 -> 324) ends in
+  the same travel. The shop frame in the user's third reference image is the
+  scene where the conversation happens (the pre-conversation layer), not the
+  post-conversation scene. The port does not draw the original's inventory bar
+  in the 60-px band outside conversations; the comparison image pads the
+  640x400 scene shot into the original 640x480 geometry.
 
 ## 6. Real results
 
@@ -279,29 +321,65 @@ choice sequence (`0,0,0,0`) and the same inventor/hotitems tables, the
 interactive run and a headless `--shot` run both resume with `steps=18`,
 `switch=25`, the same `pool_changed=7` and fingerprint
 `0xc8470f2394d7e98a`; the `1,0,0,0,0,0` headless run above instead takes the
-3-step tail. The answer frame was written
-as PPM and inspected: the shipped Turkish text with the DIALOG font and three
-answer rows (ç/ş/ı/ğ/ü/ö all render through the `byte - 0x41` index). The first
-media frame was captured during `Mr2meh03.avi` and shows the decoded 320x200
-frame scaled 2x over the **whole** playfield with the real subtitle.
+3-step tail.
 
-Real-window/real-device verification (not a dummy audio claim):
+Answer geometry from `--conversation-shot` (the same rects the hit test uses):
 
-- 10 s screen+monitor recording: `/tmp/opencode/mr_conversation_record.mp4`
-  (1280x800 H.264 + AAC 48 kHz stereo, mean volume -26.7 dB, max -1.6 dB). It
-  shows the fullscreen `Mr2meh03` video and "Afacan'ım benim. Yeraltında fare
-  gibi öldürüldü..." with the Turkish glyphs, while the clip's audio plays.
-- A second 10 s recording `/tmp/opencode/mr_answers_record.mp4` catches the tail
-  of `Mr2meh04` and the three real answer rows (Turkish text, mean -22.7 dB,
-  max -0.5 dB).
-- The recording's audio envelope against the cached `Mr2meh03` `audio.wav` has
-  correlation **0.98** at the video's start offset, so it is the correct clip's
-  PCM and it is time-aligned with the frame loop; the source AVI is the only
-  audio source (no separate voice file).
-- The `--no-audio` and unavailable-device runs print
-  `conversation_audio … ERROR …` per clip and a
-  `conversation_audio ERROR N clip(s) …` summary (tested with
-  `SDL_AUDIODRIVER=invalid`).
+```
+conversation_answer_rect choice=0 x=100 y=250 w=234 h=20
+conversation_answer_rect choice=1 x=100 y=270 w=440 h=40
+conversation_answer_rect choice=2 x=100 y=310 w=440 h=60
+```
+
+The 6 wrapped Turkish lines (1 + 2 + 3) end at y=370 and the green subtitle
+starts at y=420, exactly the `0x19f - 0x2d` and `0x1a4` anchors. Hovering the
+third option logs `conversation_hover choice=2 logical=300,330` and redraws it
+white while the other two stay orange.
+
+Text lifetime observed in the same selftest run:
+
+```
+conversation_caption source=cleared reason=start
+conversation_caption source=npc index=3 visual_lines=1
+conversation_caption source=npc index=4 visual_lines=2
+conversation_pick record=2 choice=0
+conversation_caption source=answer line=18 visual_lines=1
+conversation_caption source=npc index=9 visual_lines=1
+...
+conversation_caption source=cleared reason=end result=65535
+```
+
+So opening the answer list keeps the NPC line, the selected answer becomes the
+next subtitle, the following NPC line replaces it, and the caption is cleared at
+the conversation end. The scene shot after the run is MAP with no caption.
+
+Three 640x480 images for the same conversation (`0,0,0,0`; the first two were
+captured during that run, the third is the final `--shot` padded into the
+original 640x480 geometry):
+
+- `port/output/recordings/shot_talk.png` — a 640x480 frame of the real-device
+  recording: `Mr2meh03` video at (0,20) 640x400, black top/bottom bands, green
+  "Ah, gazeteci. Gelin, girin.".
+- `port/output/recordings/shot_answers.png` — the headless first answer list over
+  the last `Mr2meh04` frame (three orange rows, star bullets, x=100); the
+  subtitle stays green at the bottom.
+- `port/output/recordings/shot_answers_hover.png` — the same list in the real
+  window with the pointer on the third option: it is white while the other two
+  stay orange (log: `conversation_hover choice=2 logical=300,330`).
+- `port/output/recordings/shot_after_480.png` — MAP after the 0x73 travel, no
+  conversation text.
+
+Real-window/real-device recording (not a dummy audio claim):
+`port/output/recordings/mr_new_layout.mp4`, 9 s, 1280x960 H.264 + AAC 48 kHz
+stereo, mean -21.8 dB, max -0.7 dB. It starts 1.8 s into `Mr2meh03`, shows the
+full-playfield video and its green Turkish subtitle, then cuts to the next
+`Mr2meh04` subtitle. The recording's audio envelope against the cached
+`Mr2meh03` `audio.wav` has correlation **0.999** at offset **-1.825 s** (the
+recording began 1.825 s into the clip), so it is the correct clip's PCM, time
+aligned with the frame loop; the AVI is the only audio source. The
+`--no-audio` and unavailable-device runs print `conversation_audio … ERROR …`
+per clip and a `conversation_audio ERROR N clip(s) …` summary (tested with
+`SDL_AUDIODRIVER=invalid`).
 
 ## 7. Tests and census
 
@@ -347,8 +425,14 @@ Real-window/real-device verification (not a dummy audio claim):
 | 0x406cfe | df4c09b307ceca77 | font registry (slot 0 fill) |
 | 0x405bf4 | 898ae1b9123f325e | high-byte font index (`byte - 0x41`) |
 | 0x406cbf | 62ebc4ffc90d31f4 | language gate (`DAT_0045d0ac`) |
+| 0x40d2a1 | 7378a7da0065e607 | character-video lookup/start |
 | 0x40d3af | 0441419c9da98e3e | AVI type/mode/position |
 | 0x40d5ff | 0caca3a1f27c63f2 | character-video start |
+| 0x424780 | c31b11acff556e9d | reply -> subtitle/video/animation dispatch |
+| 0x424981 | a1357d81bcd27a50 | subtitle band clear + draw (55,420, slot 4) |
+| 0x424b15 | 8e44bbff50c7ed4a | subtitle wrap into the 3-line buffer |
+| 0x424c4e | 29da2f297277e3ea | subtitle buffer clear |
+| 0x436b01 | 5c305d3e5540154f | answer list (x=100, wrap 440, 0x7f star) |
 | 0x413bdd | e159355056f45abf | AVI player entry |
 | 0x43a248 | 7d898e9bd016ed27 | IV41 mode/destination size |
 | 0x43d643 | 8b65b199f1b577f7 | DirectDraw frame blit |

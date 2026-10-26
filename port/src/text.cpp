@@ -92,8 +92,9 @@ const SfnGlyph* SfnFont::glyph(char code) const {
     return &glyphs[glyph_index];
 }
 
-SfnFont load_sfn_font(const std::string& sfn_path, const std::string& gr_tga_path,
-                      const std::string& bk_tga_path, std::uint16_t fill) {
+namespace {
+
+SfnFont load_metrics(const std::string& sfn_path, std::uint16_t fill) {
     const auto data = read_file(sfn_path);
     if (data.size() < 24) throw std::runtime_error("short SFN: " + sfn_path);
     const auto version = le16(data, 0);
@@ -132,14 +133,41 @@ SfnFont load_sfn_font(const std::string& sfn_path, const std::string& gr_tga_pat
             font.glyphs.push_back(SfnGlyph{});
             continue;
         }
+        // CAPTIONS.SFN's last two metrics (bytes 0xaf/0xb0) name an x past the
+        // 434-pixel atlas but have advance 0, so they cover no pixels. Keep
+        // them as empty glyphs; a non-empty glyph outside the atlas is still a
+        // broken font and fails loudly.
+        if (glyph.advance == 0) {
+            font.glyphs.push_back(SfnGlyph{});
+            continue;
+        }
         if (glyph.x + glyph.advance > width || glyph.y + glyph.height > height) {
             throw std::runtime_error("SFN glyph outside the atlas: " + sfn_path);
         }
         font.glyphs.push_back(glyph);
     }
     font.line_height = font.glyphs.front().height;
-    font.gr = read_alpha_tga(gr_tga_path, width, height);
-    font.bk = read_alpha_tga(bk_tga_path, width, height);
+    return font;
+}
+
+}  // namespace
+
+SfnFont load_sfn_font(const std::string& sfn_path, const std::string& gr_tga_path,
+                      const std::string& bk_tga_path, std::uint16_t fill) {
+    SfnFont font = load_metrics(sfn_path, fill);
+    font.gr = read_alpha_tga(gr_tga_path, font.atlas_width, font.atlas_height);
+    font.bk = read_alpha_tga(bk_tga_path, font.atlas_width, font.atlas_height);
+    return font;
+}
+
+SfnFont load_sfn_font_single_atlas(const std::string& sfn_path,
+                                   const std::string& atlas_tga_path,
+                                   std::uint16_t fill) {
+    SfnFont font = load_metrics(sfn_path, fill);
+    font.gr = read_alpha_tga(atlas_tga_path, font.atlas_width, font.atlas_height);
+    font.bk.assign(static_cast<std::size_t>(font.atlas_width) *
+                       static_cast<std::size_t>(font.atlas_height),
+                   0);
     return font;
 }
 
@@ -154,7 +182,9 @@ int text_width(const SfnFont& font, const std::string& text) {
 }
 
 int draw_text(Rgb16Surface& surface, const SfnFont& font, const std::string& text, int x,
-              int y, int max_lines, int alignment) {
+              int y, int max_lines, int alignment,
+              std::optional<std::uint16_t> fill) {
+    const auto fill_colour = fill.value_or(font.fill);
     if (alignment == 1) {
         x -= text_width(font, text) / 2;
     } else if (alignment == 2 || alignment == 4) {
@@ -190,7 +220,7 @@ int draw_text(Rgb16Surface& surface, const SfnFont& font, const std::string& tex
                                              target_x];
                 if (shadow != 0) pixel = blend(0, pixel, shadow);
                 const auto coverage = font.gr[at];
-                if (coverage != 0) pixel = blend(font.fill, pixel, coverage);
+                if (coverage != 0) pixel = blend(fill_colour, pixel, coverage);
             }
         }
         pen_x += glyph->advance;

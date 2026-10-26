@@ -112,18 +112,28 @@ etiket kümesinde bulunuyor. Kanıt ve bilinmeyen listesi:
 - **Konuşmalar (`0x70`)**: seçilen örnek MR etiketi 413, konuşma kaydı 2 =
   `IMhMR2a`. `0x70` operand 0'ı nesne değil `engine/<scene>cd` **kayıt indeksi**
   olarak okur; VM `0x70`'te durur, gerçek `.ccb` komutlarını yürütür, `.byz`
-  altyazısını `DIALOG.SFN` ile çizer ve `.ccf`/`dialog/<ad>/<klip>.avi` medyasını
-  oynatır. Cevap listesi gerçek satırlardır ve fareyle tıklanır; konuşma
-  `0x39`/cevap sonunda `0xffff` dönerse betik `0x70`'ten sonraki komutta sürer,
-  bir sahne nesnesine tıklanırsa o nesnenin `+0x0c` etiketi çalışır. Değişken
-  yazımları `SceneState` üzerinden taşınır; yarım kalan konuşma commit edilmez.
+  altyazısını ve cevap listesini çizer, `.ccf`/`dialog/<ad>/<klip>.avi` medyasını
+  oynatır. Ekran **640×480**: oyun alanı `0x14..0x413`, alt yazı bandı
+  `0x1a4..0x1df`. Altyazı `0x424981`'in verdiği **x=55, y=420**, 530 px sarma,
+  3 satır ve yeşil **0x03eb** ile çizilir; cevaplar `0x436b01`'in verdiği
+  **x=100**, 440 px sarma, `0x7f` yıldızı, turuncu **0xe2c0** / fare üstünde
+  beyaz **0xffff** ve alt sınır **370** ile video üzerine gelir. Tıklama
+  dikdörtgeni çizilen satır bloğudur. Türkçe `CAPTIONS.SFN`'de 9 harf boş
+  olduğu için aynı glifleri taşıyan `DIALOG.SFN` kullanılır ve bu durum açıkça
+  bildirilir; konum/sarma/renk orijinal koddan gelir. Metin yeni konuşmada
+  temizlenir, cevaplar açılırken korunur, seçilen cevap altyazı olur ve çıkışta
+  silinir. Konuşma `0x39`/cevap sonunda `0xffff` dönerse betik `0x70`'ten
+  sonraki komutta sürer (bu örnekte `0x73` ile **MAP**'e gider); bir sahne
+  nesnesine tıklanırsa o nesnenin `+0x0c` etiketi çalışır. Değişken yazımları
+  `SceneState` üzerinden taşınır; yarım kalan konuşma commit edilmez.
   İndeo 4 videosu FFmpeg ile bir kez JPEG+PCM önbelleğine çözülür; oynatma
   **640×400 tam oyun alanına 2×** (kaynak 320×200, `0x43a248` mod 2) ve PCM
   AVI içinden SDL2'ye verilir. Türkçe metin `0x405bf4`'ün `byte - 0x41` font
   indeksiyle çizilir (CP1254 dönüşümü yok); ses aygıtı/klip hatası açıkça
   bildirilir, sessizce yutulmaz. Deneme:
-  `./port/scene.sh . MR 0 30.btb --entry --run-label 413` (cevap satırlarına
-  tıklayın). Ayrıntı, opcode tablosu ve doğrulama:
+  `./port/scene.sh . MR 0 30.btb --entry --run-label 413` (seçenekler
+  y≈250/270/310, altyazı 420; fareyle üzerine gelince beyazlar). Ayrıntı,
+  opcode tablosu ve doğrulama:
   [`CONVERSATION.md`](../analysis/rea/CONVERSATION.md).
 - `byzantine-cc --hotspots`, işlem kodu `0x72` olan sabit alan tanımlarını çıkarır. Oyunun `FUN_0042db22` komut yürütücüsü bu tanımları tıklama alanı tablosuna yazıyor: alan numarası, x, y+20, genişlik, yükseklik ve kalan iki değer. Yedinci değerin alt baytı alan durumuna yazılıyor; diğer değerlerin tüm anlamları henüz çözülmedi (`ev_6fae0653eb9d17a560b88cf841ffbe1c2fc3b14d9c5f18ac7a7ef5e9853ca522`). Dinamik operandlı tanımlar atlanır; çıktı betik yürütme sırasını göstermez.
 - `byzantine-cc --backgrounds <CB kaydı>`, sabit `0x69` sahne komutu numaralarını aynı sahnenin `CB.ALL` ad listesiyle eşler. `CB.ALL` kayıtları `ad\0kaynak\0ff` dizilerinden oluşur. Dinamik numaralar ancak çalışan yorumlayıcıda çözülebilir.

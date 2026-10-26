@@ -112,9 +112,15 @@ The earlier claim that conversations are voice-only was **wrong**. `0x410669`
 `engine/<stem>.ccb` (bytecode), `.ccf` (voice-clip names) and `.byz` (the
 dialogue lines, e.g. `MMhmr1a`, `IMhMR2a` inside `Byz.all`). `0x424780` draws the
 BYZ line and `0x40d2a1` plays the paired `dialog/<name>/<clip>.avi` when the
-speaker is in `0x40ced0`'s 16-name list. A "conversation with text" therefore uses
-the shipped text; see `analysis/rea/CONVERSATION.md` for the format, the MR
-example (IMhMR2a, real subtitles and AVIs), and the implemented VM slice.
+speaker is in `0x40ced0`'s 16-name list. `0x424780` selects the line; `0x424981`
+clears rows 420..479 and draws it at (55,420) with font slot 4, green `0x03eb`,
+wrapped at 530 px for at most 3 lines. The shipped Turkish `CAPTIONS.SFN/TGA`
+has blanks where most Turkish glyphs belong, and its ASCII glyphs are
+pixel-identical to `DIALOG`'s, so the port uses `DIALOG`'s shapes for the
+subtitle and reports the missing CAPTIONS glyphs. A "conversation with text"
+therefore uses the shipped text; see `analysis/rea/CONVERSATION.md` for the
+format, the MR example (IMhMR2a, real subtitles and AVIs), and the implemented
+VM slice.
 
 The text-bearing examine/message window described above remains the other real
 text interaction; it is not a substitute for the conversation subtitles.
