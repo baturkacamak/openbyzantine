@@ -125,15 +125,16 @@ instead of closing the player.
   hotspots 17..21; `0,0,0,0` travels to MAP. The natural chain's camera is
   yaw=151.596, so the player must rotate the panorama to bring the post-scene
   hotspots into view. `--print-hotspots` prints the actual logical rectangles.
-- **Cancel:** answer-list ESC returns 0xfffe, does not set `state+0xe`, keeps the
-  entry flags. `--conversation-cancel N` is the deterministic headless
-  counterpart. **Corrected in the latest step:** 0xfffe ends the scene session
-  (0x42c8a0 → 0x41e289(6) → 1), so the port now reloads the scene from the same
-  save/entry (`scene_restart`) instead of staying on `hotspots=0`.
+- **Cancel (superseded by the top section):** answer-list ESC opens the original
+  dialog; only EVET/6 returns 0xfffe, and the other paths resume the same list
+  with memory/variables intact. 0xfffe ends the scene session without restoring
+  the 0xb8 snapshot; the port leaves `hotspots=0` and offers an explicit R
+  reload instead of reloading silently. `--conversation-cancel N` is the
+  deterministic terminate path.
 - **Blocker (superseded):** in the MR label-261 path the script has disabled the
-  hotspots by the time 0x70 runs; after cancel the scene had `hotspots=0`. The
-  latest step proves the original does not stay in that scene and replaces the
-  stale hotspot table with a fresh load; see the top section.
+  hotspots by the time 0x70 runs; after EVET the scene stays at `hotspots=0`.
+  The latest step proves the original does not stay in that scene and makes the
+  fresh load an explicit user choice (`R`); see the top section.
 - **Scene exit/return (corrected in the latest step):** re-entry ends at 524 and
   travels to MAP; the travel log shows the memory reset and a fresh MAP state.
   The return is a two-stage click: MAP slot 47/action 246 opens the region
