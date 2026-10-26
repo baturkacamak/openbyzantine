@@ -68,10 +68,10 @@ example offsets are the real CD1 image `00.BTB` (85,068 bytes).
 | 5 | 56,459 | 2 | `0x424dc0` | `0x425ab4` | `u16` scene index (`DAT_00482428`) |
 | 6 | 56,461 | 3,502 | `0x425218` | `0x426261` ×0x15e | per-scene object records (`DAT_00482ad0`) |
 | 7 | 59,963 | 6,000 | `0x424dc0` | `0x425ab4` | `u16[3000]` `DAT_0047e2f0` |
-| 8 | 65,963 | 12 | `0x408a1e` | `0x408adc` | `u32` ×3: `DAT_0045d1c0`, `DAT_0045d1c4`, `DAT_0045d1bc` |
-| 9 | 65,975 | 40 | `0x408a1e` | `0x408adc` | `u32[10]` dialogue channel depths (`DAT_00468cc0`) |
-| 10 | 66,015 | 14,000 | `0x408a1e` | `0x408adc` | `u32[10][350]` dialogue ids (`DAT_00468d78`) |
-| 11 | 80,015 | 4 | `0x408a1e` | `0x408adc` | `i32` current dialogue record (`DAT_0045d1c8`), `-1` = none |
+| 8 | 65,963 | 12 | `0x408a1e` | `0x408adc` | `u32` ×3: inventory strip visible (`DAT_0045d1c0`), page (`DAT_0045d1c4`), scroll (`DAT_0045d1bc`) |
+| 9 | 65,975 | 40 | `0x408a1e` | `0x408adc` | `u32[10]` item count per inventory page (`DAT_00468cc0`) |
+| 10 | 66,015 | 14,000 | `0x408a1e` | `0x408adc` | `u32[10][350]` item ids per inventory page (`DAT_00468d78`) |
+| 11 | 80,015 | 4 | `0x408a1e` | `0x408adc` | `i32` selected item (`DAT_0045d1c8`), `-1` = none |
 | 12 | 80,019 | 253 | `0x40892d` | `0x4089b0` | `(flag,value)` pairs, terminator `0xff`, max 0x15e |
 | 13 | 80,272 | 12 | `0x424dc0` | `0x425ab4` | `u32` `DAT_0045f210`, `DAT_00460668`, `DAT_0046066c` |
 | 14 | 80,284 | 1 | `0x424dc0` | `0x425ab4` | one byte; if non-zero a NUL-terminated string (`DAT_0045f214`), here `0x00` = empty |
@@ -234,20 +234,26 @@ if present:
   scene's node id, not by the save's node table slot.
 * **Unknown** the exact semantics of the value; the port keeps the table.
 
-### 3.6 Dialogue state (blocks 8–12, function `0x408adc`)
+### 3.6 Inventory strip state (blocks 8–12, function `0x408adc`)
+
+The first analysis pass called this "dialogue state"; later work on the bottom
+bar showed that `DAT_00468cc0`/`DAT_00468d78`/`DAT_00486f90` are the inventory
+pages/items drawn by `0x407420` and hit-tested by `0x408076`/`0x4083d4`.
+`0xbb` selects the page; `0xab` pushes an item; `0xb0`/`0xb1` compare item
+state. This is the same data the conversation code never touches.
 
 ```c
 0x408adc(file):
   DAT_0045d1c8 = 0;
-  fread(&DAT_0045d1c0, 4, 1);   // gates 0x4075fe/0x4083d4/0x40d750 drawing
-  fread(&DAT_0045d1c4, 4, 1);   // inference: selected channel, 0x407420 indexes it
-  fread(&DAT_0045d1bc, 4, 1);   // inference: first visible line of that channel
-  fread(&DAT_00468cc0, 0x28,1); // 10 × u32 depth per channel
-  fread(&DAT_00468d78, 14000,1);// 10 × 350 × u32 dialogue record ids
-  fread(&i, 4, 1);              // record index
+  fread(&DAT_0045d1c0, 4, 1);   // strip visible; gates 0x4075fe/0x4083d4/0x40d750
+  fread(&DAT_0045d1c4, 4, 1);   // inventory page, 0x407420 indexes it
+  fread(&DAT_0045d1bc, 4, 1);   // first visible item of that page
+  fread(&DAT_00468cc0, 0x28,1); // 10 × u32 item count per page
+  fread(&DAT_00468d78, 14000);// 10 × 350 × u32 item ids
+  fread(&i, 4, 1);              // selected item index
   if (i == -1) DAT_0045d1c8 = 0; else DAT_0045d1c8 = DAT_00486f90[i];
-  0x4089b0(file);               // per-record byte flags
-  0x407420(0);                  // redraw, no file access
+  0x4089b0(file);               // first byte (state) of each item record
+  0x407420(0);                  // redraw the strip
 ```
 
 * **Observation** the strides match exactly: `0x28 = 10 × 4` and
@@ -256,22 +262,23 @@ if present:
   `DAT_00468d78[ch * 0x578 + i * 4]` after shifting the older entries up;
   `0x407420` walks `DAT_0045d1c4`'s stack for at most 6 visible lines and reads
   `DAT_00468cc0[ch]`, `DAT_00468d78[ch*0x578 + i*4]` then `DAT_00486f90[id]`.
-  So block 9 = depth per channel, block 10 = the 350-entry stacks.
+  So block 9 = item count per page, block 10 = the 350-entry item ids.
 * **Observation** block 11 is written as `DAT_0045d1c8->+0x08` (or `-1`), i.e.
-  the reader's index meaning holds only if a dialogue record's `+0x08` is its
-  own index in `DAT_00486f90` (**inference**; the writer's source is
-  `DAT_0045d1c8 + 8`).
+  the selected item's `+0x08` (its name id in `DAT_00485400`) is the index into
+  `DAT_00486f90`; `0x408adc` restores the pointer from it.
 * **Observation** `0x4089b0` loops `i < 0x15e` while `fgetc != EOF`, reading one
   value byte per record; `0x40892d` writes `(0x00, record[0])` per allocated
-  record and terminates with `0xff`. So this block is “the first byte of each of
-  the N dialogue records”.
+  record and terminates with `0xff`. So this block is “the state byte of each of
+  the N inventory item records”.
 * **Data check** all 77 images have exactly **126** entries here, and
   `analysis/rea/DIALOGUE_RECORDS.md` independently counts **126**
-  `DAT_00486f90` records built from `engine/SHOW.LCI` on CD1. Every dialogue id
+  `DAT_00486f90` item records built from `engine/SHOW.LCI` on CD1. Every item id
   stored in block 10 is `< 126` (checked for all 77 images), and the largest
-  channel depth is 20 (limit 350).
-* **Unknown** the exact meaning of `DAT_0045d1c0` (`0x4075fe`, `0x4083d4`,
-  `0x40d750` gate dialogue drawing) — parsed, not interpreted.
+  page count is 20 (limit 350).
+* **Observation (corrected 26 October 2026)** `DAT_0045d1c0` is the bottom
+  inventory strip's visibility: `0x4075fe`/`0x4083d4` draw the 60-px strip only
+  when it is set, `0xb4`/`0xb5` clear/set it, and `0x407420`/`0x408076` use the
+  pages. It is not a dialogue-window gate.
 
 ### 3.7 Mid-block globals (blocks 13–16)
 

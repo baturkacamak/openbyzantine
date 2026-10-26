@@ -18,7 +18,62 @@ game ISOs/archives, `analysis/rea/BETRAYAL.EXE`, `tools/rea`, `upscale_ornek` an
 needs `port/output/`: recreate it from your own copy with `port/byzantine-all`
 (and `port/scene.sh` for the extracted media) before running the suites.
 
-## Latest step — one AM conversation end to end; map destinations and RNG
+## Latest step — inventory strip, examine close-up and mouse pitch
+
+The AM conversation now returns to the original 640x480 view with the shipped
+bottom inventory strip, and the player can continue with the real mouse. This is
+the first common inventory/close-up layer, not a scene-specific patch. Report:
+`analysis/rea/INVENTORY_AND_CLOSEUP.md`; recording:
+`port/output/recordings/am_bar_examine_exit.mp4` (68.0 s, H.264+AAC).
+
+- **Data correction.** Save blocks 8–12 had been called dialogue channels; they
+  are the inventory strip (`0x408adc`, `0x4083d4`, `0x407420`, `0x408076`):
+  visible, page, scroll, ten page counts, 10×350 item ids, selected item and the
+  item state bytes. `SHOW.LCI` names are the item names. `SAVE_FORMAT.md` and
+  the `SceneState` comments now say this.
+- **640x480 surface.** `Display` keeps the 640x400 playfield and composes a
+  640x480 screen with the playfield at row 0x14 and the strip at 0x1a4.
+  `inventor/INSTRIP.TGA`, the six real item TGAs and page arrows are drawn;
+  missing icons are reported, not invented. Clicks in rows >=0x1a4 are consumed
+  before the scene hit test. `--shot` now writes 640x480.
+- **Strip input.** Six slots at `x=0xa0+0x3c*i`, examine button `x=2..0x3a`,
+  page arrows `0x23b..0x259`/`0x25d..0x27b`; selection sets
+  `current_dialogue_record`, examine sets item state 4 and `current_use_item`
+  (DAT_0045d1cc), page scroll is clamped like `0x407527`.
+- **Close-up.** `0x69` with transition code 4 now requests
+  `inventor/examine/<8-char stem>.jpg` (0x40860e/0x41045b) instead of a CB
+  background. `enter_examine` uses the original scene-group table
+  (0x438afa/0x438173: AM→EXAMINE, VT→EXAMVT, hstmed→EXAMVB, lintel→EXAMVC,
+  vh→EXAMVH); `travel_to` carries the inventory and the exit `0x73` restores
+  the captured parent view (the DAT_004603d0 override). `va` is left unresolved
+  because the original reads index 5 of a five-entry table.
+- **Mouse pitch.** Left-drag now sends yaw and pitch (0.15°/pixel, a port input
+  decision); the wheel sends ±5°. Arrow keys still work. The original
+  cursor-edge bands of `0x4013ae` are not claimed.
+- **Physical acceptance (AM 62.btb).** Conversation `Inuam3a` ends with
+  `active_slots=0`; the strip is visible. Vertical drag changed pitch to −1.5,
+  −3, −4.5, −6, −7.5, −9. Click item slot 1 (`id=11 ibeering`), examine:
+  `closeup_enter scene=EXAMINE parent=AM item=11 index=8`, background
+  `EBEERING.jpg`; click exit playfield `589,370`: `closeup_return scene=AM …
+  bar=visible`; click another item (`slot=2 id=6 IHOMER`). Normal input
+  continues.
+- **Different scene (headless).** VT `73.btb` item 11 -> `examvt`, entry
+  steps=38, `EBEERING.jpg`; exit `589,349` -> `closeup_return scene=VT …
+  hotspots=2, bar=visible`. Same code/data path, not a second physical run.
+- **Still open / prioritised by subsystem.** Inventory: top menu
+  (`0x408e3f`/`0x408f32`/`0x408fe7`/`0x4090c4`), item-on-object compatibility
+  (`0x407c5a`) and consume (`0x407bd7`), remaining page tabs. Close-up: exact
+  original snapshot tables (port snapshots the whole `SceneView`), `va`, and
+  transition effects. Camera: exact cursor-edge bands/acceleration. Conversation:
+  immediate view restore is done; out-of-script close-up transitions remain.
+  Item use: selection/examine done, object use/combine missing. Scene
+  transitions: LCX/pool/inventory/parent return done; exact object/media/dialogue
+  snapshot contents and map UI remain.
+- **Assets.** `port/scene.sh` now extracts `copy2hd/setupart/*` to `setupart/`,
+  `inventor/*.tga`, `inventor/examine/*` and `inventor/hotitems/*` from every
+  CD, with a `.ui_v1` backfill marker. The test dir was manually backfilled.
+
+## Previous step — one AM conversation end to end; map destinations and RNG
 
 The four-record AM interpreter sweep is no longer the end-to-end claim. One
 conversation is played from a real AM save with normal panorama input and the
@@ -51,8 +106,8 @@ objects, map click); reports: `analysis/rea/AM_NURAY.md`,
   action's own `0x6e`/called labels run before `0xb8`, so the state at the
   conversation has `enabled=0/0 suspended=0/0`; the `0xb7` snapshot is empty
   and the post scene has 0 active hotspots. That is the shipped script's
-  outcome, not a skipped continuation; the original out-of-script close-up/
-  cursor-zone UI is not modelled and no hotspots are invented.
+  outcome, not a skipped continuation. The common 640x480 view and inventory
+  strip now return immediately; see the next step.
 - **Map destinations.** The black TK window was reproduced from MAP
   `travel index=33 scene=tk`: the entry ran but `composed background=none`
   because the partial data dir lacked `backs/tk/TKXA.jpg`. With the shipped
@@ -99,9 +154,9 @@ objects, map click); reports: `analysis/rea/AM_NURAY.md`,
   slot 88 view then the slot 92 hotspot, and choose the first answer. For MAP:
   `BYZ_DATA=/tmp/byz-conv ./port/scene.sh . MAP 0 39.btb --entry`, click a
   location; TK/AM etc. now load their real backgrounds/panoramas.
-- Still not modelled: the original out-of-script close-up/cursor-zone UI after
-  this conversation; the exact per-instruction `_rand()` draw count from a save;
-  the local-time reseed path.
+- Still not modelled: the top 20-px menu bar, item-on-object use (`0x407c5a`)
+  and the map/other top-menu screens; the exact per-instruction `_rand()` draw
+  count from a save; the local-time reseed path.
 
 ## Previous step — mouse fix committed, ESC dialog, explicit session end
 

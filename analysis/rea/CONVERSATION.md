@@ -246,9 +246,10 @@ media opcodes are outside this one-conversation slice.
   from=MR`). The object-click branch (door slot 2 -> label 265 -> 324) ends in
   the same travel. The shop frame in the user's third reference image is the
   scene where the conversation happens (the pre-conversation layer), not the
-  post-conversation scene. The port does not draw the original's inventory bar
-  in the 60-px band outside conversations; the comparison image pads the
-  640x400 scene shot into the original 640x480 geometry.
+  post-conversation scene. The port now renders the original 640x480 surface:
+  playfield at row 0x14 and the inventory strip at 0x1a4
+  (`INVENTORY_AND_CLOSEUP.md`). The strip's top menu and item-on-object use are
+  still outside this layer.
 
 ## 6. Real results
 

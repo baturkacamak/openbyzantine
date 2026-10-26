@@ -156,6 +156,12 @@ General (no scene/character/label condition in the code):
   backfill, `background_missing`, the startup RNG seed/carry, the `0x72` object
   declaration with `0x6d`/`0x6e`, and the conversation media/answer/continuation
   path.
+- The 640x480 surface, the save-carried inventory strip, item selection/examine,
+  the recovered examine scene-group table and the close-up snapshot return;
+  `INVENTORY_AND_CLOSEUP.md`.
+- Mouse vertical look: left-drag sends yaw and pitch, wheel sends pitch; the
+  same `PanoramaView::advance` as the arrow keys. The exact original cursor-edge
+  bands (`0x4013ae`) are not claimed.
 
 Only verified in the MR example:
 
@@ -168,6 +174,10 @@ Only verified in the AM example:
   text/choices/media, and its post-conversation empty hotspot set.
 - The four-record sweep is an interpreter regression only; it is not the
   end-to-end claim.
+- Item 11 (`ibeering`) -> `EXAMINE`/`EBEERING.jpg` and the close-up exit
+  coordinates in the AM example.
+- VT `73.btb` item 11 -> `EXAMVT`/`EBEERING.jpg` and exit `589,349` in the
+  second headless check (same common path, not a second physical-mouse run).
 
 ## 5. Map selection (real clicks in both directions)
 
@@ -238,6 +248,11 @@ BYZ_DATA=/tmp/byz-conv ./port/scene.sh . AM 0 62.btb --entry
 # rotate Left/Right, click slot 88 then slot 92, click the first answer
 # (full media/audio; the recording script is /tmp/opencode/record_nuray.py)
 
+# inventory strip -> examine close-up -> parent return (AM 62.btb)
+./port/byzantine-play ... --entry --bar-select 11 --bar-use --click-at 589,370
+# same common path on VT 73.btb -> EXAMVT, exit at 589,349
+./port/byzantine-play ... --entry --bar-select 11 --bar-use --click-at 589,349
+
 # MAP destination census (headless, generic travel)
 python3 /tmp/opencode/map_census.py
 ```
@@ -258,3 +273,9 @@ python3 /tmp/opencode/map_census.py
 - The 17-destination MAP census composes every background/panorama and runs
   every entry to a normal return; the generic `0x72` object creation removed
   VB's `missing_object=4` (entry returns at instruction 217 with 4 hotspots).
+- The top 20-px menu bar is not drawn/implemented; top-band clicks are consumed.
+  The strip's item-on-object compatibility (`0x407c5a`)/consume path
+  (`0x407bd7`) and the map/other top-menu screens remain open.
+- The close-up snapshot is a whole-`SceneView` port representation of
+  `DAT_004603d0`, not the original's individual subsystem tables. `va`'s
+  original out-of-range group 5 is left unresolved.

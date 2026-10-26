@@ -76,10 +76,12 @@ The two resumed instructions are `0xb7` (restore the suspended object bits) and
 called labels) runs before the `0xb8` at 465; by then the state has
 `enabled=0/0` and `suspended=0/0`, so the `0xb7` at 467 has an empty snapshot
 and the post-conversation scene has 0 active hotspots. That is the shipped
-script's outcome, not a skipped continuation. The original's out-of-script
-close-up/cursor-zone/map UI after this conversation is not modelled; the port
-does not invent hotspots to hide it. The event log records
-`conversation_state … enabled=0/0 suspended=0/0`.
+script's outcome, not a skipped continuation. The common 640x480 view now
+returns immediately with the shipped inventory strip (`INVENTORY_AND_CLOSEUP.md`);
+selecting an item and using the examine button opens `EXAMINE`, and its exit
+hotspot restores the parent. The strip's top menu, item-on-object use and the
+map/other UI are still not modelled; the port does not invent hotspots to hide
+that. The event log records `conversation_state … enabled=0/0 suspended=0/0`.
 
 ## Recording
 
