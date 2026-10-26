@@ -18,7 +18,86 @@ game ISOs/archives, `analysis/rea/BETRAYAL.EXE`, `tools/rea`, `upscale_ornek` an
 needs `port/output/`: recreate it from your own copy with `port/byzantine-all`
 (and `port/scene.sh` for the extracted media) before running the suites.
 
-## Latest step — inventory strip, examine close-up and mouse pitch
+## Latest step — shared item use on scene objects (commits `5d2687c`, `ee7a3d8`)
+
+The inventory strip is now also a real item-use system: the selected item,
+the clicked object's kind/name id, the shipped script and the item's own
+consume path are all common code. The examine close-up's item switch was
+reproduced and fixed in the same layer. Reports:
+`analysis/rea/ITEM_USE.md`, `analysis/rea/EXAMINE_SWITCH.md`.
+
+### Item use (`5d2687c`)
+
+- **Gate.** `0x407c5a` (`862c7fc71bc4f5da`) is the compatibility switch:
+  kinds `0x00/0x01/0x02/0x05/0x08/0x09/0x0c` accept anything when `+0x10 == -1`
+  (this is how exits keep working with an item selected), `0x03/0x04/0x06/0x07`
+  and `0x0f/0x11/0x18..0x1b/0x1d/0x1e` never accept, `0x0a/0x0b/0x0d/0x0e/0x10`
+  accept only "nothing selected", `0x13/0x14` search a dialogue chain, and every
+  other kind must name the selected record. `0x40c329` returns `0xfffe` for a
+  rejected use, so `0x43c8d2` never runs the object label. The port applies the
+  same gate in `plan_hotspot` before tracing; a wrong item cannot write
+  variables, objects, records or the strip. `0x407bd7` is the item cursor id
+  only, not a mutation; consuming is the script's own `0xab` mode 0/2.
+- **Object name ids.** `0x42db22` case `0x72` resolves operand 7 through
+  `0x408bb2` (per-scene CI -> SHOW.LCI record id) for every kind except
+  `0x13/0x14`, which store a dialogue-chain id. Without the CI table the field
+  stays `-1`; it is never guessed.
+- **Real puzzle (CLOCK `70.btb`).** Page 2 is `vTk` with one item, record 21
+  `ISTAR`; object 26 is active with kind `0x12`, label 202, `+0x10 = 21`.
+  Selecting ISTAR and clicking (388,369) runs label 202: hotspot 26 off, ISTAR
+  removed from `vTk`, hotspot 27 on. `bar_state page=2 count=0` and
+  `slots=0,7,24,25,27,30,31`.
+- **Persistence.** Use ISTAR, click object 30 (label 166) -> `0x73 [10]` -> VT,
+  then VT slot 114 (label 1374) -> `0x73 [8]` -> CLOCK. The return re-runs the
+  entry and rebuilds object 27 (object 26 inactive) from the persisted record-21
+  state byte (2): label 137's `0xb0 CI 0 == 2` -> 145 -> 155. The control run
+  without the use returns with 26 active / 27 inactive. Logs:
+  `port/output/recordings/item_use/clock_roundtrip{,_without_use}.log`.
+- **Wrong item.** With ISTAR selected, object 24 (kind `0x0e`) is rejected
+  (`compatible=no`, no `click_result`); the HSTMED control (select `ihstd` and
+  click a crowbar tile) leaves a byte-identical frame. The examine window alone
+  is cleared, exactly like `0x4177c7(0)` before the gate.
+- **Second scene.** HSTMED `43.btb`: the crowbar (record 72) on object 8
+  (label 1107) changes `VBHSTSCU.jpg` -> `VBMEDDWN.jpg`, 10 -> 9 drawn records
+  and 12 -> 11 hotspots. The tool is not consumed (the script does not author
+  that).
+- **Real window.** Xephyr `:8` 1280x960, real clicks: `bar_item … ISTAR`,
+  `item_use slot=26 … compatible=yes`, `click_result steps=9 … active_slots=7`;
+  screenshot `port/output/recordings/item_use/clock_after_use.png` shows the
+  empty page-2 strip. A real wrong-item click on object 24 was rejected.
+- **Tools/tests.** `--click-at` with `y >= 0x1a4` now uses the real strip
+  handler; `--print-objects` (objects + strip state) and `--print-variables`
+  (local/global/name/value) are diagnostics; `--save-dump` prints channel item
+  ids. `inventory-test` covers every `0x407c5a` branch and the chain rule;
+  `scene-state-test` covers `0x72` CI resolution. `make -C port -j2 all test`
+  passes.
+
+### Examine switch (`ee7a3d8`)
+
+- **Bug reproduced (HSTMED).** In `EXAMVB` for `icrwbar`, clicking slot 0
+  (`ihstd`) only moved the strip selection: image `ECRWBAR`, hitboxes and
+  `DAT_0045d1cc` stayed on 72, and the parent returned with selection 66 but the
+  examine pointer/state still 72 (state 4 left behind).
+- **Fix.** `inventory_examine` updates selection (`DAT_0045d1c8`), examined item
+  (`DAT_0045d1cc`), state 4 and returns the previous examined record to 1 in one
+  step. Inside a close-up it reloads the *same* close-up scene
+  (`0x408076`+`0x438c80`+`0x73` self reload) while holding the parent snapshot,
+  so the `0x69` transition-4 image and the rebuilt hitboxes match the new item.
+  The return branch mirrors `0x4085e7`: examined record -> state 1 and
+  `DAT_0045d1cc` cleared; the strip selection stays process-global.
+- **Evidence.** `closeup_enter … image=ecrwbar` -> `closeup_item slot=0 id=66
+  … examined=yes` -> `closeup_switch … image=ehstd` -> `closeup_return …
+  hotspots=12`. The parent playfield is **byte-identical** (0/768000 bytes);
+  only the strip band differs (2056 bytes). Real Xephyr click run + screenshots
+  `examine_before.png` / `examine_switched.png` / `examine_returned.png`.
+- **Description.** No close-up text asset exists (`engine/exam* ce` absent, no
+  `0xcd` in the EXAM* scripts), so the "description" is the same item id/name/
+  stem tuple the image uses; `examine_state_mismatch` reports any drift instead
+  of pairing one item's name with another's image.
+- Still open: item combining, the cursor atlas, `va`'s out-of-range examine
+  group, and the exact original snapshot table order.
+
+## Previous step — inventory strip, examine close-up and mouse pitch
 
 The AM conversation now returns to the original 640x480 view with the shipped
 bottom inventory strip, and the player can continue with the real mouse. This is
