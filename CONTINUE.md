@@ -1,6 +1,39 @@
 # Compact handoff — 26 October 2026
 
-## Latest step — dialogue FMVs were skipped by a case-sensitive speaker test (27 October 2026)
+## Latest step — a scene entered with zero hotspots because its entry dialogue was skipped (27 October 2026)
+
+Pinned user run `run-20261027T142409.559687Z-qtcd5rmd` (EA 602 / `26.btb` ->
+MAP -> SM conversations -> MAP -> `slot 13 action 257 scene_switch=27`, MR).
+MR arrived as `entry scene=MR steps=103 stopped_at=169 hotspots=0` on
+`MRDOORCL.jpg` and 16 clicks in a row reported `hit no hotspot`; the scene had
+no exit. Not a mis-click: MR's entry head runs 44 `0x72` objects, `0xb8`
+(0x438cf9) suspends them for the arrival dialogue, then `0x70(0,0)`
+(CONVERSE record 0 = `MMhmr1a`) at instruction 169. The port's travel path ran
+the script but ignored `trace.conversation_request`, so the dialogue and its
+continuation (instruction 170, which calls `0x6d(42,43)`, opens the door and
+re-enables the view's hotspots) never ran.
+
+Fix: `travel_to` and `restart_scene` now run an entry `0x70` through the same
+`execute_plan` flow as the startup path (pre-dialogue segment, real
+conversation, `apply_conversation_result`, resumed segment; `0xfffe` still ends
+the session, an incomplete conversation prints `entry_conversation not
+committed`). The entry probe also runs on a copy of `entry_state` now - it used
+to mutate the member and replay the entry from its own output. New diagnostics
+`entry_no_hotspots`/`restart_no_hotspots` make a scene with nothing clickable
+visible instead of silent, and `--panorama-yaw` became repeatable per scene
+(`EA:-44.4519`, `SM:166.721`) so a multi-drag journey can be replayed headlessly.
+
+Real data: MAP 87/`27.btb` -> click 47 twice -> MR gives `entry_conversation
+record=0 instruction=169 object_context=0`, conversation `MMhmr1a` (4 lines,
+`media=1`; `Mm1meh01.avi` extracted from CD1, 19.4 s PCM; the other three clips
+are on no CD), `entry scene=MR steps=9 stopped_at=172 hotspots=2`,
+`background=MRDoorOp`, hotspots 42 (door) and 43 (exit); the exit travels back
+to MAP (index 25, 6 hotspots). The old binary printed `hotspots=0` for the same
+command. Screenshot `port/output/mr-arrival/`. `make -C port -j2 all test` and
+all `analysis/rea/verify_*.py` pass. Report:
+`analysis/rea/SCENE_ENTRY_CONVERSATION.md`.
+
+## Previous step — dialogue FMVs were skipped by a case-sensitive speaker test (27 October 2026)
 
 Pinned user run `run-20261027T140201.207358Z-cuxn9p2q` (EA 602 / `26.btb` ->
 MAP -> SM, clicked Ima, chose answers). The sprite and both conversations work,

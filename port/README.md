@@ -131,9 +131,9 @@ etiket kümesinde bulunuyor. Kanıt ve bilinmeyen listesi:
   dikdörtgenin köşelerini ekrana izdüşürür ve ilk görünen köşe sprite'ı
   yerleştirir; bu yüzden SM'deki İma (`Smim00b`, kaynak 1302,333) kamera ona
   döndüğünde görünür. `--staged-x 0..2495` başsız bir bakış açar,
-  `--panorama-yaw <derece>` (isteğe bağlı `SAHNE:` önekiyle) her karede mutlak
-  bir kamera yaw'ı uygular (tanılama girdisi), `--click-at <x>,<y>` ekran
-  noktasını gerçek tıklama yolundan geçirir.
+  `--panorama-yaw [SAHNE:]derece` (tekrarlanabilir; önek yoksa her panorama
+  sahnesinde) her karede mutlak bir kamera yaw'ı uygular (tanılama girdisi),
+  `--click-at <x>,<y>` ekran noktasını gerçek tıklama yolundan geçirir.
   `--cursor-at <x>,<y>` aynı nokta için oyunun seçtiği imleci kurup yazar
   (başsız imleç tanılaması); imleç tabloları ve sınırlar: `CURSORS.md`.
   `0xcb` dönüşü `0x402285` gibi adım adım uygulanır.
@@ -143,6 +143,12 @@ etiket kümesinde bulunuyor. Kanıt ve bilinmeyen listesi:
   taşınan tek durum `DAT_0047e2f0` 3000 sözcüklü değişken havuzudur (ayrıntı:
   [`SCENE_TRAVEL.md`](../analysis/rea/SCENE_TRAVEL.md)). Yeni sahnenin girişi de
   ses kapılıdır; dönüşte konsola `travel …` ve `entry …` satırları basılır.
+  Girişin başında bir `0x70` (diyalog) varsa **o da çalıştırılır** ve sonucu
+  betiği sürdürür (`entry_conversation …`); MR'a varıştaki `MMhmr1a` gibi bir
+  karşılama diyaloğu atlanırsa `0xb8`'in askıya aldığı tıklama alanları geri
+  gelmez ve sahne "çıkışsız" kalır. Tıklanabilir hiç alan yoksa artık
+  `entry_no_hotspots`/`restart_no_hotspots` satırı basılır
+  (`analysis/rea/SCENE_ENTRY_CONVERSATION.md`).
   **Metin pencereleri**: `0x4177c7` (inceleme, font 1, x=5, y=0x14a, 3 satır) ve
   `0x417a17` (mesaj, font 3, sağa dayalı 0x26e/0x2d) artık çizilir; içerik
   `engine/<scene>ce` (`CE.ALL`, gerçek Türkçe metin), font

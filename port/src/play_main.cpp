@@ -139,12 +139,12 @@ struct Options {
     // that logical screen point and print it (headless cursor diagnostic).
     std::vector<std::pair<int, int>> cursor_ats;
     std::optional<int> staged_x;               // --staged-x <0..2495>
-    // --panorama-yaw [SCENE:]degrees: keep the headless camera at an absolute
-    // yaw, for that scene only when a SCENE prefix is given (a port input for
-    // diagnostics, not game state; the original only turns in 0x42423d/
-    // 0x402285 calls or through the mouse-drag edge logic).
-    std::optional<double> panorama_yaw;
-    std::string panorama_yaw_scene;
+    // --panorama-yaw [SCENE:]degrees (repeatable): keep the headless camera at
+    // an absolute yaw, per scene when a SCENE prefix is given and for every
+    // panorama otherwise (a port input for diagnostics, not game state; the
+    // original only turns in 0x42423d/0x402285 calls or through the mouse-drag
+    // edge logic).
+    std::map<std::string, double> panorama_yaw;
     std::optional<int> bar_select;             // --bar-select <item id>
     bool bar_use = false;                      // --bar-use: examine selected item
     int bar_scroll = 0;                        // --bar-next/--bar-prev count
@@ -301,15 +301,17 @@ Options parse_options(int argc, char** argv) {
             else if (token == "--staged-x") options.staged_x = std::stoi(value);
             else if (token == "--panorama-yaw") {
                 auto degrees = value;
+                std::string scene;
                 const auto colon = degrees.find(':');
                 if (colon != std::string::npos) {
-                    options.panorama_yaw_scene = degrees.substr(0, colon);
+                    scene = lower_ascii(degrees.substr(0, colon));
                     degrees = degrees.substr(colon + 1);
                 }
-                options.panorama_yaw = std::stod(degrees);
-                if (!(*options.panorama_yaw >= -360.0 && *options.panorama_yaw <= 360.0)) {
+                const auto yaw = std::stod(degrees);
+                if (!(yaw >= -360.0 && yaw <= 360.0)) {
                     throw std::runtime_error("--panorama-yaw must be within -360..360");
                 }
+                options.panorama_yaw[scene] = yaw;
             }
             else if (token == "--click-at") {
                 const auto comma = value.find(',');
@@ -1037,7 +1039,7 @@ void apply_panorama_events(SceneView& view, Options& options, bool verbose) {
         }
         options.staged_x.reset();
     }
-    if (options.panorama_yaw) {
+    if (!options.panorama_yaw.empty()) {
         // Explicit port input: after the trace's own 0xb9/0xcb camera work,
         // turn to an absolute yaw so a headless run can look at a known part of
         // the node. Like --staged-x this is a diagnostic view, not game state.
@@ -1045,14 +1047,16 @@ void apply_panorama_events(SceneView& view, Options& options, bool verbose) {
             if (verbose) std::cout << "--panorama-yaw ignored: no panorama is loaded\n";
             return;
         }
-        if (!options.panorama_yaw_scene.empty() &&
-            lower_ascii(view.name) != lower_ascii(options.panorama_yaw_scene)) {
-            return;
+        const auto scene = lower_ascii(view.name);
+        auto wanted = options.panorama_yaw.find(scene);
+        if (wanted == options.panorama_yaw.end()) {
+            wanted = options.panorama_yaw.find(std::string());
         }
-        const double delta = *options.panorama_yaw - view.panorama->yaw_degrees();
+        if (wanted == options.panorama_yaw.end()) return;
+        const double delta = wanted->second - view.panorama->yaw_degrees();
         view.panorama->advance(delta, 0, 1.0);
         if (verbose) {
-            std::cout << "panorama_yaw=" << *options.panorama_yaw
+            std::cout << "panorama_yaw=" << wanted->second
                       << " yaw=" << view.panorama->yaw_degrees() << '\n';
         }
     }
@@ -2009,6 +2013,42 @@ bool run_label_gated(Session& session, EntryPoint point,
 }
 
 // ---------------------------------------------------------------------------
+// Clicks
+// ---------------------------------------------------------------------------
+// One click/label/entry plan. `entry_before` is the state the probe started
+// from; a plan is always re-executed from it, never from the probe's output.
+struct ClickPlan {
+    bool ok = false;
+    bool travel = false;
+    bool conversation = false;
+    bool item_use_checked = false;   // the strip had a selected item
+    bool item_use_ok = false;        // 0x407c5a accepted it
+    std::uint16_t switch_index = 0;
+    std::string message;
+    std::uint16_t action = 0;
+    EntryPoint point;                    // where the action's segment starts
+    byzantine::SceneState entry;
+    byzantine::SceneState entry_before;  // before the probe (gated replay input)
+    byzantine::SceneTrace probe;
+};
+
+bool execute_plan(Session& session, const ClickPlan& plan,
+                  const std::function<bool(EntryPoint, const byzantine::SceneState&,
+                                           const byzantine::SceneTrace&)>& run,
+                  bool verbose, bool* session_ended = nullptr);
+
+// A scene with no active hotspot and no exit cannot be left: every click is
+// rejected by hotspot_at. That state is legitimate while a 0x70 dialogue runs
+// (0xb8 suspends the hotspots and the continuation restores them), so report it
+// instead of leaving the player guessing whether the click was wrong.
+void warn_if_nothing_clickable(const SceneView& view, const char* where) {
+    if (!view.trace.active_hotspots.empty()) return;
+    std::cout << where << "_no_hotspots scene=" << view.name
+              << " (nothing is clickable; stopped_at=" << view.trace.stopped_at
+              << " blocker=" << byzantine::trace_blocker(view.trace) << ')' << '\n';
+}
+
+// ---------------------------------------------------------------------------
 // Scene travel (0x73)
 // ---------------------------------------------------------------------------
 bool audio_gated(const Session& session) {
@@ -2350,22 +2390,53 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose) {
     load_scene_text(session, verbose);
 
     // The new scene runs from its first instruction (DAT_0047a238), exactly
-    // like 0x42c8a0's reload; its sounds are gated like any other script.
+    // like 0x42c8a0's reload; its sounds are gated like any other script. The
+    // probe runs on a COPY: a probe must never become the action's entry state
+    // (replaying from its own output applies every write twice).
+    byzantine::SceneState entry_probe_state = session.view.entry_state;
     const auto probe = byzantine::trace_scene_entry(
-        session.view.script, session.view.entries, session.view.entry_state, 0);
-    if (session.interactive && audio_gated(session)) {
-        if (!run_label_gated(session, EntryPoint{0, true, std::nullopt}, session.view.entry_state, probe,
-                             verbose)) {
-            return false;
+        session.view.script, session.view.entries, entry_probe_state, 0);
+    const auto run_entry = [&](EntryPoint point, const byzantine::SceneState& entry,
+                               const byzantine::SceneTrace& look) {
+        if (!session.interactive || !audio_gated(session)) {
+            session.view.state = entry;
+            set_trace(session.view, trace_point(session.view, point, entry, 0));
+            return session.running;
         }
-    } else {
-        set_trace(session.view,
-                  trace_point(session.view, EntryPoint{0, true, std::nullopt},
-                              session.view.entry_state, 0));
+        return run_label_gated(session, point, entry, look, verbose);
+    };
+    bool entry_session_ended = false;
+    if (probe.conversation_request) {
+        // 0x42c8a0's reload starts at the instruction head, so a 0x70 there
+        // opens the scene's arrival dialogue before the view is interactive
+        // (MR's MMhmr1a). The 0xb8 just before it suspends every hotspot and
+        // only the conversation's continuation (0xb7) brings them back; skipping
+        // the request left the scene silent with zero hotspots, i.e. no exit.
+        ClickPlan plan;
+        plan.ok = true;
+        plan.conversation = true;
+        plan.point = EntryPoint{0, true, std::nullopt};
+        plan.entry = entry_probe_state;
+        plan.entry_before = session.view.entry_state;
+        plan.probe = probe;
+        std::cout << "entry_conversation record="
+                  << probe.conversation_request->record
+                  << " instruction=" << probe.conversation_request->instruction
+                  << " object_context=" << probe.conversation_request->object_context
+                  << '\n';
+        if (!execute_plan(session, plan, run_entry, verbose, &entry_session_ended)) {
+            // The original would still be inside 0x70 here. Do not pretend the
+            // view is ready: keep the pre-dialogue state and say so.
+            std::cout << "entry_conversation not committed (scene keeps the "
+                         "pre-dialogue state)\n";
+        }
+    } else if (!run_entry(EntryPoint{0, true, std::nullopt}, session.view.entry_state,
+                          probe)) {
+        return false;
     }
     // The entry's own trace selects the layer for this scene (see update_layer).
     update_layer(session.view);
-    show_message_text(session, verbose);
+    if (!entry_session_ended) show_message_text(session, verbose);
     apply_panorama_events(session.view, options, verbose);
     resume_ambient(session, verbose);
     refresh_background(options, session.view);
@@ -2383,6 +2454,7 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose) {
               << " records=" << session.view.state.records.size()
               << " locals_digest=0x" << std::hex << locals_digest(session.view.state)
               << std::dec << '\n';
+    warn_if_nothing_clickable(session.view, "entry");
     return session.running;
 }
 
@@ -2625,24 +2697,6 @@ void follow_switches(Session& session, bool verbose) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Clicks
-// ---------------------------------------------------------------------------
-struct ClickPlan {
-    bool ok = false;
-    bool travel = false;
-    bool conversation = false;
-    bool item_use_checked = false;   // the strip had a selected item
-    bool item_use_ok = false;        // 0x407c5a accepted it
-    std::uint16_t switch_index = 0;
-    std::string message;
-    std::uint16_t action = 0;
-    EntryPoint point;                    // where the action's segment starts
-    byzantine::SceneState entry;
-    byzantine::SceneState entry_before;  // before the probe (gated replay input)
-    byzantine::SceneTrace probe;
-};
-
 // Diagnostic: the logical playfield rectangle that actually hits each active
 // hotspot under the current camera. This is the same hotspot_at path the mouse
 // uses, so the printed centre is a valid real click coordinate.
@@ -2790,6 +2844,7 @@ void log_entry_summary(const Session& session) {
               << stop_reason(session.view.trace)
               << " hotspots=" << session.view.trace.active_hotspots.size()
               << " records=" << session.view.state.records.size() << '\n';
+    warn_if_nothing_clickable(session.view, "entry");
 }
 
 // A hotspot whose action reaches 0x73 is a scene switch: 0x42db22 writes
@@ -4097,9 +4152,31 @@ bool restart_scene(Session& session,
                                        probe_state, 0)
         : byzantine::trace_scene_label(session.view.script, session.view.entries,
                                        probe_state, point.label);
-    if (!run(point, session.view.entry_state, probe)) return false;
+    bool entry_session_ended = false;
+    if (probe.conversation_request) {
+        // Same as travel_to: a 0x70 at the head opens the arrival dialogue, and
+        // only its continuation restores the hotspots 0xb8 suspended.
+        ClickPlan plan;
+        plan.ok = true;
+        plan.conversation = true;
+        plan.point = point;
+        plan.entry = probe_state;
+        plan.entry_before = session.view.entry_state;
+        plan.probe = probe;
+        std::cout << "entry_conversation record="
+                  << probe.conversation_request->record
+                  << " instruction=" << probe.conversation_request->instruction
+                  << " object_context=" << probe.conversation_request->object_context
+                  << '\n';
+        if (!execute_plan(session, plan, run, verbose, &entry_session_ended)) {
+            std::cout << "entry_conversation not committed (scene keeps the "
+                         "pre-dialogue state)\n";
+        }
+    } else if (!run(point, session.view.entry_state, probe)) {
+        return false;
+    }
     apply_panorama_events(session.view, session.options, verbose);
-    show_message_text(session, verbose);
+    if (!entry_session_ended) show_message_text(session, verbose);
     resume_ambient(session, verbose);
     refresh_background(session.options, session.view);
     session.display.compose(session.view, verbose);
@@ -4108,6 +4185,7 @@ bool restart_scene(Session& session,
               << " point=" << (point.at_entry ? "entry" : "label")
               << " hotspots=" << session.view.trace.active_hotspots.size()
               << " steps=" << session.view.trace.steps << '\n';
+    warn_if_nothing_clickable(session.view, "restart");
     return true;
 }
 
@@ -4120,7 +4198,7 @@ bool restart_scene(Session& session,
 bool execute_plan(Session& session, const ClickPlan& plan,
                   const std::function<bool(EntryPoint, const byzantine::SceneState&,
                                            const byzantine::SceneTrace&)>& run,
-                  bool verbose, bool* session_ended = nullptr) {
+                  bool verbose, bool* session_ended) {
     if (!plan.conversation) {
         // plan.entry is the already-mutated probe result. Re-executing from it
         // applies writes twice and can choose a different branch on the replay.
