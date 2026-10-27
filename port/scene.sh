@@ -247,14 +247,26 @@ text_args=()
 messages="$data/copy2hd/setupart/MESSAGES.TXT"
 [ -f "$messages" ] && text_args+=(--messages "$messages")
 
-# A later 0x73 can reach a conversation outside the starting scene. Let the
-# player extract just that missing AVI into this analysis copy on demand.
+# A later 0x73 can reach a conversation, and a 0xbd can name a CF clip, outside
+# the starting scene. The player extracts just that missing file into this
+# analysis copy on demand. The saved disc goes first: the same clip name can
+# carry different bytes on different CDs (the animation overlay above makes the
+# same call), so the disc the save was made on is the authority.
 media_isos="$data/media_isos.txt"
 : >"$media_isos"
-for index in 1 2 3 4 5 6; do
-    iso="$(find_iso "$index")" || continue
+add_media_iso() {
+    local iso iso_dir line
+    iso="$(find_iso "$1")" || return 0
     iso_dir="$(cd "$(dirname "$iso")" && pwd)"
-    printf '%s/%s\n' "$iso_dir" "$(basename "$iso")" >>"$media_isos"
+    line="$iso_dir/$(basename "$iso")"
+    if grep -qxF "$line" "$media_isos"; then
+        return 0
+    fi
+    printf '%s\n' "$line" >>"$media_isos"
+}
+add_media_iso "$saved_disc"
+for index in 1 2 3 4 5 6; do
+    add_media_iso "$index"
 done
 
 exec "$here/byzantine-play" "$cc" "$cb" "$label" \

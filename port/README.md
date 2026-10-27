@@ -266,10 +266,18 @@ etiket kümesinde bulunuyor. Kanıt ve bilinmeyen listesi:
   `avi/<ad>.avi`, yedek `video\<kip>\<ad>.avi`. 2 ve 3 kipleri yalnızca
   `gamepref[5]`/`gamepref[4]` sıfırdan farklıysa oynar (`0x41d440`; dosya
   `savegame/gamepref_%03d`, `0x41f753`). 0/2/4 kipleri ayrıca `0xb9`'un tükettiği
-  `DAT_00460664` değerini yazar. AVI çözme/oynatma yoktur; istek
-  `video_requests` olarak tutulur, tablo verilmezse `unresolved_video_name`,
-  oyun tercihleri verilmezse `unresolved_video_setting` ile durulur. Kanıt:
-  `analysis/rea/VIDEO_AND_AUDIO.md`.
+  `DAT_00460664` değerini yazar. Çalma artık gerçektir: klip FFmpeg ile bir kez
+  JPEG+PCM önbelleğine çözülür (`FFmpeg`, yeni kodek yok) ve `0x413bdd` gibi
+  **betiği bloklayarak** oynatılır; konum/ölçek `0x40d3af`/`0x43a248` kurallarıdır
+  (kip 1/2/4 `gamepref[1]` ile 2x 640x400 ya da 320x200 pencere, kip 0/3 2x,
+  kip 5/varsayılan 1:1). Klip oynadıysa `DAT_004859cd = 1` uygulanır (kip 5 ve
+  `mcaft1a1` hariç). Eksik klip/`--no-video` sessizce yutulmaz:
+  `video_request`, `video_media`, `video skipped reason=...`, `video` ve
+  `video_end` satırları yazılır. `scene.sh` klibi kullanıcının ISO'larından
+  yalnızca gerektiğinde, kaydetin diski önce olacak şekilde çıkarır. Tablo
+  verilmezse `unresolved_video_name`, oyun tercihleri verilmezse
+  `unresolved_video_setting` ile durulur. Kanıt:
+  `analysis/rea/VIDEO_AND_AUDIO.md`, `analysis/rea/CF_VIDEO_PLAYBACK.md`.
 - `0xb9` panorama/düğüm yükleyicisidir: ham operand 0 CO.ALL kaydını
   (`DAT_00483d90`) seçer, ad `nodes/<ilk 2>/<ad>.jpg` yolunu kurar, operand 1/2
   değişken tablosundan çözülür, operand 3 geçiş kimliğidir (`0x432133`: 1→0x67,

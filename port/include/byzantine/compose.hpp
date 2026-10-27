@@ -74,10 +74,16 @@ ImageBlit blit_image(Rgb16Surface& target, std::int32_t image_width,
                      std::int32_t y);
 
 // 0x43a248 mode 2 for an Indeo IV41 AVI: the destination rectangle is exactly
-// twice the decoded 320x200 frame and starts at the playfield origin (the
-// original passes x=0, y=0x14 in the 640x480 surface). This is an exact 2x
-// pixel doubling, not a resampling filter. Returns false when the doubled
-// source does not equal the target surface.
+// twice the decoded 320x200 frame. 0xbd's operands 2/3 (0x40d031's param_3/
+// param_4) are the destination x/y in the 640x480 surface, so the doubled
+// rectangle can start away from the playfield origin; the shipped clips pass
+// 0,0. This is an exact 2x pixel doubling, not a resampling filter.
+bool blit_image_2x_at(Rgb16Surface& target, std::int32_t image_width,
+                      std::int32_t image_height, const std::uint16_t* pixels,
+                      std::int32_t x, std::int32_t y);
+
+// Same as blit_image_2x_at with the destination at the playfield origin.
+// Returns false when the doubled source does not equal the target surface.
 bool blit_image_2x(Rgb16Surface& target, std::int32_t image_width,
                    std::int32_t image_height, const std::uint16_t* pixels);
 

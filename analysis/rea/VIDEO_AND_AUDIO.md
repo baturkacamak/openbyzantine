@@ -115,8 +115,10 @@ script-only model.
   unresolved variable, as `0x84` already does) and count
   `SceneTrace::sound_refresh_requests`.
 * `SceneVideoRequest` + `SceneTrace::video_requests` / `video_skipped` hold the
-  resolved CF name, `avi/<name>.avi` path, mode, the optional `0x40` operands and
-  the `DAT_00460664` transition code for the unconditional modes.
+  resolved CF name, `avi/<name>.avi` path, mode, the optional `0x40` operands
+  (`position_x`/`position_y`, 0x40d031's param_3/param_4) and the `DAT_00460664`
+  transition code for the unconditional modes. `step` is the 1-based
+  instruction index so a budgeted replay can stop exactly at the request.
 * `SceneState::video_records` + `video_table_known` (CF table) and
   `SceneState::gameprefs` (`std::optional<std::array<std::uint32_t,7>>`) are
   explicit inputs. A missing table stops with `unresolved_video_name`; a missing
@@ -124,11 +126,23 @@ script-only model.
   gate; an id outside the table throws, like the original's null dereference.
 * `byzantine-cc` gained `--cf <path>` and `--gameprefs <28-byte file>`;
   `byzantine-play` pauses on the two new unresolved flags.
+* `byzantine-play` **plays the clip** (27 October 2026): `port/src/video.*`
+  resolves `avi/<name>.avi` then the mode folder, `scene.sh` fetches a missing
+  clip from the user's ISOs (saved disc first), FFmpeg materialises a JPEG+PCM
+  cache exactly like the conversation clips, and the frames are drawn with
+  `0x40d3af`/`0x43a248`'s placement while the script blocks like `0x413bdd`.
+  See `analysis/rea/CF_VIDEO_PLAYBACK.md`.
 
-Not modelled: AVI decode/playback (`0x40d3af`), the DirectSound setters behind
-`0x427d1a`, the `mcaft1a1` special case (`0x40da1f`), the `local_8` keep-open
-flag, `DAT_00464878`/`DAT_00460668` (so `0xbd` mode 3 leaves `DAT_00460664`
-unset) and `DAT_00460664` consumption by `0xb9`.
+Modelled: AVI decode/playback through FFmpeg plus the existing JPEG/WAV readers
+and the SDL2 mixer, the blocking `0x413bdd` wait, the destination from
+`0x40d3af` including the `gamepref[1]` window, `DAT_004859cd = 1` after a played
+clip, and the on-demand extraction from the shipped CDs.
+Not modelled: the DirectSound setters behind `0x427d1a`, the `mcaft1a1` special
+case's `0x40da1f` one-time renderer init, the `local_8` keep-open flag, mode 3's
+`DAT_00460668`/`DAT_00464878` branch (so its `DAT_00460664` value stays unset),
+mode 1's `0x419d28`/`0x42b280` intro-buffer clear, and the palette/format mode of
+`0x43d9c7` (the port always uses the RGB565 surface). `DAT_00460664` is consumed
+by `0xb9`.
 
 ## Verification
 

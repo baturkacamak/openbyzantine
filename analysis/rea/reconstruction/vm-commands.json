@@ -2913,8 +2913,8 @@
  },
  "union_opcodes": 155,
  "named": 39,
- "port_supported": 40,
- "not_in_port": 115,
+ "port_supported": 79,
+ "not_in_port": 76,
  "commands": [
   {
    "opcode": "0x32",
@@ -3883,7 +3883,7 @@
     "0x436652",
     "0x439349"
    ],
-   "port": false
+   "port": true
   },
   {
    "opcode": "0x69",
@@ -3924,7 +3924,7 @@
     "0x436652",
     "0x44c2f0"
    ],
-   "port": false
+   "port": true
   },
   {
    "opcode": "0x6b",
@@ -4015,7 +4015,7 @@
     "0x438cd0",
     "0x4599c0"
    ],
-   "port": false,
+   "port": true,
    "name_address": "0x460cd0"
   },
   {
@@ -4056,7 +4056,7 @@
    "callees": [
     "0x436652"
    ],
-   "port": false
+   "port": true
   },
   {
    "opcode": "0x74",
@@ -4147,7 +4147,7 @@
     "0x42db22"
    ],
    "callees": [],
-   "port": false
+   "port": true
   },
   {
    "opcode": "0x7a",
@@ -4159,7 +4159,7 @@
    "callees": [
     "0x436652"
    ],
-   "port": false
+   "port": true
   },
   {
    "opcode": "0x7b",
@@ -4238,7 +4238,7 @@
     "0x40abb4",
     "0x436652"
    ],
-   "port": false
+   "port": true
   },
   {
    "opcode": "0x80",
@@ -4251,7 +4251,7 @@
     "0x40abb4",
     "0x436652"
    ],
-   "port": false
+   "port": true
   },
   {
    "opcode": "0x81",
@@ -4336,7 +4336,7 @@
     "0x43299d",
     "0x436652"
    ],
-   "port": false
+   "port": true
   },
   {
    "opcode": "0x87",
@@ -4398,7 +4398,7 @@
     "0x432b09",
     "0x436652"
    ],
-   "port": false
+   "port": true
   },
   {
    "opcode": "0x8b",
@@ -4413,7 +4413,7 @@
     "0x432c65",
     "0x436652"
    ],
-   "port": false
+   "port": true
   },
   {
    "opcode": "0x8c",
@@ -4444,7 +4444,7 @@
     "0x4319b3",
     "0x431a69"
    ],
-   "port": false
+   "port": true
   },
   {
    "opcode": "0x8e",
@@ -4873,7 +4873,7 @@
     "0x408c81",
     "0x436652"
    ],
-   "port": false
+   "port": true
   },
   {
    "opcode": "0xac",
@@ -4940,7 +4940,7 @@
     "0x408bb2",
     "0x436652"
    ],
-   "port": false
+   "port": true
   },
   {
    "opcode": "0xb1",
@@ -4953,7 +4953,7 @@
     "0x408bb2",
     "0x436652"
    ],
-   "port": false
+   "port": true
   },
   {
    "opcode": "0xb2",
@@ -4967,7 +4967,7 @@
     "0x43194f",
     "0x436652"
    ],
-   "port": false
+   "port": true
   },
   {
    "opcode": "0xb3",
@@ -4981,7 +4981,7 @@
     "0x43194f",
     "0x436652"
    ],
-   "port": false
+   "port": true
   },
   {
    "opcode": "0xb4",
@@ -4994,7 +4994,7 @@
    "callees": [
     "0x4075a1"
    ],
-   "port": false
+   "port": true
   },
   {
    "opcode": "0xb5",
@@ -5007,7 +5007,7 @@
    "callees": [
     "0x407420"
    ],
-   "port": false
+   "port": true
   },
   {
    "opcode": "0xb6",
@@ -5023,7 +5023,7 @@
     "0x408c81",
     "0x436652"
    ],
-   "port": false
+   "port": true
   },
   {
    "opcode": "0xb7",
@@ -5067,7 +5067,7 @@
     "0x432295",
     "0x436652"
    ],
-   "port": false,
+   "port": true,
    "name_address": "0x461204",
    "fields": [
     {
@@ -5104,7 +5104,7 @@
     "0x408c81",
     "0x436652"
    ],
-   "port": false
+   "port": true
   },
   {
    "opcode": "0xbc",
@@ -5132,7 +5132,7 @@
     "0x40d031",
     "0x436652"
    ],
-   "port": false,
+   "port": true,
    "fields": [
     {
      "offset": "0x3",
@@ -5152,7 +5152,7 @@
     "0x42db22"
    ],
    "callees": [],
-   "port": false
+   "port": true
   },
   {
    "opcode": "0xbf",
@@ -5166,7 +5166,7 @@
     "0x4319b3",
     "0x436652"
    ],
-   "port": false,
+   "port": true,
    "fields": [
     {
      "offset": "0x4",
@@ -5187,7 +5187,7 @@
     "0x4319b3",
     "0x436652"
    ],
-   "port": false,
+   "port": true,
    "fields": [
     {
      "offset": "0x3",
@@ -5226,7 +5226,7 @@
     "0x4319b3",
     "0x436652"
    ],
-   "port": false,
+   "port": true,
    "fields": [
     {
      "offset": "0x4",
@@ -5287,7 +5287,7 @@
     "0x436652",
     "0x44c2f0"
    ],
-   "port": false
+   "port": true
   },
   {
    "opcode": "0xc7",
@@ -5300,7 +5300,7 @@
     "0x408bb2",
     "0x436652"
    ],
-   "port": false
+   "port": true
   },
   {
    "opcode": "0xc8",
@@ -5315,7 +5315,7 @@
     "0x4319b3",
     "0x436652"
    ],
-   "port": false
+   "port": true
   },
   {
    "opcode": "0xcb",
@@ -5328,7 +5328,7 @@
     "0x402285",
     "0x4319b3"
    ],
-   "port": false
+   "port": true
   },
   {
    "opcode": "0xcc",
@@ -5340,7 +5340,7 @@
    "callees": [
     "0x436652"
    ],
-   "port": false
+   "port": true
   },
   {
    "opcode": "0xcd",
@@ -5381,7 +5381,7 @@
    "callees": [
     "0x427a01"
    ],
-   "port": false
+   "port": true
   },
   {
    "opcode": "0xd0",
@@ -5394,7 +5394,7 @@
    "callees": [
     "0x4278ab"
    ],
-   "port": false
+   "port": true
   },
   {
    "opcode": "0xd1",
@@ -5407,7 +5407,7 @@
     "0x428cbd",
     "0x436652"
    ],
-   "port": false
+   "port": true
   },
   {
    "opcode": "0xd2",
@@ -5420,7 +5420,7 @@
     "0x41d440",
     "0x42515f"
    ],
-   "port": false
+   "port": true
   },
   {
    "opcode": "0xd3",
@@ -5434,7 +5434,7 @@
     "0x4319b3",
     "0x436652"
    ],
-   "port": false
+   "port": true
   },
   {
    "opcode": "0xd4",
@@ -5444,7 +5444,7 @@
     "0x42db22"
    ],
    "callees": [],
-   "port": false
+   "port": true
   },
   {
    "opcode": "0xd5",
@@ -5454,7 +5454,7 @@
     "0x42db22"
    ],
    "callees": [],
-   "port": false
+   "port": true
   }
  ],
  "port_only_opcodes": [

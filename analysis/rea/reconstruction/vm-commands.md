@@ -8,8 +8,8 @@ command mnemonic is an inference. Cases without a trace branch are marked
 
 - Opcodes in the union: **155**
 - Mnemonics recovered: **39**
-- Handled by the portable VM: **40**
-- Not handled: **115**
+- Handled by the portable VM: **79**
+- Not handled: **76**
 - Port opcodes outside the recovered dispatchers: `0xe1`
 
 | Opcode | Mnemonic | 0x43340a | 0x42db22 | Port | Fields (0x43340a) | Callees |
@@ -61,44 +61,44 @@ command mnemonic is an inference. Cases without a trace branch are marked
 | `0x65` | — | yes | yes | yes | +0x7, +0x22 | `0x41d440`, `0x4319b3`, `0x436652`, `0x44c2f0` |
 | `0x66` | — | yes | yes | **no** | — | — |
 | `0x67` | — | yes | yes | yes | +0x1 | `0x409901`, `0x4319b3`, `0x436652` |
-| `0x68` | — |  | yes | **no** | — | `0x4278ab`, `0x42dad9`, `0x432464`, `0x436652`, `0x439349` |
+| `0x68` | — |  | yes | yes | — | `0x4278ab`, `0x42dad9`, `0x432464`, `0x436652`, `0x439349` |
 | `0x69` | BACKGRND | yes | yes | yes | +0x2 | `0x40a2c3`, `0x40d862`, `0x4177c7`, `0x417a17`, `0x41dcc9`, … |
-| `0x6a` | — |  | yes | **no** | — | `0x4319b3`, `0x436652`, `0x44c2f0` |
+| `0x6a` | — |  | yes | yes | — | `0x4319b3`, `0x436652`, `0x44c2f0` |
 | `0x6b` | — | yes | yes | **no** | — | `0x40abb4`, `0x436652` |
 | `0x6c` | — | yes | yes | yes | — | `0x40abb4`, `0x436652` |
 | `0x6d` | — | yes | yes | yes | — | `0x40ac38`, `0x40ac43`, `0x416295`, `0x436652`, `0x438cd0` |
 | `0x6e` | — | yes | yes | yes | — | `0x40ac38`, `0x40ac43`, `0x416295`, `0x436652`, `0x438cd0` |
 | `0x6f` | — |  | yes | yes | — | — |
-| `0x70` | CONVERSE |  | yes | **no** | — | `0x409457`, `0x4094f2`, `0x410f09`, `0x432d6e`, `0x437bcc`, … |
+| `0x70` | CONVERSE |  | yes | yes | — | `0x409457`, `0x4094f2`, `0x410f09`, `0x432d6e`, `0x437bcc`, … |
 | `0x71` | — |  | yes | yes | — | `0x431a36`, `0x436652` |
 | `0x72` | — |  | yes | yes | — | `0x408bb2`, `0x40abb4`, `0x436652`, `0x44c2f0` |
-| `0x73` | — |  | yes | **no** | — | `0x436652` |
+| `0x73` | — |  | yes | yes | — | `0x436652` |
 | `0x74` | — | yes | yes | yes | +0x1 | `0x409a12`, `0x4319b3`, `0x436652` |
 | `0x75` | — | yes | yes | yes | +0x1 | `0x409ab8`, `0x40ac38`, `0x40ac43`, `0x4319b3`, `0x436652` |
 | `0x76` | — |  | yes | yes | — | `0x436652` |
 | `0x77` | — |  | yes | yes | — | `0x431a36`, `0x436652` |
 | `0x78` | — |  | yes | **no** | — | `0x436652` |
-| `0x79` | — |  | yes | **no** | — | — |
-| `0x7a` | — |  | yes | **no** | — | `0x436652` |
+| `0x79` | — |  | yes | yes | — | — |
+| `0x7a` | — |  | yes | yes | — | `0x436652` |
 | `0x7b` | — |  | yes | **no** | — | `0x409881`, `0x4319b3` |
 | `0x7c` | — | yes |  | **no** | — | — |
 | `0x7d` | — | yes | yes | yes | +0x2 | `0x409981`, `0x431e89`, `0x436652` |
 | `0x7e` | — | yes | yes | **no** | +0x2 | `0x40abb4`, `0x4319b3`, `0x436652` |
-| `0x7f` | — | yes | yes | **no** | — | `0x40abb4`, `0x436652` |
-| `0x80` | — |  | yes | **no** | — | `0x40abb4`, `0x436652` |
+| `0x7f` | — | yes | yes | yes | — | `0x40abb4`, `0x436652` |
+| `0x80` | — |  | yes | yes | — | `0x40abb4`, `0x436652` |
 | `0x81` | — |  | yes | **no** | — | `0x40abb4`, `0x436652` |
 | `0x82` | — | yes | yes | **no** | — | `0x40abb4`, `0x436652` |
 | `0x83` | — |  | yes | yes | — | — |
 | `0x84` | — | yes | yes | yes | — | `0x409d09`, `0x431b0f`, `0x4326eb`, `0x436652` |
 | `0x85` | — | yes | yes | yes | — | `0x409db9`, `0x431b0f`, `0x432904`, `0x436652` |
-| `0x86` | — | yes | yes | **no** | — | `0x409efc`, `0x431b0f`, `0x43299d`, `0x436652` |
+| `0x86` | — | yes | yes | yes | — | `0x409efc`, `0x431b0f`, `0x43299d`, `0x436652` |
 | `0x87` | — | yes | yes | **no** | — | `0x409f8d`, `0x431b0f`, `0x4329e4`, `0x436652` |
 | `0x88` | — | yes | yes | **no** | — | `0x40a00a`, `0x431b0f`, `0x432a63`, `0x436652` |
 | `0x89` | — |  | yes | **no** | — | `0x40a087`, `0x431b0f`, `0x432ad2`, `0x436652` |
-| `0x8a` | — |  | yes | **no** | — | `0x40a0c0`, `0x431b0f`, `0x432b09`, `0x436652` |
-| `0x8b` | — |  | yes | **no** | — | `0x40a109`, `0x431b0f`, `0x432c65`, `0x436652` |
+| `0x8a` | — |  | yes | yes | — | `0x40a0c0`, `0x431b0f`, `0x432b09`, `0x436652` |
+| `0x8b` | — |  | yes | yes | — | `0x40a109`, `0x431b0f`, `0x432c65`, `0x436652` |
 | `0x8c` | — | yes | yes | **no** | — | `0x40a142`, `0x431b0f`, `0x432c9c`, `0x436652` |
-| `0x8d` | — | yes | yes | **no** | — | `0x409513`, `0x4319b3`, `0x431a69` |
+| `0x8d` | — | yes | yes | yes | — | `0x409513`, `0x4319b3`, `0x431a69` |
 | `0x8e` | — | yes | yes | **no** | — | `0x40a16b`, `0x431b0f`, `0x432d14`, `0x436652` |
 | `0x8f` | — |  | yes | **no** | — | `0x40ac38`, `0x40ac43`, `0x436652`, `0x438cd0` |
 | `0x90` | — | yes | yes | yes | — | `0x432303`, `0x432401`, `0x436652` |
@@ -128,47 +128,47 @@ command mnemonic is an inference. Cases without a trace branch are marked
 | `0xa8` | — | yes | yes | **no** | — | — |
 | `0xa9` | — | yes | yes | **no** | — | `0x40a194`, `0x431b0f`, `0x432d3b`, `0x436652` |
 | `0xaa` | — | yes | yes | **no** | — | `0x40a194`, `0x431b0f`, `0x432d46`, `0x436652` |
-| `0xab` | — | yes | yes | **no** | — | `0x4077b2`, `0x407933`, `0x408bb2`, `0x408c81`, `0x436652` |
+| `0xab` | — | yes | yes | yes | — | `0x4077b2`, `0x407933`, `0x408bb2`, `0x408c81`, `0x436652` |
 | `0xac` | — |  | yes | **no** | — | `0x408bb2`, `0x436652` |
 | `0xad` | — |  | yes | **no** | — | `0x408bb2`, `0x436652` |
 | `0xae` | — |  | yes | **no** | — | `0x408bb2`, `0x43194f`, `0x436652` |
 | `0xaf` | — |  | yes | **no** | — | `0x408bb2`, `0x43194f`, `0x436652` |
-| `0xb0` | — |  | yes | **no** | — | `0x408bb2`, `0x436652` |
-| `0xb1` | — |  | yes | **no** | — | `0x408bb2`, `0x436652` |
-| `0xb2` | — |  | yes | **no** | — | `0x408bb2`, `0x43194f`, `0x436652` |
-| `0xb3` | — |  | yes | **no** | — | `0x408bb2`, `0x43194f`, `0x436652` |
-| `0xb4` | — | yes | yes | **no** | — | `0x4075a1` |
-| `0xb5` | — | yes | yes | **no** | — | `0x407420` |
-| `0xb6` | — |  | yes | **no** | — | `0x4077b2`, `0x407ad5`, `0x408bb2`, `0x408c81`, `0x436652` |
+| `0xb0` | — |  | yes | yes | — | `0x408bb2`, `0x436652` |
+| `0xb1` | — |  | yes | yes | — | `0x408bb2`, `0x436652` |
+| `0xb2` | — |  | yes | yes | — | `0x408bb2`, `0x43194f`, `0x436652` |
+| `0xb3` | — |  | yes | yes | — | `0x408bb2`, `0x43194f`, `0x436652` |
+| `0xb4` | — | yes | yes | yes | — | `0x4075a1` |
+| `0xb5` | — | yes | yes | yes | — | `0x407420` |
+| `0xb6` | — |  | yes | yes | — | `0x4077b2`, `0x407ad5`, `0x408bb2`, `0x408c81`, `0x436652` |
 | `0xb7` | — |  | yes | yes | — | `0x438d78` |
 | `0xb8` | — |  | yes | yes | — | `0x438cf9` |
-| `0xb9` | NODE | yes | yes | **no** | +0x4 | `0x40a2c3`, `0x40d862`, `0x4177c7`, `0x41dcc9`, `0x4319b3`, … |
+| `0xb9` | NODE | yes | yes | yes | +0x4 | `0x40a2c3`, `0x40d862`, `0x4177c7`, `0x41dcc9`, `0x4319b3`, … |
 | `0xba` | — | yes | yes | yes | — | `0x401c21`, `0x436652` |
-| `0xbb` | — | yes | yes | **no** | — | `0x4073f0`, `0x407420`, `0x408c81`, `0x436652` |
+| `0xbb` | — | yes | yes | yes | — | `0x4073f0`, `0x407420`, `0x408c81`, `0x436652` |
 | `0xbc` | — | yes | yes | yes | — | `0x4277ed`, `0x4281b1` |
-| `0xbd` | — | yes | yes | **no** | +0x3, +0x4 | `0x40d031`, `0x436652` |
-| `0xbe` | — |  | yes | **no** | — | — |
-| `0xbf` | — | yes | yes | **no** | +0x4 | `0x4319b3`, `0x436652` |
-| `0xc0` | — | yes | yes | **no** | +0x3, +0x4 | `0x427d1a`, `0x4319b3`, `0x436652` |
+| `0xbd` | — | yes | yes | yes | +0x3, +0x4 | `0x40d031`, `0x436652` |
+| `0xbe` | — |  | yes | yes | — | — |
+| `0xbf` | — | yes | yes | yes | +0x4 | `0x4319b3`, `0x436652` |
+| `0xc0` | — | yes | yes | yes | +0x3, +0x4 | `0x427d1a`, `0x4319b3`, `0x436652` |
 | `0xc1` | — | yes | yes | yes | — | `0x4319b3`, `0x436652` |
-| `0xc2` | — | yes | yes | **no** | +0x4 | `0x427d1a`, `0x4319b3`, `0x436652` |
+| `0xc2` | — | yes | yes | yes | +0x4 | `0x427d1a`, `0x4319b3`, `0x436652` |
 | `0xc3` | — |  | yes | **no** | — | `0x4111c7`, `0x436652` |
 | `0xc4` | — | yes | yes | yes | — | `0x427de1` |
 | `0xc5` | — | yes | yes | **no** | — | `0x427d1a`, `0x4319b3`, `0x436652` |
-| `0xc6` | — |  | yes | **no** | — | `0x408bb2`, `0x436652`, `0x44c2f0` |
-| `0xc7` | — |  | yes | **no** | — | `0x408bb2`, `0x436652` |
-| `0xc8` | — |  | yes | **no** | — | `0x427389`, `0x42a6aa`, `0x4319b3`, `0x436652` |
-| `0xcb` | — |  | yes | **no** | — | `0x402285`, `0x4319b3` |
-| `0xcc` | — |  | yes | **no** | — | `0x436652` |
+| `0xc6` | — |  | yes | yes | — | `0x408bb2`, `0x436652`, `0x44c2f0` |
+| `0xc7` | — |  | yes | yes | — | `0x408bb2`, `0x436652` |
+| `0xc8` | — |  | yes | yes | — | `0x427389`, `0x42a6aa`, `0x4319b3`, `0x436652` |
+| `0xcb` | — |  | yes | yes | — | `0x402285`, `0x4319b3` |
+| `0xcc` | — |  | yes | yes | — | `0x436652` |
 | `0xcd` | — |  | yes | yes | — | `0x417a17`, `0x436652` |
 | `0xce` | — | yes | yes | **no** | — | `0x427d49`, `0x4319b3`, `0x436652` |
-| `0xcf` | — | yes | yes | **no** | — | `0x427a01` |
-| `0xd0` | — | yes | yes | **no** | — | `0x4278ab` |
-| `0xd1` | — |  | yes | **no** | — | `0x428cbd`, `0x436652` |
-| `0xd2` | — |  | yes | **no** | — | `0x41d440`, `0x42515f` |
-| `0xd3` | — |  | yes | **no** | — | `0x428cbd`, `0x4319b3`, `0x436652` |
-| `0xd4` | — |  | yes | **no** | — | — |
-| `0xd5` | — |  | yes | **no** | — | — |
+| `0xcf` | — | yes | yes | yes | — | `0x427a01` |
+| `0xd0` | — | yes | yes | yes | — | `0x4278ab` |
+| `0xd1` | — |  | yes | yes | — | `0x428cbd`, `0x436652` |
+| `0xd2` | — |  | yes | yes | — | `0x41d440`, `0x42515f` |
+| `0xd3` | — |  | yes | yes | — | `0x428cbd`, `0x4319b3`, `0x436652` |
+| `0xd4` | — |  | yes | yes | — | — |
+| `0xd5` | — |  | yes | yes | — | — |
 
 ## Opcodes without a recovered mnemonic
 

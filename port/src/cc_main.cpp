@@ -813,9 +813,10 @@ int main(int argc, char** argv) {
             }
             for (const auto& video : trace.video_requests) {
                 std::cout << "video_record=" << video.record << " name=" << video.name
-                          << " mode=" << video.mode;
-                if (video.start) std::cout << " start=" << *video.start;
-                if (video.end) std::cout << " end=" << *video.end;
+                          << " mode=" << video.mode
+                          << " step=" << video.step;
+                if (video.position_x) std::cout << " x=" << *video.position_x;
+                if (video.position_y) std::cout << " y=" << *video.position_y;
                 if (video.transition) {
                     std::cout << " transition=" << *video.transition;
                 }

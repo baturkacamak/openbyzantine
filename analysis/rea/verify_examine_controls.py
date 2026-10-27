@@ -35,7 +35,11 @@ def main():
         if result.returncode:
             raise RuntimeError(result.stdout + result.stderr)
         log = result.stdout
-        assert log.count("slot 91 action 288 click_result steps=3") == 2, log
+        # The hit line and its result are separate lines since 0xbd playback logs
+        # the clip between them (CF_VIDEO_PLAYBACK.md); count each part.
+        assert log.count("slot 91 action 288") == 2, log
+        assert log.count("click_result steps=3") == 2, log
+        assert log.count("video_request scene=EXAMINE") == 2, log
         assert "item_use rejected" not in log, log
         assert "closeup_switch scene=EXAMINE item=30" in log, log
         assert "closeup_switch scene=EXAMINE item=17" in log, log

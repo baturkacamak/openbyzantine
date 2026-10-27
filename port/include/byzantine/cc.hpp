@@ -154,12 +154,19 @@ struct SceneSoundState {
 // reconstructed here, so the resolved request is retained instead.
 struct SceneVideoRequest {
     std::size_t instruction = 0;
+    // 1-based executed-instruction index at which the request was made
+    // (trace.steps), so a budgeted replay can stop exactly here, play the clip
+    // and continue, like the blocking 0x413bdd call inside 0x40d031.
+    std::size_t step = 0;
     std::uint16_t record = 0;    // CF table index from operand 0
     std::string name;            // CF record name
     std::string path;            // primary "avi/<name>.avi" attempt
-    std::uint16_t mode = 0;      // raw operand 1
-    std::optional<std::uint16_t> start;  // operand 2, only when its type is 0x40
-    std::optional<std::uint16_t> end;    // operand 3, only when its type is 0x40
+    std::uint16_t mode = 0;      // raw operand 1; selects the video folder
+    // Operands 2 and 3, read only when their type byte is 0x40. 0x40d031 passes
+    // them to FUN_00413bdd as param_2/param_3, i.e. the destination x and y in
+    // the 640x480 surface (0x40d3af adds 0x14 to y for every mode).
+    std::optional<std::uint16_t> position_x;
+    std::optional<std::uint16_t> position_y;
     // DAT_00460664, handed to the next 0xb9 as its panorama transition code:
     // modes 0/2/4 write 0x65/0x6a/0x67 unconditionally. Mode 3 compares the
     // alternate-mode flag DAT_00464878 (save/UI state) first, so it stays unset

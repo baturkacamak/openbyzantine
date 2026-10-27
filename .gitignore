@@ -43,3 +43,4 @@ build/
 port/inventory-test
 port/audio-test
 port/cursor-test
+port/video-test

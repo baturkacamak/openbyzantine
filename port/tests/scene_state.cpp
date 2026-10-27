@@ -1907,8 +1907,9 @@ int main(int argc, char** argv) {
                 played.video_requests[0].name == "exCam" &&
                 played.video_requests[0].path == "avi/exCam.avi" &&
                 played.video_requests[0].mode == 0 &&
-                played.video_requests[0].start == 0x1234 &&
-                played.video_requests[0].end == 0x5678 &&
+                played.video_requests[0].step == 1 &&
+                played.video_requests[0].position_x == 0x1234 &&
+                played.video_requests[0].position_y == 0x5678 &&
                 played.video_requests[0].transition == 0x65,
                 "0xbd video request mismatch");
         // A constant operand 2/3 is only read when its type byte is 0x40.
@@ -1929,7 +1930,7 @@ int main(int argc, char** argv) {
         require(mode3.video_requests.size() == 1 &&
                 mode3.video_requests[0].name == "hsain1" &&
                 !mode3.video_requests[0].transition &&
-                !mode3.video_requests[0].start,
+                !mode3.video_requests[0].position_x,
                 "0xbd mode 3 request mismatch");
         // A zero gamepref entry skips the whole command; without the pref array
         // the gate cannot be evaluated.

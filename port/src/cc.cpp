@@ -1890,15 +1890,16 @@ static SceneTrace trace_scene_from(const std::vector<CcInstruction>& script,
             }
             SceneVideoRequest request;
             request.instruction = current;
+            request.step = trace.steps;
             request.record = record_id;
             request.name = state.video_records[record_id].name;
             request.path = "avi/" + request.name + ".avi";
             request.mode = video_mode;
             if (instruction.arguments.at(2).type == 0x40) {
-                request.start = encoded_word(instruction.arguments.at(2));
+                request.position_x = encoded_word(instruction.arguments.at(2));
             }
             if (instruction.arguments.at(3).type == 0x40) {
-                request.end = encoded_word(instruction.arguments.at(3));
+                request.position_y = encoded_word(instruction.arguments.at(3));
             }
             // DAT_00460664 hands a panorama transition code to the next 0xb9.
             // Only the unconditional modes are recorded; mode 3's value depends

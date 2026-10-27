@@ -1,5 +1,44 @@
 # Compact handoff — 26 October 2026
 
+## Latest fix — `0xbd` CF videos now play (blocking) and are logged (27 October 2026)
+
+Pinned user run `run-20261027T153102.008778Z-wo0x6pwm`: in NB the stairs-down
+hotspot (slot 12 / action 337) ran four times with a byte-identical state
+(`steps=15 sounds=6 fingerprint=0xda96707b0139e3e9 active_slots=2`). Detection
+report `analysis/rea/CF_VIDEO_GAP.md`: label 337's only remaining payload is
+`0xbd 1, 4` (`MCaNB1a` -> `video/char/MCANB1A.avi`) plus a `0xd2` autosave, and
+the player dropped both silently.
+
+Fix: `port/{include/byzantine,src}/video.*` resolve `0x40d031`'s two paths
+(`avi/<name>.avi`, then the mode folder) with a case-insensitive multi-component
+lookup; `SceneVideoRequest` gained `step` + `position_x/position_y`;
+`play_decoded_clip` is the shared `0x413bdd` loop (the conversation now uses it
+too, identical log strings); `play_cf_video` decodes through the existing
+FFmpeg -> JPEG/WAV cache, places the frame with `0x40d3af`/`0x43a248`
+(modes 1/2/4 -> 2x 640x400 when `gamepref[1]`, else the 320x200 window; 0/3 ->
+2x; 5/default -> 1:1), blocks the script, and applies `DAT_004859cd = 1` only
+when the clip played (mode 5 and `mcaft1a1` excluded). `run_label_gated` adds a
+step budget per request; `run_shot`, the `!audio_ready` path, travel/restart
+entries and the `--shot` startup call `play_trace_videos`. `scene.sh` puts the
+saved disc first in `media_isos.txt`; the player extracts only the requested
+clip through a cached `7z l -slt` member index (ISO member names are
+case-sensitive). Every request is logged and `run_logged.py` counts the lines:
+`video_request`, `video_media`, `video`, `video_audio`, `video_shot` and
+`video skipped reason=<missing|--no-video|decode_failed|not_shown>`. New
+`--video-shot <ppm>` writes the first CF frame.
+
+Real data: NB 337 -> `video_request ... MCaNB1a mode=4 folder=char`,
+`video_media extracted=/tmp/byz-scene/video/char/MCANB1A.avi source=Byzantine_2.iso`,
+`frames=53 fps=15 size=320x200 audio=pcm`, `elapsed_ms=4157 written=53`; the
+frame occupies screen rows 20..419 (2x) and the bartender clip is visible in a
+real X11 window grab. MAP 257 -> `MREst1` (160 frames, 10.7 s) before
+`travel index=27 scene=mr`. `make -C port -j2 all test` (new `video-test`) and
+all `analysis/rea/verify_*.py` pass; conversations keep their exact log lines.
+Report `analysis/rea/CF_VIDEO_PLAYBACK.md`; frames in `port/output/cf-video/`.
+Still open: `0x43d9c7` palette/format mode, mode 1's intro-buffer clear, mode 3's
+`DAT_00464878` value, and real-time playback makes `--shot` runs last as long as
+the clip (`--no-video` for body-only checks).
+
 ## Latest step — a scene entered with zero hotspots because its entry dialogue was skipped (27 October 2026)
 
 Pinned user run `run-20261027T142409.559687Z-qtcd5rmd` (EA 602 / `26.btb` ->

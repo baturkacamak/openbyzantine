@@ -31,6 +31,7 @@
 #include "byzantine/panorama_view.hpp"
 #include "byzantine/scene_setup.hpp"
 #include "byzantine/text.hpp"
+#include "byzantine/video.hpp"
 
 #include <SDL.h>
 
@@ -52,6 +53,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace {
@@ -131,6 +133,7 @@ struct Options {
     std::string shot;                          // --shot <file.ppm>
     std::string conversation_shot;             // --conversation-shot <file.ppm>
     std::string conversation_video_shot;       // first decoded media frame
+    std::string video_shot;                    // first decoded 0xbd CF frame
     bool entry = false;                        // --entry: start at instruction 0
     std::optional<int> run_label;              // --run-label <n>: after --entry
     std::optional<int> click;                  // --click <slot>
@@ -186,6 +189,7 @@ const std::set<std::string> kValued = {
     "--dialog-cache",
     "--run-label", "--conversation-choices", "--conversation-shot",
     "--conversation-object", "--conversation-video-shot", "--conversation-cancel",
+    "--video-shot",
     "--bar-select", "--media-isos", "--anim-pass-hz", "--cursor-at",
     "--panorama-yaw"};
 
@@ -291,6 +295,7 @@ Options parse_options(int argc, char** argv) {
             else if (token == "--conversation-shot") options.conversation_shot = value;
             else if (token == "--conversation-object") options.conversation_object = std::stoi(value);
             else if (token == "--conversation-video-shot") options.conversation_video_shot = value;
+            else if (token == "--video-shot") options.video_shot = value;
             else if (token == "--conversation-cancel") {
                 options.conversation_cancel = std::stoi(value);
                 if (options.conversation_cancel < 0) {
@@ -347,7 +352,8 @@ Options parse_options(int argc, char** argv) {
             "[--run-label <n>] [--conversation-choices <i,...>] "
             "[--conversation-object <slot>] [--conversation-cancel <n>] "
             "[--conversation-shot <ppm>] "
-            "[--conversation-video-shot <ppm>] [--bar-select <id>] [--bar-use] "
+            "[--conversation-video-shot <ppm>] [--video-shot <ppm>] "
+            "[--bar-select <id>] [--bar-use] "
             "[--bar-next] [--bar-prev] [--no-video] "
             "[--no-hotspots] [--no-audio] [--print-audio] [--print-hotspots] "
             "[--print-objects] [--print-variables] [--print-records] "
@@ -1768,6 +1774,13 @@ struct Session {
     const byzantine::Rgb16Surface* conversation_frame = nullptr;
 };
 
+// 0xbd playback (defined after the clip decoder, below). The script runners need
+// them because the original blocks inside 0x413bdd.
+bool play_cf_video(Session& session, const byzantine::SceneVideoRequest& request,
+                   bool verbose);
+bool play_trace_videos(Session& session, const byzantine::SceneTrace& trace,
+                       bool verbose);
+
 // Processed while a sound plays: the script is waiting, so a click must not
 // start another label, but the window still redraws and H/Esc keep working.
 int poll_logged_event(SDL_Event* event, const char* phase, const Session& session) {
@@ -1978,7 +1991,9 @@ bool play_events(Session& session, const SceneView& view, const std::vector<Soun
 // instruction that queued it: the script is replayed with a step budget up to
 // that step, the frame is presented, the clip plays while the window stays
 // alive, and the replay continues with the next budget. The last budget is the
-// script's own step count, so the final state equals an unbudgeted run.
+// script's own step count, so the final state equals an unbudgeted run. A 0xbd
+// CF video gets its own budget for the same reason: the original blocks inside
+// 0x413bdd, so the clip must play before the following instructions commit.
 bool run_label_gated(Session& session, EntryPoint point,
                      const byzantine::SceneState& entry,
                      const byzantine::SceneTrace& probe, bool verbose) {
@@ -1987,27 +2002,38 @@ bool run_label_gated(Session& session, EntryPoint point,
     for (const auto& event : events) {
         if (event.step != 0) budgets.push_back(event.step);
     }
+    for (const auto& video : probe.video_requests) {
+        if (video.step != 0) budgets.push_back(video.step);
+    }
     budgets.push_back(probe.steps);
     std::sort(budgets.begin(), budgets.end());
     budgets.erase(std::unique(budgets.begin(), budgets.end()), budgets.end());
 
     std::size_t played = 0;
+    std::size_t played_videos = 0;
     for (const auto budget : budgets) {
         auto trace = trace_point(session.view, point, entry, budget);
         set_trace(session.view, std::move(trace));
         const auto all = sound_events(session.view.trace);
-        if (all.size() <= played) continue;
+        const auto& videos = session.view.trace.video_requests;
+        if (all.size() <= played && videos.size() <= played_videos) continue;
         refresh_background(session.options, session.view);
         session.display.compose(session.view, verbose);
         session.display.present(session.view, session.options.overlay);
-        if (verbose) {
-            std::cout << "gate stopped_after_step=" << session.view.trace.steps
-                      << " of=" << probe.steps << " (sound queued here)\n";
+        if (all.size() > played) {
+            if (verbose) {
+                std::cout << "gate stopped_after_step=" << session.view.trace.steps
+                          << " of=" << probe.steps << " (sound queued here)\n";
+            }
+            if (!play_events(session, session.view, all, played, all.size(), verbose)) {
+                return false;
+            }
+            played = all.size();
         }
-        if (!play_events(session, session.view, all, played, all.size(), verbose)) {
-            return false;
+        for (; played_videos < videos.size(); ++played_videos) {
+            play_cf_video(session, videos[played_videos], verbose);
+            if (!session.running) return false;
         }
-        played = all.size();
     }
     return session.running;
 }
@@ -2401,7 +2427,9 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose) {
         if (!session.interactive || !audio_gated(session)) {
             session.view.state = entry;
             set_trace(session.view, trace_point(session.view, point, entry, 0));
-            return session.running;
+            // A scene entry may open with a 0xbd (an establishing shot); it
+            // still blocks the script, so play it before the frame settles.
+            return play_trace_videos(session, session.view.trace, verbose);
         }
         return run_label_gated(session, point, entry, look, verbose);
     };
@@ -3136,24 +3164,33 @@ struct DecodedClip {
     int height = 0;
 };
 
+// Log prefixes for one clip family: the conversation's talking heads
+// (conversation_media/_video/_audio/_shot) and 0xbd's CF clips
+// (video_media/video/video_audio/video_shot).
+struct ClipLogTags {
+    std::string media;
+    std::string video;
+    std::string audio;
+    std::string shot;
+};
+
+const ClipLogTags kConversationClipTags{"conversation_media", "conversation_video",
+                                        "conversation_audio", "conversation_video_shot"};
+const ClipLogTags kSceneClipTags{"video_media", "video", "video_audio", "video_shot"};
+
 // The game's talking-head clips are Indeo 4 + PCM16. Indeo is a standard codec
 // this port must not reimplement, so FFmpeg (the ready decoder available here)
 // materialises a per-clip cache of JPEG frames and a PCM WAV once. The runtime
 // then uses the port's existing JPEG and WAV readers; a missing FFmpeg only
 // suppresses media and is reported, never silently hidden.
-std::optional<DecodedClip> dialog_clip_cache(const Options& options,
+std::optional<DecodedClip> decode_clip_cache(const std::filesystem::path& directory,
                                              const std::filesystem::path& avi,
-                                             const std::string& conversation,
-                                             const std::string& clip, bool verbose) {
-    const auto cache_root = options.dialog_cache.empty() ? options.dialog / ".cache"
-                                                         : options.dialog_cache;
-    if (cache_root.empty()) return std::nullopt;
-    const auto directory = cache_root / lower_ascii(conversation) /
-                           lower_ascii(clip);
+                                             const std::string& clip,
+                                             const ClipLogTags& tags, bool verbose) {
     std::error_code error;
     std::filesystem::create_directories(directory, error);
     if (error) {
-        std::cout << "conversation_media clip=" << clip << " cache_error="
+        std::cout << tags.media << " clip=" << clip << " cache_error="
                   << error.message() << '\n';
         return std::nullopt;
     }
@@ -3182,7 +3219,7 @@ std::optional<DecodedClip> dialog_clip_cache(const Options& options,
         if (std::filesystem::is_regular_file(audio)) decoded.audio = audio;
         if (!decoded.frames.empty() && decoded.width > 0 && decoded.height > 0) {
             if (verbose) {
-                std::cout << "conversation_media clip=" << clip << " cached=yes source="
+                std::cout << tags.media << " clip=" << clip << " cached=yes source="
                           << avi.filename().string()
                           << " frames=" << decoded.frames.size()
                           << " fps=" << decoded.fps << " size=" << decoded.width << 'x'
@@ -3201,7 +3238,7 @@ std::optional<DecodedClip> dialog_clip_cache(const Options& options,
                        shell_quote(avi.string()) + " > " + shell_quote(fps_file.string()) +
                        " 2>/dev/null";
     if (std::system(probe.c_str()) != 0 || !std::filesystem::is_regular_file(fps_file)) {
-        std::cout << "conversation_media clip=" << clip
+        std::cout << tags.media << " clip=" << clip
                   << " decode=ffprobe_failed source=" << avi << '\n';
         return std::nullopt;
     }
@@ -3221,7 +3258,7 @@ std::optional<DecodedClip> dialog_clip_cache(const Options& options,
         " -vsync 0 -q:v 3 " + shell_quote((directory / "f%04d.jpg").string()) +
         " >/dev/null 2>&1";
     if (std::system(frames_command.c_str()) != 0) {
-        std::cout << "conversation_media clip=" << clip
+        std::cout << tags.media << " clip=" << clip
                   << " decode=ffmpeg_video_failed source=" << avi << '\n';
         return std::nullopt;
     }
@@ -3241,7 +3278,7 @@ std::optional<DecodedClip> dialog_clip_cache(const Options& options,
         decoded.frames.push_back(frame);
     }
     if (decoded.frames.empty()) {
-        std::cout << "conversation_media clip=" << clip
+        std::cout << tags.media << " clip=" << clip
                   << " decode=no_frames source=" << avi << '\n';
         return std::nullopt;
     }
@@ -3257,12 +3294,426 @@ std::optional<DecodedClip> dialog_clip_cache(const Options& options,
                << "height=" << decoded.height << '\n';
     }
     if (verbose) {
-        std::cout << "conversation_media clip=" << clip << " source=" << avi.filename().string()
+        std::cout << tags.media << " clip=" << clip << " source=" << avi.filename().string()
                   << " frames=" << decoded.frames.size() << " fps=" << decoded.fps
                   << " size=" << decoded.width << 'x' << decoded.height
                   << (decoded.audio ? " audio=pcm" : " audio=none") << '\n';
     }
     return decoded;
+}
+
+// Conversation clips live under --dialog-cache/<conversation>/<clip>.
+std::optional<DecodedClip> dialog_clip_cache(const Options& options,
+                                             const std::filesystem::path& avi,
+                                             const std::string& conversation,
+                                             const std::string& clip, bool verbose) {
+    const auto cache_root = options.dialog_cache.empty() ? options.dialog / ".cache"
+                                                         : options.dialog_cache;
+    if (cache_root.empty()) return std::nullopt;
+    return decode_clip_cache(cache_root / lower_ascii(conversation) / lower_ascii(clip),
+                             avi, clip, kConversationClipTags, verbose);
+}
+
+// One decoded clip's playback outcome.
+struct ClipPlayback {
+    bool played = false;
+    std::size_t frames = 0;
+    std::size_t audio_failures = 0;
+    bool shot_written = false;
+};
+
+// 0x413bdd's playback loop: draw every decoded frame at the destination
+// 0x40d3af chose, pace it at the source frame rate, keep the window responsive
+// and return only after the last frame (and its audio) finished - the original
+// blocks the script inside that loop. `fullscreen` selects 0x43a248 mode 2
+// (2x pixel doubling, 640x400) over mode 0 (1:1); `x`/`y` are playfield
+// coordinates, i.e. 0x40d3af's screen x/y minus the 0x14 playfield top. The last
+// frame stays on the surface, exactly like the original's DirectDraw target;
+// `present` is the caller's compositor (the conversation adds its subtitle
+// band, a 0xbd clip presents the plain scene).
+ClipPlayback play_decoded_clip(Session& session, const DecodedClip& decoded,
+                               bool fullscreen, std::int32_t x, std::int32_t y,
+                               const std::string& shot_path, const ClipLogTags& tags,
+                               const std::string& clip,
+                               const std::function<void()>& present,
+                               const std::function<bool(const std::string&)>& write_shot) {
+    ClipPlayback result;
+    if (decoded.frames.empty()) return result;
+    std::optional<byzantine::WavClip> sound;
+    if (!decoded.audio) {
+        std::cout << tags.media << " clip=" << clip
+                  << " no audio stream in the AVI\n";
+    } else if (!session.options.audio) {
+        ++result.audio_failures;
+        std::cout << tags.audio << " clip=" << clip
+                  << " ERROR not played: --no-audio\n";
+    } else if (!session.audio.ready()) {
+        ++result.audio_failures;
+        std::cout << tags.audio << " clip=" << clip
+                  << " ERROR not played: the SDL2 audio device is not open "
+                     "(see the startup error)\n";
+    } else {
+        try {
+            sound = byzantine::parse_wav(read_file(*decoded.audio),
+                                         decoded.audio->string());
+        } catch (const std::exception& error) {
+            ++result.audio_failures;
+            std::cout << tags.audio << " clip=" << clip
+                      << " ERROR WAV: " << error.what() << '\n';
+        }
+    }
+    if (sound) {
+        try {
+            session.audio.queue(*sound);
+            std::cout << tags.audio << " clip=" << clip
+                      << " wav=" << decoded.audio->filename().string()
+                      << " duration_ms=" << sound->duration_ms
+                      << " queued_bytes=" << session.audio.queued()
+                      << " device=" << session.audio.device_name() << '\n';
+        } catch (const std::exception& error) {
+            ++result.audio_failures;
+            std::cout << tags.audio << " clip=" << clip
+                      << " ERROR queue: " << error.what() << '\n';
+        }
+    }
+    const auto frame_time = std::chrono::microseconds(
+        1000000 / std::max(1, decoded.fps));
+    auto next_frame = std::chrono::steady_clock::now();
+    for (const auto& frame_file : decoded.frames) {
+        if (!session.running) break;
+        byzantine::JpegImage image;
+        try {
+            image = byzantine::decode_jpeg_file(frame_file.string());
+        } catch (const std::exception& error) {
+            std::cout << tags.media << " clip=" << clip
+                      << " frame_error=" << error.what() << '\n';
+            break;
+        }
+        const auto pixels = byzantine::rgb_to_rgb565(image);
+        bool placed = false;
+        if (fullscreen) {
+            placed = byzantine::blit_image_2x_at(session.display.surface,
+                                                 image.width, image.height,
+                                                 pixels.data(), x, y);
+            if (!placed) {
+                std::cout << tags.video << " clip=" << clip << " size="
+                          << image.width << 'x' << image.height
+                          << " unsupported: 0x43a248 mode 2 needs a 2x frame inside "
+                             "the 640x400 playfield; the clip is not shown\n";
+            }
+        } else {
+            placed = byzantine::blit_image(session.display.surface, image.width,
+                                           image.height, pixels.data(), x, y)
+                         .placed;
+        }
+        if (!placed) break;
+        result.played = true;
+        present();
+        if (!shot_path.empty() && !result.shot_written) {
+            if (write_shot(shot_path)) {
+                std::cout << tags.shot << ' ' << shot_path << " clip=" << clip << '\n';
+            }
+            result.shot_written = true;
+        }
+        ++session.wait.frames;
+        ++result.frames;
+        next_frame += frame_time;
+        const auto now = std::chrono::steady_clock::now();
+        if (next_frame > now) {
+            SDL_Delay(static_cast<Uint32>(
+                std::chrono::duration_cast<std::chrono::milliseconds>(
+                    next_frame - now)
+                    .count()));
+        } else {
+            next_frame = now;
+        }
+        SDL_Event event_poll;
+        while (poll_logged_event(&event_poll, tags.video.c_str(), session)) {
+            ++session.wait.events;
+            if (event_poll.type == SDL_QUIT) session.running = false;
+            // 0x413bdd's video loop has no ESC branch; ESC is 0x436b01's
+            // answer-list cancel and must not terminate the player here.
+            if (event_poll.type == SDL_KEYDOWN &&
+                event_poll.key.keysym.sym == SDLK_h) {
+                session.options.overlay = !session.options.overlay;
+            }
+        }
+    }
+    if (sound && session.running) {
+        while (session.audio.queued() != 0 && session.running) {
+            pump_window(session);
+            SDL_Delay(4);
+        }
+    }
+    return result;
+}
+
+// ---------------------------------------------------------------------------
+// 0xbd CF videos
+// ---------------------------------------------------------------------------
+// The clip a 0xbd request names: 0x40d031's "avi/<name>.avi" first, then the
+// mode folder (FUN_0040c624). The shipped CDs only carry video\<mode>\ files, so
+// the second attempt is the real one. A clip that is not in the prepared tree is
+// fetched from the user's ISOs by its exact member name (the CD file systems mix
+// case), the saved disc first because scene.sh orders the manifest that way.
+std::optional<std::filesystem::path> video_clip_file(const Session& session,
+                                                     const byzantine::SceneVideoRequest& request);
+
+// Builds (once per ISO) a lowercase-relative -> exact-member index. 7z matches
+// ISO members case-sensitively, so the exact name is required to extract one.
+std::optional<std::string> video_member_name(const std::filesystem::path& iso,
+                                             const std::filesystem::path& cache_root,
+                                             const std::string& relative) {
+    std::error_code error;
+    std::filesystem::create_directories(cache_root, error);
+    if (error) return std::nullopt;
+    auto key = static_cast<std::uint64_t>(1469598103934665603ull);
+    const auto mix = [&key](const std::string& text) {
+        for (const auto character : text) {
+            key ^= static_cast<unsigned char>(character);
+            key *= 1099511628211ull;
+        }
+    };
+    mix(iso.string());
+    if (const auto size = std::filesystem::file_size(iso, error); !error) {
+        mix(std::to_string(size));
+    }
+    std::ostringstream name;
+    name << iso.stem().string() << '-' << std::hex << key << ".tsv";
+    const auto index_file = cache_root / lower_ascii(name.str());
+    if (!std::filesystem::is_regular_file(index_file, error)) {
+        const auto listing = cache_root / (lower_ascii(name.str()) + ".listing");
+        const auto command = "7z l -slt " + shell_quote(iso.string()) + " > " +
+                             shell_quote(listing.string()) + " 2>/dev/null";
+        if (std::system(command.c_str()) != 0 ||
+            !std::filesystem::is_regular_file(listing, error)) {
+            std::cout << "video_index iso=" << iso.filename().string()
+                      << " failed (7z l)\n";
+            return std::nullopt;
+        }
+        std::ifstream input(listing);
+        std::ofstream output(index_file);
+        std::size_t entries = 0;
+        std::string line;
+        while (std::getline(input, line)) {
+            constexpr std::string_view marker = "Path = ";
+            if (line.compare(0, marker.size(), marker) != 0) continue;
+            const auto member = line.substr(marker.size());
+            const auto lowered = lower_ascii(member);
+            if (lowered.rfind("video/", 0) != 0 && lowered.rfind("avi/", 0) != 0) {
+                continue;
+            }
+            output << lowered << '\t' << member << '\n';
+            ++entries;
+        }
+        output.close();
+        std::filesystem::remove(listing, error);
+        std::cout << "video_index iso=" << iso.filename().string()
+                  << " entries=" << entries << '\n';
+    }
+    std::ifstream index(index_file);
+    const auto wanted = lower_ascii(relative);
+    std::string line;
+    while (std::getline(index, line)) {
+        const auto tab = line.find('\t');
+        if (tab == std::string::npos) continue;
+        if (line.substr(0, tab) == wanted) return line.substr(tab + 1);
+    }
+    return std::nullopt;
+}
+
+std::optional<std::filesystem::path> video_clip_file(
+    const Session& session, const byzantine::SceneVideoRequest& request) {
+    const auto& options = session.options;
+    // The prepared root holds backs/, nodes/, video/ ...; an older extraction
+    // may still have copy2hd/ around.
+    std::vector<std::filesystem::path> roots;
+    if (!options.backgrounds.empty()) {
+        roots.push_back(options.backgrounds);
+        roots.push_back(options.backgrounds / "copy2hd");
+    }
+    const auto candidates = byzantine::video_candidates(request.mode, request.name);
+    for (const auto& candidate : candidates) {
+        for (const auto& root : roots) {
+            if (const auto file = byzantine::find_video_file(root, candidate.relative)) {
+                return file;
+            }
+        }
+    }
+    if (options.media_isos.empty() || options.backgrounds.empty()) return std::nullopt;
+    std::ifstream sources(options.media_isos);
+    if (!sources) {
+        std::cout << "video_manifest unreadable=" << options.media_isos << '\n';
+        return std::nullopt;
+    }
+    const auto cache_root = options.backgrounds / "video-index";
+    std::string iso;
+    while (std::getline(sources, iso)) {
+        if (iso.empty() || !std::filesystem::is_regular_file(iso)) continue;
+        for (const auto& candidate : candidates) {
+            const auto member =
+                video_member_name(iso, cache_root, candidate.relative);
+            if (!member) continue;
+            const auto command = "7z x -y -ssc- " + shell_quote(iso) + " " +
+                                 shell_quote(*member) + " -o" +
+                                 shell_quote(options.backgrounds.string()) +
+                                 " >/dev/null 2>&1";
+            const auto status = std::system(command.c_str());
+            for (const auto& root : roots) {
+                if (const auto file = byzantine::find_video_file(root, *member)) {
+                    std::cout << "video_media extracted=" << file->string()
+                              << " source=" << std::filesystem::path(iso).filename().string()
+                              << " name=" << request.name << '\n';
+                    return file;
+                }
+            }
+            if (status != 0) {
+                std::cout << "video_media extract_failed=" << iso
+                          << " status=" << status << '\n';
+            }
+        }
+    }
+    return std::nullopt;
+}
+
+// 0x40d031: place the clip where 0x40d3af would. The mode only changes the
+// destination (x, y) and whether 0x43a248 doubles the frame; the Indeo IV41
+// branch of 0x43a248 sizes the destination from the source.
+struct VideoPlacement {
+    bool fullscreen = false;
+    std::int32_t x = 0;
+    std::int32_t y = 0;
+};
+
+VideoPlacement video_placement(const byzantine::SceneState& state,
+                               const byzantine::SceneVideoRequest& request) {
+    // 0x40d3af's param_3/param_4 (the operands) are the destination x/y; every
+    // mode adds 0x14 to y (the 640x480 playfield top).
+    VideoPlacement placement;
+    placement.x = request.position_x ? *request.position_x : 0;
+    placement.y = (request.position_y ? *request.position_y : 0) + kScreenPlayfieldTop;
+    switch (request.mode) {
+        case 0:
+        case 3:
+            // local_8 = 1: 2x at (x, y+0x14), no gamepref check.
+            placement.fullscreen = true;
+            break;
+        case 1:
+        case 2:
+        case 4:
+            // local_8 = 2, then FUN_0041d440(1): when gamepref[1] is 0 the
+            // window is 320x200 at (x+0xa0, y+100) instead.
+            placement.fullscreen = state.gameprefs ? (*state.gameprefs)[1] != 0 : false;
+            if (!placement.fullscreen) {
+                placement.x += 0xa0;
+                placement.y += 100;
+            }
+            break;
+        default:
+            // Modes 5 and any other value keep local_8 = 0 (1:1).
+            placement.fullscreen = false;
+            break;
+    }
+    // The caller works in playfield coordinates.
+    placement.y -= kScreenPlayfieldTop;
+    return placement;
+}
+
+// Plays one 0xbd request and blocks until the clip ends, like 0x413bdd. Returns
+// false when nothing was shown (missing file, --no-video, decode failure); the
+// script still continues, because 0x40d031 returns before touching 0x4859cd.
+bool play_cf_video(Session& session, const byzantine::SceneVideoRequest& request,
+                   bool verbose) {
+    const char* folder = byzantine::video_mode_folder(request.mode);
+    std::cout << "video_request scene=" << session.view.name
+              << " instruction=" << request.instruction
+              << " step=" << request.step
+              << " record=" << request.record
+              << " name=" << request.name
+              << " mode=" << request.mode
+              << " folder=" << (folder != nullptr ? folder : "(video)")
+              << '\n';
+    if (!session.options.video) {
+        std::cout << "video skipped scene=" << session.view.name
+                  << " name=" << request.name << " mode=" << request.mode
+                  << " reason=--no-video\n";
+        return false;
+    }
+    const auto file = video_clip_file(session, request);
+    if (!file) {
+        std::cout << "video skipped scene=" << session.view.name
+                  << " name=" << request.name << " mode=" << request.mode
+                  << " reason=missing root=" << session.options.backgrounds.string()
+                  << '\n';
+        return false;
+    }
+    std::cout << "video_media name=" << request.name << " file=" << file->string()
+              << '\n';
+    const auto cache_root = session.options.dialog_cache.empty()
+                                ? session.options.backgrounds / ".cache"
+                                : session.options.dialog_cache;
+    const auto directory = cache_root / "cf" / lower_ascii(session.view.name) /
+                           lower_ascii(request.name);
+    const auto decoded =
+        decode_clip_cache(directory, *file, request.name, kSceneClipTags, verbose);
+    if (!decoded) {
+        std::cout << "video skipped scene=" << session.view.name
+                  << " name=" << request.name << " mode=" << request.mode
+                  << " reason=decode_failed\n";
+        return false;
+    }
+    const auto placement = video_placement(session.view.state, request);
+    if (!session.view.state.gameprefs &&
+        (request.mode == 1 || request.mode == 2 || request.mode == 4)) {
+        // 0x40d3af asks FUN_0041d440(1) where to put the clip; without the
+        // preference array that read cannot be reproduced, so report the
+        // fallback instead of pretending the window is correct.
+        std::cout << "video placement_unknown name=" << request.name
+                  << " (no --gameprefs; using the 320x200 window)\n";
+    }
+    std::cout << "video name=" << request.name << " mode=" << request.mode
+              << " placement=" << (placement.fullscreen ? "2x640x400" : "1x")
+              << " at=" << placement.x << ',' << placement.y
+              << " frames=" << decoded->frames.size()
+              << " fps=" << decoded->fps << '\n';
+    const auto started = std::chrono::steady_clock::now();
+    const auto playback = play_decoded_clip(
+        session, *decoded, placement.fullscreen, placement.x, placement.y,
+        session.options.video_shot, kSceneClipTags, request.name,
+        [&] { session.display.present(session.view, session.options.overlay); },
+        [&](const std::string& path) {
+            session.display.build_screen(session.view);
+            return byzantine::write_ppm(session.display.screen, path);
+        });
+    const auto elapsed = static_cast<std::uint64_t>(
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - started)
+            .count());
+    std::cout << " elapsed_ms=" << elapsed
+              << " written=" << playback.frames
+              << " events=" << session.wait.events
+              << (session.running ? " (script continues)\n" : " (aborted)\n");
+    if (!playback.played) {
+        std::cout << "video skipped scene=" << session.view.name
+                  << " name=" << request.name << " reason=not_shown\n";
+        return false;
+    }
+    // 0x40d031: DAT_004859cd = 1 after the clip played (except mode 5 and the
+    // "mcaft1a1" special case). The flag is render-only: 0x43b216's snap pass.
+    if (byzantine::video_sets_4859cd(request.mode, request.name)) {
+        session.view.state.flag_4859cd = true;
+    }
+    return true;
+}
+
+// Runs every 0xbd request a finished segment produced, in script order.
+bool play_trace_videos(Session& session, const byzantine::SceneTrace& trace,
+                       bool verbose) {
+    for (const auto& request : trace.video_requests) {
+        play_cf_video(session, request, verbose);
+        if (!session.running) return false;
+    }
+    return true;
 }
 
 // The conversation screen is the original 640x480 surface: the composed
@@ -3672,126 +4123,29 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                         std::cout << "conversation_media clip=" << event.line.clip
                                   << " unavailable (text stays)\n";
                     } else {
-                        std::optional<byzantine::WavClip> sound;
-                        if (!decoded->audio) {
-                            std::cout << "conversation_audio clip=" << event.line.clip
-                                      << " no audio stream in the AVI\n";
-                        } else if (!options.audio) {
-                            ++outcome.audio_failures;
-                            std::cout << "conversation_audio clip=" << event.line.clip
-                                      << " ERROR not played: --no-audio\n";
-                        } else if (!session.audio.ready()) {
-                            ++outcome.audio_failures;
-                            std::cout << "conversation_audio clip=" << event.line.clip
-                                      << " ERROR not played: the SDL2 audio device is not "
-                                         "open (see the startup error)\n";
-                        } else {
-                            try {
-                                sound = byzantine::parse_wav(read_file(*decoded->audio),
-                                                  decoded->audio->string());
-                            } catch (const std::exception& error) {
-                                ++outcome.audio_failures;
-                                std::cout << "conversation_audio clip=" << event.line.clip
-                                          << " ERROR WAV: " << error.what() << '\n';
-                            }
-                        }
-                        if (sound) {
-                            try {
-                                session.audio.queue(*sound);
-                                std::cout << "conversation_audio clip=" << event.line.clip
-                                          << " wav=" << decoded->audio->filename().string()
-                                          << " duration_ms=" << sound->duration_ms
-                                          << " queued_bytes=" << session.audio.queued()
-                                          << " device=" << session.audio.device_name()
-                                          << '\n';
-                            } catch (const std::exception& error) {
-                                ++outcome.audio_failures;
-                                std::cout << "conversation_audio clip=" << event.line.clip
-                                          << " ERROR queue: " << error.what() << '\n';
-                            }
-                        }
                         // 0x40d5ff clears the 640x480 surface when gamepref[1]
                         // is 0 (the 320x200 mode-0 window); mode 2's 640x400
                         // frame covers the playfield by itself.
                         if (!fullscreen_video) ui.clear_playfield(session);
-                        const auto frame_time = std::chrono::microseconds(
-                            1000000 / std::max(1, decoded->fps));
-                        auto next_frame = std::chrono::steady_clock::now();
-                        for (const auto& frame_file : decoded->frames) {
-                            if (!session.running) break;
-                            byzantine::JpegImage image;
-                            try {
-                                image = byzantine::decode_jpeg_file(frame_file.string());
-                            } catch (const std::exception& error) {
-                                std::cout << "conversation_media clip=" << event.line.clip
-                                          << " frame_error=" << error.what() << '\n';
-                                break;
-                            }
-                            const auto pixels = byzantine::rgb_to_rgb565(image);
-                            bool placed = false;
-                            if (fullscreen_video) {
-                                placed = byzantine::blit_image_2x(
-                                    session.display.surface, image.width, image.height,
-                                    pixels.data());
-                                if (!placed) {
-                                    std::cout << "conversation_video clip="
-                                              << event.line.clip << " size="
-                                              << image.width << 'x' << image.height
-                                              << " unsupported: 0x43a248 mode 2 requires "
-                                                 "2x the 640x400 playfield\n";
-                                }
-                            } else {
-                                // Mode 0 destination is (160, 120) in the 640x480
-                                // surface; the port surface starts at row 0x14.
-                                placed = byzantine::blit_image(
-                                             session.display.surface, image.width,
-                                             image.height, pixels.data(),
-                                             (kSceneWidth - image.width) / 2,
-                                             (kSceneHeight - image.height) / 2)
-                                             .placed;
-                            }
-                            if (!placed) break;
-                            ui.present(session);
-                            if (!options.conversation_video_shot.empty() &&
-                                !video_shot_written) {
-                                if (ui.write(session,
-                                             options.conversation_video_shot)) {
-                                    std::cout << "conversation_video_shot "
-                                              << options.conversation_video_shot
-                                              << " clip=" << event.line.clip << '\n';
-                                }
-                                video_shot_written = true;
-                            }
-                            ++session.wait.frames;
-                            next_frame += frame_time;
-                            const auto now = std::chrono::steady_clock::now();
-                            if (next_frame > now) {
-                                SDL_Delay(static_cast<Uint32>(
-                                    std::chrono::duration_cast<std::chrono::milliseconds>(
-                                        next_frame - now)
-                                        .count()));
-                            } else {
-                                next_frame = now;
-                            }
-                            SDL_Event event_poll;
-                            while (poll_logged_event(&event_poll, "conversation_video", session)) {
-                                ++session.wait.events;
-                                if (event_poll.type == SDL_QUIT) session.running = false;
-                                // 0x413bdd's video loop has no ESC branch; ESC
-                                // is 0x436b01's answer-list cancel and must not
-                                // terminate the player here.
-                                if (event_poll.type == SDL_KEYDOWN &&
-                                    event_poll.key.keysym.sym == SDLK_h) {
-                                    session.options.overlay = !session.options.overlay;
-                                }
-                            }
-                        }
-                        if (sound && session.running) {
-                            while (session.audio.queued() != 0 && session.running) {
-                                pump_window(session);
-                                SDL_Delay(4);
-                            }
-                        }
+                        // Mode 0 destination is (160, 120) in the 640x480
+                        // surface; the port surface starts at row 0x14.
+                        const std::int32_t x = fullscreen_video
+                                                   ? 0
+                                                   : (kSceneWidth - decoded->width) / 2;
+                        const std::int32_t y = fullscreen_video
+                                                   ? 0
+                                                   : (kSceneHeight - decoded->height) / 2;
+                        const auto playback = play_decoded_clip(
+                            session, *decoded, fullscreen_video, x, y,
+                            video_shot_written ? std::string()
+                                               : options.conversation_video_shot,
+                            kConversationClipTags, event.line.clip,
+                            [&] { ui.present(session); },
+                            [&](const std::string& path) {
+                                return ui.write(session, path);
+                            });
+                        outcome.audio_failures += playback.audio_failures;
+                        if (playback.shot_written) video_shot_written = true;
                         // The last frame stays on the surface, exactly like the
                         // original's DirectDraw target; 0x436b01 draws the
                         // answers over it.
@@ -4540,7 +4894,7 @@ int main(int argc, char** argv) {
             session.display.present(session.view, options.overlay);
             const auto run = [&](EntryPoint point, const byzantine::SceneState& entry,
                                  const byzantine::SceneTrace& look) {
-                if (!audio_ready) {
+                if (!audio_ready && look.video_requests.empty()) {
                     session.view.state = entry;
                     set_trace(session.view, trace_point(session.view, point, entry, 0));
                     return session.running;
@@ -4946,7 +5300,10 @@ int main(int argc, char** argv) {
         const auto run_shot = [&](EntryPoint point, const byzantine::SceneState& entry,
                                   const byzantine::SceneTrace&) {
             set_trace(session.view, trace_point(session.view, point, entry, 0));
-            return true;
+            // 0xbd blocks in 0x413bdd; a headless run plays the clip the same
+            // way so the log and the last frame match the interactive path
+            // (--no-video skips it and says so).
+            return play_trace_videos(session, session.view.trace, true);
         };
         bool startup_ended = false;
         if (probe.conversation_request) {
@@ -4963,9 +5320,11 @@ int main(int argc, char** argv) {
                 std::cout << "startup_not_committed\n";
             }
         } else {
-            session.view.state = session.view.entry_state;
-            set_trace(session.view, probe);
             session.view.state = std::move(probe_state);
+            set_trace(session.view, probe);
+            // The entry script itself may open with a 0xbd; play it here because
+            // this branch bypasses run_shot.
+            play_trace_videos(session, session.view.trace, true);
         }
         if (!startup_ended) {
             apply_panorama_events(session.view, options, true);
@@ -5047,10 +5406,11 @@ int main(int argc, char** argv) {
                 continue;
             }
             const auto plan = plan_hotspot(session.view, *hit.slot);
-            std::cout << ' ' << plan.message;
+            // The action's own log lines (sounds, 0xbd videos) belong between
+            // this hit line and its result, not appended to it.
+            std::cout << ' ' << plan.message << '\n';
             if (!plan.ok) {
                 clear_text_after_rejected_use(session, plan, true);
-                std::cout << '\n';
                 continue;
             }
             const auto before_trace = session.view.trace;
@@ -5058,15 +5418,15 @@ int main(int argc, char** argv) {
             if (!execute_plan(session, plan, run_shot, true, &ended)) {
                 session.view.state = plan.entry_before;
                 set_trace(session.view, before_trace);
-                std::cout << " click_not_committed\n";
+                std::cout << "click_not_committed\n";
                 continue;
             }
             if (ended) {
-                std::cout << " click_result scene_session_ended\n";
+                std::cout << "click_result scene_session_ended\n";
                 follow_switches(session, false);
                 continue;
             }
-            std::cout << " click_result "
+            std::cout << "click_result "
                       << describe_trace(session.view.trace, session.view.state) << '\n';
             show_object_text(session, *hit.slot, true);
             show_message_text(session, true);

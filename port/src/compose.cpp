@@ -75,27 +75,38 @@ ImageBlit blit_image(Rgb16Surface& target, std::int32_t image_width,
     return result;
 }
 
+bool blit_image_2x_at(Rgb16Surface& target, std::int32_t image_width,
+                      std::int32_t image_height, const std::uint16_t* pixels,
+                      std::int32_t x, std::int32_t y) {
+    if (image_width <= 0 || image_height <= 0 || pixels == nullptr) return false;
+    bool placed = false;
+    for (std::int32_t row = 0; row < image_height; ++row) {
+        const auto ty = y + row * 2;
+        for (std::int32_t column = 0; column < image_width; ++column) {
+            const auto pixel =
+                pixels[static_cast<std::size_t>(row) *
+                           static_cast<std::size_t>(image_width) +
+                       static_cast<std::size_t>(column)];
+            const auto tx = x + column * 2;
+            for (std::int32_t dy = 0; dy < 2; ++dy) {
+                for (std::int32_t dx = 0; dx < 2; ++dx) {
+                    if (!target.inside(tx + dx, ty + dy)) continue;
+                    target.at(tx + dx, ty + dy) = pixel;
+                    placed = true;
+                }
+            }
+        }
+    }
+    return placed;
+}
+
 bool blit_image_2x(Rgb16Surface& target, std::int32_t image_width,
                    std::int32_t image_height, const std::uint16_t* pixels) {
     if (image_width <= 0 || image_height <= 0 || pixels == nullptr) return false;
     if (image_width * 2 != target.width || image_height * 2 != target.height) {
         return false;
     }
-    for (std::int32_t row = 0; row < image_height; ++row) {
-        for (std::int32_t column = 0; column < image_width; ++column) {
-            const auto pixel =
-                pixels[static_cast<std::size_t>(row) *
-                           static_cast<std::size_t>(image_width) +
-                       static_cast<std::size_t>(column)];
-            const auto tx = column * 2;
-            const auto ty = row * 2;
-            target.at(tx, ty) = pixel;
-            target.at(tx + 1, ty) = pixel;
-            target.at(tx, ty + 1) = pixel;
-            target.at(tx + 1, ty + 1) = pixel;
-        }
-    }
-    return true;
+    return blit_image_2x_at(target, image_width, image_height, pixels, 0, 0);
 }
 
 bool write_ppm(const Rgb16Surface& surface, const std::string& path) {

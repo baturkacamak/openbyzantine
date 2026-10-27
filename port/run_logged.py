@@ -99,10 +99,13 @@ def main():
                 if "active_slots=0" in text or "unsupported" in text.lower():
                     suspected_stalls.append(text)
                 for tag in ("travel ", "click_result", "conversation_end", "audio_failures=",
+                            "video_request", "video name=", "video skipped", "video_media",
+                            "video_audio",
                             "missing", "ERROR", "stopped:", "not committed", "click_not_committed"):
                     if tag in text:
                         counts[tag.strip()] += 1
-                if re.search(r"travel |conversation_end|missing|ERROR|stopped:|not.committed|error=", text):
+                if re.search(r"travel |conversation_end|video_request|video skipped|video_media|"
+                             r"missing|ERROR|stopped:|not.committed|error=", text):
                     important.append(text)
                 try:
                     sys.stdout.buffer.write(raw)

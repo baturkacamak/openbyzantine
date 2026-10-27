@@ -47,8 +47,9 @@ then slot 41/action 1377 leaves no active hotspots. Comparing the probe with
 the executed result identifies a state-replay bug: the probe sets local 43
 and opens exit 37, but execution starts from that modified state and branches
 past the exit setup. Execute from `entry_before`, not probe output. See
-`EA_SINGLE_EXECUTION_FIX.md`. The separate request-only CF video is a genuine
-remaining gap, but it is not evidence that a missing codec caused this lockup.
+`EA_SINGLE_EXECUTION_FIX.md`. That example's CF video was request-only at the
+time and is now played (`CF_VIDEO_PLAYBACK.md`); it was never the cause of that
+lockup.
 
 Direct binaries can be wrapped with `python3 port/run_logged.py -- <command>`.
 Without that wrapper they do not create a run bundle. For native detail alone,
@@ -63,6 +64,16 @@ relative deltas and pressed buttons; clicks include button/coordinates/count;
 keys include code/name/modifiers/repeat; wheel and window geometry/focus events
 are recorded. These are events delivered by SDL, not raw physical input.
 Coordinates are the values delivered after SDL's existing transformations.
+
+`0xbd` CF videos are recorded in the main log, not only in the trace:
+`video_request` (scene/instruction/step/record/name/mode/folder),
+`video_media` (resolved file, extraction source, frames/fps/size/audio),
+`video` (placement/frames), `video_audio`, `video_shot` and
+`video skipped reason=<missing|--no-video|decode_failed|not_shown>`. The summary
+counts `video_request`, `video_media`, `video name=`, `video skipped` and
+`video_audio`, and keeps request/skip lines in `important_lines`. A clip that
+plays is a real blocking wait (`0x413bdd`), so a missing/absent line means the
+script reached no video, not that playback was silent.
 
 The shared VM records an evaluation id, starting instruction, budget, every
 opcode/encoded operand, variable writes, stop/blocker and active hotspot ids.
