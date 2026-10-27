@@ -1,6 +1,41 @@
 # Compact handoff — 26 October 2026
 
-## Latest step — the game's own mouse cursors (27 October 2026)
+## Latest step — panorama scene sprites were never drawn (27 October 2026)
+
+Pinned user run `run-20261027T132308.815408Z-eox_w1hb` (EA 602, `26.btb` -> MAP
+-> SM, then a click on the woman at screen `280,256` -> `slot 7 action 375`
+conversation `IImSM1a`). In SM the character was never composited:
+`composed panorama=nodes/sm/SM00.JPG ... drawn=0 pixels=0` while
+`record 3 x=1302 y=353 asset=smim00b` (150x150, Ima+Emre) existed. Every
+panorama compose in the saved logs had `drawn=0`.
+
+Cause: in a panorama scene a record's `+0x00/+0x02` are panorama **source**
+coordinates (SM record 3 x=1302 = object slot 7 x=1302; VA records sit at
+x=65..2250 on a 2496-wide node), but `compose_scene` always drew them as screen
+pixels, so `0x40241c` rejected the top-left as off-window.
+
+`0x40241c`'s panorama branch (objdump, not the Ghidra text) projects five rect
+anchors through `0x423e03` (source -> viewport, +/-60 degree window) in the order
+centre, top-left, bottom-right, top-right, bottom-left, and the first success
+gives the sprite's top-left. The shipped branch computes that anchor but returns
+at `0x4025bd` without storing it (the non-panorama path stores at `0x402626`) —
+an inference marker in the report.
+
+New: `SceneProjector` (`compose.hpp`), `PanoramaView::project_source` (the exact
+inverse of the port's `panorama_mapping`: `depth = S*cos(pitch)*cos(angle) +
+dy*sin(pitch)`, `dx = F*S*sin(angle)/depth`, `dy_screen = F*(dy*cos(pitch) -
+S*cos(angle)*sin(pitch))/depth`), `project_record_position` (the five anchors),
+`compose_scene(..., projector)` + `SceneCompose::projected` + `projected=` in the
+panorama log line, `scene_animates(view)`, and `--panorama-yaw [SCENE:]deg`
+(headless absolute camera yaw; `--staged-x` is consumed by the first panorama
+scene). Real run: SM at yaw 17.5865 -> `drawn=2 projected=2 pixels=27465
+drawn_ids=4,3`, screenshot `port/output/panorama-sprites/sm-entry-projected.png`;
+the same camera's click on her still reaches `slot 7`. VA `--entry` went from
+`drawn=0` to `drawn=2 projected=2`; background scenes (MAP/CLOCK/HSTMED/IU) and
+EA/NB/AM/GC/VH are unchanged. `make -C port -j2 all test` and all
+`analysis/rea/verify_*.py` pass. Report: `analysis/rea/PANORAMA_SPRITES.md`.
+
+## Previous step — the game's own mouse cursors (27 October 2026)
 
 The player now installs the shipped pointer art and the engine's cursor rules
 instead of a host arrow. `0x40dd7f`/`0x40dae5` load two 32-entry tables —

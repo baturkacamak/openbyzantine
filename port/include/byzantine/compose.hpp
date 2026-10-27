@@ -81,6 +81,25 @@ ImageBlit blit_image(Rgb16Surface& target, std::int32_t image_width,
 bool blit_image_2x(Rgb16Surface& target, std::int32_t image_width,
                    std::int32_t image_height, const std::uint16_t* pixels);
 
+// 0x423e03: the panorama renderer's SOURCE -> VIEWPORT projection. 0x40241c
+// calls it on a record's rect corners when DAT_0045c060 != 0 (a 0xb9 node is
+// the current layer) and DAT_00464880 != 0. The input is a panorama SOURCE
+// pixel (0 <= x < source width, 0 <= y < source height), the output a playfield
+// viewport pixel (0 <= x < 640, 0 <= y < 400); false means the original's own
+// reject (outside the source, beyond the +/-60 degree window, or the projected
+// point leaving the viewport).
+//
+// Shipped panorama scenes place a sprite (e.g. SM's `Smim00b`) in the SAME
+// source coordinate space as their 0x72 objects, so a record's +0x00/+0x02
+// cannot be used as a screen position there; the projection is what puts it on
+// screen. A caller without a panorama passes nullptr and the record coordinates
+// stay screen coordinates (background/close-up scenes).
+struct SceneProjector {
+    virtual ~SceneProjector() = default;
+    virtual bool project_source(int source_x, int source_y, int& viewport_x,
+                                int& viewport_y) const = 0;
+};
+
 // Writes a binary PPM (P6): RGB565 -> RGB888 with bit replication, which is
 // enough to inspect a composed frame. Returns false when the file cannot be
 // opened.

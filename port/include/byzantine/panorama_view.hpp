@@ -26,7 +26,7 @@ struct PanoramaPoint {
 // The renderer's own state is presentation state, not VM state: the script only
 // stages a position (0xba -> DAT_0045c064) or a delta (0xcb -> 0x402285), and
 // the camera changes when a frame is drawn.
-class PanoramaView {
+class PanoramaView : public SceneProjector {
 public:
     // `path` is the asset name for reporting (0x40186e stores the resolved
     // path in DAT_00468b98 and only reloads when it changes). The source must
@@ -65,6 +65,23 @@ public:
     // screen y and the caller adds it back to the result (see PanoramaPoint).
     PanoramaPoint canvas_point(int viewport_x, int viewport_y) const;
 
+    // SceneProjector: 0x423e03's inverse direction, source pixel -> viewport
+    // pixel. 0x40241c calls it on a record's rect corners when a panorama node
+    // is the current layer; the shipped panorama scenes place sprites in the
+    // same SOURCE coordinate space as their 0x72 objects, so 0x43c114's raw
+    // +0x00/+0x02 only become a screen position through this projection.
+    // Recovered geometry (the exact inverse of `panorama_mapping`), with
+    // S = pixels per radian, F = zoom*S, dy = y - source_height/2:
+    //   angle  = (x - source_width/2)/S - yaw        wrapped to [-pi, pi],
+    //                                                rejected beyond 60 degrees
+    //   depth  = S*cos(pitch)*cos(angle) + dy*sin(pitch)
+    //   offset_x = F*S*sin(angle)/depth
+    //   offset_y = F*(dy*cos(pitch) - S*cos(angle)*sin(pitch))/depth
+    // A false result is the original's own reject: outside the source, beyond
+    // the +/-60 degree window or the projected point leaving the viewport.
+    bool project_source(int source_x, int source_y, int& viewport_x,
+                        int& viewport_y) const override;
+
     double yaw_degrees() const;
     double pitch_degrees() const;
     bool at_pitch_limit() const;
@@ -75,6 +92,7 @@ private:
     int source_height_ = 0;
     int viewport_width_ = 0;
     int viewport_height_ = 0;
+    double pixels_per_radian_ = 0;
     PanoramaLookupTables tables_;
     PanoramaProjection projection_;
     std::vector<std::uint16_t> padded_;

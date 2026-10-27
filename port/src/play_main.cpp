@@ -139,6 +139,12 @@ struct Options {
     // that logical screen point and print it (headless cursor diagnostic).
     std::vector<std::pair<int, int>> cursor_ats;
     std::optional<int> staged_x;               // --staged-x <0..2495>
+    // --panorama-yaw [SCENE:]degrees: keep the headless camera at an absolute
+    // yaw, for that scene only when a SCENE prefix is given (a port input for
+    // diagnostics, not game state; the original only turns in 0x42423d/
+    // 0x402285 calls or through the mouse-drag edge logic).
+    std::optional<double> panorama_yaw;
+    std::string panorama_yaw_scene;
     std::optional<int> bar_select;             // --bar-select <item id>
     bool bar_use = false;                      // --bar-use: examine selected item
     int bar_scroll = 0;                        // --bar-next/--bar-prev count
@@ -180,7 +186,8 @@ const std::set<std::string> kValued = {
     "--dialog-cache",
     "--run-label", "--conversation-choices", "--conversation-shot",
     "--conversation-object", "--conversation-video-shot", "--conversation-cancel",
-    "--bar-select", "--media-isos", "--anim-pass-hz", "--cursor-at"};
+    "--bar-select", "--media-isos", "--anim-pass-hz", "--cursor-at",
+    "--panorama-yaw"};
 
 Options parse_options(int argc, char** argv) {
     Options options;
@@ -292,6 +299,18 @@ Options parse_options(int argc, char** argv) {
             }
             else if (token == "--click") options.click = std::stoi(value);
             else if (token == "--staged-x") options.staged_x = std::stoi(value);
+            else if (token == "--panorama-yaw") {
+                auto degrees = value;
+                const auto colon = degrees.find(':');
+                if (colon != std::string::npos) {
+                    options.panorama_yaw_scene = degrees.substr(0, colon);
+                    degrees = degrees.substr(colon + 1);
+                }
+                options.panorama_yaw = std::stod(degrees);
+                if (!(*options.panorama_yaw >= -360.0 && *options.panorama_yaw <= 360.0)) {
+                    throw std::runtime_error("--panorama-yaw must be within -360..360");
+                }
+            }
             else if (token == "--click-at") {
                 const auto comma = value.find(',');
                 if (comma == std::string::npos) {
@@ -321,6 +340,7 @@ Options parse_options(int argc, char** argv) {
             "--inventor --hotitems --cs <file>] [--shot <file.ppm>] [--click <slot>] "
             "[--cursor-at <x>,<y> ...] "
             "[--entry] [--click-at <x>,<y> ...] [--staged-x <0..2495>] "
+            "[--panorama-yaw [SCENE:]deg] "
             "[--cd <file> --ccb --ccf --byz --messages <file> --dialog --dialog-cache <dir>] "
             "[--run-label <n>] [--conversation-choices <i,...>] "
             "[--conversation-object <slot>] [--conversation-cancel <n>] "
@@ -657,6 +677,15 @@ void set_trace(SceneView& view, byzantine::SceneTrace trace) {
 }
 
 bool panorama_layer(const SceneView& view) { return view.layer == SceneLayer::panorama; }
+
+// 0x40241c's panorama branch needs 0x423e03: while a 0xb9 node is the current
+// layer a record's +0x00/+0x02 are panorama SOURCE coordinates (the shipped
+// scripts place characters exactly at their 0x72 object rects), so the record
+// rect has to be projected onto the viewport before it is drawn. Only scenes
+// showing a background/close-up use the record coordinates as screen pixels.
+const byzantine::SceneProjector* scene_projector(const SceneView& view) {
+    return panorama_layer(view) && view.panorama.has_value() ? &*view.panorama : nullptr;
+}
 
 // 0x40c02c: the point that 0x401ca6 produced is compared with every active
 // DAT_00464300 object rect, ids ascending, first hit wins. For a panorama the
@@ -1008,6 +1037,25 @@ void apply_panorama_events(SceneView& view, Options& options, bool verbose) {
         }
         options.staged_x.reset();
     }
+    if (options.panorama_yaw) {
+        // Explicit port input: after the trace's own 0xb9/0xcb camera work,
+        // turn to an absolute yaw so a headless run can look at a known part of
+        // the node. Like --staged-x this is a diagnostic view, not game state.
+        if (!view.panorama) {
+            if (verbose) std::cout << "--panorama-yaw ignored: no panorama is loaded\n";
+            return;
+        }
+        if (!options.panorama_yaw_scene.empty() &&
+            lower_ascii(view.name) != lower_ascii(options.panorama_yaw_scene)) {
+            return;
+        }
+        const double delta = *options.panorama_yaw - view.panorama->yaw_degrees();
+        view.panorama->advance(delta, 0, 1.0);
+        if (verbose) {
+            std::cout << "panorama_yaw=" << *options.panorama_yaw
+                      << " yaw=" << view.panorama->yaw_degrees() << '\n';
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1121,6 +1169,9 @@ struct Display {
         background_key = file.string();
     }
 
+    // The projector is 0x40241c's panorama branch: a 0xb9 node makes the
+    // record's +0x00/+0x02 source coordinates (0x423e03 projects them onto the
+    // viewport). Without a panorama they are already surface coordinates.
     void compose(SceneView& view, bool verbose = true) {
         std::fill(surface.pixels.begin(), surface.pixels.end(), 0);
         // The scene layer is whichever of 0x69 (background) / 0xb9 (node) ran
@@ -1144,7 +1195,7 @@ struct Display {
                                       background_pixels.data(), 0, 0);
             }
         }
-        const auto drawn = byzantine::compose_scene(view.state, surface);
+        const auto drawn = byzantine::compose_scene(view.state, surface, scene_projector(view));
         // Records this pass drew and stepped (0x43b216's normal pass). The
         // animation clock applies any further passes the original's uncapped
         // loop would have run between two host frames to exactly these.
@@ -1163,6 +1214,7 @@ struct Display {
                       << " yaw=" << view.panorama->yaw_degrees()
                       << " pitch=" << view.panorama->pitch_degrees()
                       << " drawn=" << drawn.drawn
+                      << " projected=" << drawn.projected
                       << " skipped_no_frame=" << drawn.skipped_no_frame
                       << " skipped_snap=" << drawn.skipped_snap
                       << " snap_drawn=" << drawn.snap_drawn
@@ -1187,16 +1239,34 @@ struct Display {
     // a record with a loaded frame list, a frame index and at least two frames
     // that is not frozen by 0x04. Used to decide whether the event loop needs a
     // 60 Hz recompose; a static scene keeps redrawing only on events.
-    bool scene_animates(const byzantine::SceneState& state) const {
-        for (const auto& [id, record] : state.records) {
+    bool scene_animates(const SceneView& view) const {
+        const byzantine::SceneProjector* projector = scene_projector(view);
+        for (const auto& [id, record] : view.state.records) {
             (void)id;
             if (!record.frames_known || !record.current_frame) continue;
             if (record.frame_count < 2) continue;
             if ((record.flags & (0x04 | 0x20 | 0x40)) != 0) continue;
+            if (record.kind >= 5) continue;
             // 0x43b216 only steps records it drew: an off-window origin is
             // rejected by 0x40241c and never advances, so it must not keep the
-            // window repainting.
-            if (record.kind >= 5) continue;
+            // window repainting. In a panorama scene the origin is in source
+            // space, so the same 0x423e03 test decides visibility.
+            if (projector != nullptr) {
+                // Same 0x40241c anchor test the composer uses, with the current
+                // frame's geometry (0x43c114 reads it from the frame node).
+                int width = 1;
+                int height = 1;
+                if (record.frames_known && record.current_frame &&
+                    *record.current_frame < record.frames.size()) {
+                    width = record.frames[*record.current_frame].width;
+                    height = record.frames[*record.current_frame].height;
+                }
+                if (!byzantine::project_record_position(*projector, record.x, record.y,
+                                                        width, height)) {
+                    continue;
+                }
+                return true;
+            }
             if (record.x < 0 || record.x >= kSceneWidth) continue;
             const int y = record.y - byzantine::kPlayfieldTop;
             if (y < 0 || y >= kSceneHeight) continue;
@@ -4747,7 +4817,7 @@ int main(int argc, char** argv) {
                         }
                     }
                 }
-                const bool animates = session.display.scene_animates(session.view.state);
+                const bool animates = session.display.scene_animates(session.view);
                 if (!animates) {
                     // Nothing steps the frame lists: drop the outstanding passes
                     // so a later animation does not start with a backlog.

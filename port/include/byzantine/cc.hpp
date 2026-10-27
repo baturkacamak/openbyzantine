@@ -808,6 +808,9 @@ struct SceneCompose {
     // +0x09 & 0x40: skipped by the normal pass as well.
     std::size_t skipped_hidden = 0;
     std::size_t pixels_written = 0;
+    // Records placed through a SceneProjector (0x40241c's panorama branch).
+    // Reported so a panorama scene's sprite placement is visible in the log.
+    std::size_t projected = 0;
     std::vector<SceneDraw> records;
 };
 
@@ -825,6 +828,18 @@ struct SceneRecordPreload {
 };
 SceneRecordPreload preload_scene_records(SceneState& state);
 
+// 0x40241c's panorama branch expressed as a placement: when the current layer
+// is a 0xb9 node, a record's +0x00/+0x02 are panorama SOURCE coordinates and
+// 0x423e03 maps the rect corners (centre, top-left, bottom-right, top-right,
+// bottom-left — in that order) onto the viewport. The first corner that lands
+// on screen anchors the sprite, whose top-left becomes corner - its offset.
+// `y` carries the same +0x14 surface bias as the record (0x40241c subtracts it
+// before projecting). Returns nothing when all five corners leave the viewport,
+// which is the original's reject.
+std::optional<std::pair<std::int32_t, std::int32_t>> project_record_position(
+    const SceneProjector& projector, std::int32_t x, std::int32_t y,
+    std::int32_t width, std::int32_t height);
+
 // 0x43b216's record pass: phase 1 (the `+0x09 & 0x20` snap pass, when
 // DAT_004859cd == 0) draws a record once through its `+0x20` frame at
 // `+0x24/+0x26` and clears that frame pointer; phase 2 walks kind 0..4 from the
@@ -832,7 +847,14 @@ SceneRecordPreload preload_scene_records(SceneState& state);
 // 0x40bbfd, clipped to the surface. The `+0x09 & 0x80` destination-read blend,
 // the `+0x09 & 0x10` offset pair and the +0x3c trail draw are NOT modelled
 // (see ANIMATION_ASSET.md); records whose frame is unknown are counted.
-SceneCompose compose_scene(SceneState& state, Rgb16Surface& target);
+//
+// `projector` is 0x40241c's panorama branch: when the current layer is a 0xb9
+// node, a record's +0x00/+0x02 are panorama SOURCE coordinates and the rect is
+// projected through 0x423e03 before the draw (0x43c114 itself copies them
+// unchanged). Pass nullptr for a background/close-up scene, where the record
+// coordinates are already surface coordinates.
+SceneCompose compose_scene(SceneState& state, Rgb16Surface& target,
+                           const SceneProjector* projector = nullptr);
 
 // 0x43bb77, called by 0x43b216 after every visible normal-pass draw
 // (`param_2 != 1`): the frame list is circular (the last node's next points at

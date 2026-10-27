@@ -1110,6 +1110,51 @@ int main(int argc, char** argv) {
                         loaded_state.records.at(6).frame_index_20 == 0,
                     "snap pass ran after a load (DAT_004859cd) ");
         }
+        // 0x40241c's panorama branch: with a 0xb9 node as the current layer a
+        // record's +0x00/+0x02 are SOURCE coordinates and 0x423e03 projects
+        // them onto the viewport. The projector below moves a source point to
+        // (5,6) and rejects everything else.
+        {
+            struct FixedProjector : byzantine::SceneProjector {
+                bool project_source(int source_x, int source_y, int& viewport_x,
+                                    int& viewport_y) const override {
+                    (void)source_y;
+                    if (source_x >= 5000) return false;  // "behind the camera"
+                    viewport_x = 5 + (source_x % 2);
+                    viewport_y = 6;
+                    return true;
+                }
+            } projector;
+            const FixedProjector& fixed = projector;
+            auto panorama_state = compose_state;
+            panorama_state.records.at(2).x = 1302;  // panorama source position
+            panorama_state.records.at(2).y = byzantine::kPlayfieldTop + 333;
+            // Keep the other drawn record out of the projection window so only
+            // id 2 is placed (the kind pass still walks it first).
+            panorama_state.records.at(1).x = 5000;
+            auto panorama_target = byzantine::make_surface(8, 8, 0);
+            const auto projected = byzantine::compose_scene(
+                panorama_state, panorama_target, &fixed);
+            // The synthetic frame is 4x2, so the centre anchor projects its
+            // centre and the sprite's top-left becomes (5-2, 6-1).
+            require(projected.drawn == 1 && projected.projected == 1 &&
+                        projected.records[0].blit.x == 3 &&
+                        projected.records[0].blit.y == 5 &&
+                        panorama_target.at(3, 5) == 0x2211,
+                    "panorama record was not placed through 0x423e03");
+            // A record whose corners all leave the projection window is not
+            // drawn by 0x40241c and must not be reported as projected.
+            auto outside_state = compose_state;
+            outside_state.records.at(1).x = 5000;
+            outside_state.records.at(2).x = 5000;
+            outside_state.records.at(2).y = byzantine::kPlayfieldTop + 333;
+            auto outside_target = byzantine::make_surface(8, 8, 0);
+            const auto outside = byzantine::compose_scene(
+                outside_state, outside_target, &fixed);
+            require(outside.drawn == 0 && outside.projected == 0 &&
+                        outside.records[0].blit.written == 0,
+                    "compose_scene drew a record outside the panorama view");
+        }
         // 0x40241c rejects a record whose top-left is above the playfield: the
         // original never draws through a negative origin.
         auto above_state = compose_state;

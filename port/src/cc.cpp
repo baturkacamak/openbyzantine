@@ -625,7 +625,41 @@ std::size_t advance_record_passes(SceneState& state,
     return advanced;
 }
 
-SceneCompose compose_scene(SceneState& state, Rgb16Surface& target) {
+std::optional<std::pair<std::int32_t, std::int32_t>> project_record_position(
+    const SceneProjector& projector, std::int32_t x, std::int32_t y,
+    std::int32_t width, std::int32_t height) {
+    // 0x40241c starts by subtracting 0x14 from the record's +0x02 and adds it
+    // back to the projected result, so the panorama source point is the
+    // playfield-space y (the port keeps that bias out of its surface).
+    const auto top = y - kPlayfieldTop;
+    struct Anchor {
+        std::int32_t source_x;
+        std::int32_t source_y;
+        std::int32_t offset_x;
+        std::int32_t offset_y;
+    };
+    const Anchor anchors[5] = {
+        {x + width / 2, top + height / 2, width / 2, height / 2},  // centre
+        {x, top, 0, 0},                                            // top-left
+        {x + width - 1, top + height - 1, width - 1, height - 1},  // bottom-right
+        {x + width - 1, top, width - 1, 0},                        // top-right
+        {x, top + height - 1, 0, height - 1},                      // bottom-left
+    };
+    for (const auto& anchor : anchors) {
+        int viewport_x = 0;
+        int viewport_y = 0;
+        if (!projector.project_source(anchor.source_x, anchor.source_y, viewport_x,
+                                      viewport_y)) {
+            continue;
+        }
+        return std::make_pair(viewport_x - anchor.offset_x,
+                              viewport_y - anchor.offset_y);
+    }
+    return std::nullopt;
+}
+
+SceneCompose compose_scene(SceneState& state, Rgb16Surface& target,
+                           const SceneProjector* projector) {
     SceneCompose result;
     // 0x43c114 + 0x40241c + 0x42b679 for a record at one position. `screen_y`
     // is the record's +0x02/+0x26 value (it carries the +0x14 surface bias).
@@ -658,8 +692,28 @@ SceneCompose compose_scene(SceneState& state, Rgb16Surface& target) {
         }
         entry.width = current_decoded->width;
         entry.height = current_decoded->height;
-        const auto x = screen_x;
-        const auto y = screen_y - kPlayfieldTop;
+        std::int32_t x = screen_x;
+        std::int32_t y = screen_y - kPlayfieldTop;
+        if (projector != nullptr) {
+            // 0x40241c's panorama branch (see project_record_position).
+            const auto placed = project_record_position(*projector, screen_x, screen_y,
+                                                        current_decoded->width,
+                                                        current_decoded->height);
+            if (!placed) {
+                // Every corner is beyond the projection window: 0x40241c
+                // returns 0 and the record is never drawn. Keep the attempt in
+                // the report (with its source position) instead of hiding it.
+                entry.blit.x = x;
+                entry.blit.y = y;
+                entry.blit.covered = current_decoded->run_pixels;
+                entry.blit.clipped = current_decoded->run_pixels;
+                result.records.push_back(entry);
+                return false;
+            }
+            x = placed->first;
+            y = placed->second;
+            ++result.projected;
+        }
         if (!target.inside(x, y)) {
             // 0x40241c rejects a record whose TOP-LEFT is outside the window;
             // it never draws a partially negative origin. Keep the attempt in

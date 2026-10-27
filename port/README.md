@@ -126,8 +126,14 @@ etiket kümesinde bulunuyor. Kanıt ve bilinmeyen listesi:
   (10°) ve `↑`/`↓` (5°) ile ya da panaromayı fareyle sürükleyerek döner
   (sürükleme tıklama sayılmaz). Tıklama artık `0x401ca6`/`0x4240ae`'nin ters
   eşlemesiyle **kaynak** koordinatına çevrilir; bu yüzden x > 640 olan panorama
-  alanları da tıklanabilir. `--staged-x 0..2495` başsız bir bakış açar,
-  `--click-at <x>,<y>` ekran noktasını gerçek tıklama yolundan geçirir.
+  alanları da tıklanabilir. Kayıtlar (sprite'lar) da panorama sahnesinde
+  **kaynak** koordinatındadır: `0x40241c`'nin panorama dalı `0x423e03` ile
+  dikdörtgenin köşelerini ekrana izdüşürür ve ilk görünen köşe sprite'ı
+  yerleştirir; bu yüzden SM'deki İma (`Smim00b`, kaynak 1302,333) kamera ona
+  döndüğünde görünür. `--staged-x 0..2495` başsız bir bakış açar,
+  `--panorama-yaw <derece>` (isteğe bağlı `SAHNE:` önekiyle) her karede mutlak
+  bir kamera yaw'ı uygular (tanılama girdisi), `--click-at <x>,<y>` ekran
+  noktasını gerçek tıklama yolundan geçirir.
   `--cursor-at <x>,<y>` aynı nokta için oyunun seçtiği imleci kurup yazar
   (başsız imleç tanılaması); imleç tabloları ve sınırlar: `CURSORS.md`.
   `0xcb` dönüşü `0x402285` gibi adım adım uygulanır.

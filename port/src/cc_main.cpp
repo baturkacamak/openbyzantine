@@ -873,6 +873,8 @@ int main(int argc, char** argv) {
                     height = std::stoi(text.substr(cross + 1));
                 }
                 auto surface = byzantine::make_surface(width, height, 0);
+                byzantine::SceneCompose composed;
+                bool panorama_composed = false;
                 // The background/panorama stage runs before the record pass.
                 // 0x41045b decodes backs\<2ch>\<name>.jpg into the scene's
                 // 640x400 +0x6400 buffer (it fails unless the image is exactly
@@ -932,10 +934,19 @@ int main(int argc, char** argv) {
                               << " pitch_degrees=" << setup.vertical_degrees
                               << " sampled="
                               << (surface.width * surface.height) << '\n';
+                    // A panorama layer makes the record coordinates SOURCE
+                    // coordinates (0x40241c's 0x423e03 branch); a background
+                    // layer keeps them as screen coordinates.
+                    composed = byzantine::compose_scene(state, surface, &view);
+                    panorama_composed = true;
                 }
-                const auto composed = byzantine::compose_scene(state, surface);
+                if (!panorama_composed) {
+                    composed = byzantine::compose_scene(state, surface);
+                }
                 std::cout << "composed size=" << surface.width << 'x' << surface.height
-                          << " drawn=" << composed.drawn
+                          << " drawn=" << composed.drawn;
+                if (panorama_composed) std::cout << " projected=" << composed.projected;
+                std::cout
                           << " skipped_no_frame=" << composed.skipped_no_frame
                           << " skipped_other_kind=" << composed.skipped_other_kind
                           << " skipped_snap=" << composed.skipped_snap

@@ -1,5 +1,6 @@
 #include "byzantine/panorama_view.hpp"
 
+#include <cmath>
 #include <limits>
 #include <stdexcept>
 #include <utility>
@@ -24,6 +25,9 @@ PanoramaView::PanoramaView(std::string path, int source_width, int source_height
       source_height_(source_height),
       viewport_width_(viewport_width),
       viewport_height_(viewport_height),
+      pixels_per_radian_(panorama_geometry(source_width, source_height, viewport_width,
+                                           viewport_height)
+                             .pixels_per_radian),
       projection_(tables_, source_width, source_height,
                   padding_for(source_width, source_height, viewport_width,
                               viewport_height),
@@ -97,6 +101,51 @@ PanoramaPoint PanoramaView::canvas_point(int viewport_x, int viewport_y) const {
     point.source_x = column;
     point.source_y = static_cast<std::int32_t>(linear / projection_.stride_words());
     return point;
+}
+
+bool PanoramaView::project_source(int source_x, int source_y, int& viewport_x,
+                                  int& viewport_y) const {
+    // 0x423e03's input bounds: the point must be inside the UNPADDED source.
+    if (source_x < 0 || source_y < 0 || source_x >= source_width_ ||
+        source_y >= source_height_) {
+        return false;
+    }
+    // Constants as stored in the shipped image: 0x45b140 2*pi, 0x45b158/-160
+    // -/+ pi and 0x45b168/-170 the +/-60 degree window of 0x423e03.
+    constexpr double kPi = 3.141592653589793;
+    constexpr double kTwoPi = 6.283185307179586;
+    constexpr double kHalfFovLimit = 1.0471975511966667;
+    const auto camera = projection_.camera();
+    const double scale = pixels_per_radian_;
+    const double focal = camera.zoom * scale;
+    // 0x423e03: angle = (x - source_width/2 - yaw*scale) / scale, then the two
+    // x87 loops bring it into [-pi, pi].
+    double angle = (static_cast<double>(source_x) - source_width_ / 2) / scale -
+                   camera.yaw_radians;
+    while (angle < -kPi) angle += kTwoPi;
+    while (angle > kPi) angle -= kTwoPi;
+    if (angle < -kHalfFovLimit || kHalfFovLimit < angle) return false;
+    const double dy = static_cast<double>(source_y) - source_height_ / 2;
+    const double cosine_pitch = std::cos(camera.pitch_radians);
+    const double sine_pitch = std::sin(camera.pitch_radians);
+    const double cosine_angle = std::cos(angle);
+    const double sine_angle = std::sin(angle);
+    // depth is the sampler's `cos*F - sin*yc` after substituting the recovered
+    // row: it is 0x423e03's `scale*cos(pitch)*cos(angle) + dy*sin(pitch)`.
+    const double depth = scale * cosine_pitch * cosine_angle + dy * sine_pitch;
+    if (!(depth > 0) || !std::isfinite(depth)) return false;
+    const double offset_x = focal * scale * sine_angle / depth;
+    const double offset_y =
+        focal * (dy * cosine_pitch - scale * cosine_angle * sine_pitch) / depth;
+    if (!std::isfinite(offset_x) || !std::isfinite(offset_y)) return false;
+    // 0x423e03 truncates with __ftol and rejects a point that leaves the
+    // viewport, which is exactly the `0 < x < 0x280 && 0 < y < 0x190` test.
+    const auto x = viewport_width_ / 2 + static_cast<int>(std::trunc(offset_x));
+    const auto y = viewport_height_ / 2 + static_cast<int>(std::trunc(offset_y));
+    if (x < 0 || y < 0 || x >= viewport_width_ || y >= viewport_height_) return false;
+    viewport_x = x;
+    viewport_y = y;
+    return true;
 }
 
 double PanoramaView::yaw_degrees() const {

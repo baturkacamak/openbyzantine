@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <iostream>
+#include <map>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -55,6 +56,68 @@ void check_round_trip(const byzantine::PanoramaView& view, const char* where) {
         }
     }
 }
+
+// 0x423e03 must be the forward direction of the same projection: a source pixel
+// the sampler shows must project back to where it is actually painted on screen.
+// The rendered synthetic source encodes its own (row, column), so the expected
+// viewport position of every visible source pixel is read from the frame itself;
+// when the seam padding paints one source column twice, the copy nearest the
+// viewport centre is the one 0x423e03's angle normalisation selects. The
+// sampler's table arithmetic and this analytic inverse are not bit-identical
+// (host libm vs the original's x87/table path), so up to two pixels of
+// difference are allowed.
+void check_projection_matches_render(const byzantine::PanoramaView& view,
+                                     const char* where) {
+    auto target = byzantine::make_surface(view.viewport_width(),
+                                         view.viewport_height(), 0xffff);
+    view.render(target);
+    const int centre_x = view.viewport_width() / 2;
+    const int centre_y = view.viewport_height() / 2;
+    struct Where {
+        int x = 0;
+        int y = 0;
+        int distance = 0;
+        bool set = false;
+    };
+    std::map<std::pair<int, int>, Where> nearest;
+    for (int y = 0; y < view.viewport_height(); ++y) {
+        for (int x = 0; x < view.viewport_width(); ++x) {
+            const auto pixel = target.at(x, y);
+            const auto key = std::make_pair(static_cast<int>(pixel & 0xff),
+                                            static_cast<int>(pixel >> 8));
+            const int distance = std::abs(x - centre_x) + std::abs(y - centre_y);
+            auto& entry = nearest[key];
+            if (!entry.set || distance < entry.distance) {
+                entry = Where{x, y, distance, true};
+            }
+        }
+    }
+    std::size_t checked = 0;
+    for (const auto& [source, screen] : nearest) {
+        // The sampler rounds the outermost columns/rows up to a bit past the
+        // viewport bound 0x423e03 tests, so the very border is not comparable.
+        if (screen.x < 2 || screen.x >= view.viewport_width() - 2 || screen.y < 2 ||
+            screen.y >= view.viewport_height() - 2) {
+            continue;
+        }
+        int projected_x = 0;
+        int projected_y = 0;
+        if (!view.project_source(source.first, source.second, projected_x,
+                                 projected_y)) {
+            throw std::runtime_error(std::string("0x423e03 rejected a painted "
+                                                 "source pixel at ") +
+                                     where);
+        }
+        if (std::abs(projected_x - screen.x) > 2 ||
+            std::abs(projected_y - screen.y) > 2) {
+            throw std::runtime_error(std::string("0x423e03 is not where the sampler "
+                                                 "paints the source pixel at ") +
+                                     where);
+        }
+        ++checked;
+    }
+    require(checked > 200, "projection round trip checked too few pixels");
+}
 }  // namespace
 
 int main() {
@@ -77,6 +140,7 @@ int main() {
                 "panorama reset camera mismatch");
 
         check_round_trip(view, "reset");
+        check_projection_matches_render(view, "reset");
 
         // 0x4242bd: a pure yaw delta does not rebuild the map, it only moves the
         // flat yaw offset, so the inverse mapping must follow it.
@@ -84,6 +148,7 @@ int main() {
         // 0x4242bd wraps the yaw into [-pi, pi], so 180 + 90 degrees is -90.
         require(std::abs(view.yaw_degrees() + 90.0) < 0.001, "yaw delta mismatch");
         check_round_trip(view, "yaw");
+        check_projection_matches_render(view, "yaw");
 
         // A pitch delta regenerates the map (0x423a37) and must stay invertible.
         // 0x4242bd SUBTRACTS the vertical delta from the stored pitch.
@@ -91,6 +156,7 @@ int main() {
         require(std::abs(view.pitch_degrees() + 5.0) < 0.001,
                 "pitch delta sign mismatch");
         check_round_trip(view, "pitch");
+        check_projection_matches_render(view, "pitch");
 
         // 0x401ddf: the staged pixel position becomes a 0..360 degree delta; the
         // caller then advances the camera (0x42423d) and draws. The staged
@@ -104,6 +170,7 @@ int main() {
         require(std::abs(view.yaw_degrees()) < 0.001 && view.pitch_degrees() == 0,
                 "a staged position must reset the camera (0x4241e2)");
         check_round_trip(view, "staged");
+        check_projection_matches_render(view, "staged");
         // The same staged position must land in the same view from any state.
         const auto staged_yaw = view.yaw_degrees();
         view.advance(-95, 3, 1);
@@ -126,6 +193,7 @@ int main() {
         // Many rotations must keep the wrapped column inside the source width.
         for (int step = 0; step < 24; ++step) view.advance(37, 0, 1);
         check_round_trip(view, "wrapped");
+        check_projection_matches_render(view, "wrapped");
 
         // The viewport ends: 0x4240ae's bounds test is 0 <= x < width and
         // 0 <= y < height, and a rejected point carries no coordinate.
@@ -156,6 +224,25 @@ int main() {
             rejected = true;
         }
         require(rejected, "accepted a short panorama source");
+
+        // 0x423e03's own rejects: a point outside the source, or one whose
+        // camera-relative angle is beyond the +/-60 degree window.
+        for (const auto& outside : {std::pair<int, int>{-1, 0}, {0, -1},
+                                    {kWidth, 0}, {0, kHeight}}) {
+            int projected_x = 0;
+            int projected_y = 0;
+            require(!view.project_source(outside.first, outside.second, projected_x,
+                                         projected_y),
+                    "0x423e03 accepted a point outside the source");
+        }
+        view.apply_staged_x(0, false);  // yaw = +180, pitch 0
+        int projected_x = 0;
+        int projected_y = 0;
+        // yaw = +180 looks at the seam, so the opposite half of the cylinder
+        // (column kWidth/2) is 180 degrees away: beyond the +/-60 degree window.
+        require(!view.project_source(kWidth / 2, kHeight / 2, projected_x,
+                                     projected_y),
+                "0x423e03 accepted a source point behind the camera");
 
         // A staged position outside 0..2495 is not a known camera request.
         rejected = false;
