@@ -674,6 +674,21 @@ void ConversationSession::execute_instruction(const ConversationInstruction& ins
             }
             break;
         }
+        case 0x48: {  // IFREPLY: if var0 == value, select reply target operand 2
+            // 0x43340a sets state+2 (the per-call cursor) to operand 2 and
+            // state+0xa (mode) to 1. The port's group machine has no cursor,
+            // so operand 2 is treated as the reply group; an out-of-range
+            // target is ignored instead of inventing an entry.
+            if (resolved(instruction, 0) == literal(instruction, 1)) {
+                const auto target = argument(instruction, 2).value;
+                if (target < program_.answers.size()) {
+                    group_ = target;
+                    mode_ = true;
+                    branch_ = true;
+                }
+            }
+            break;
+        }
         case 0x49: {  // if var0 == value: switch line group (not a CC label)
             const auto left = resolved(instruction, 0);
             const auto right = literal(instruction, 1);

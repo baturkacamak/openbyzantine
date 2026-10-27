@@ -146,10 +146,17 @@ original never plays them. Lines whose clip has no file still show their text
 | 0x40 | `state+0xd` default line group |
 | 0x42/0x43 | if variable == value, enable/disable an answer entry |
 | 0x44 | if variable == value, select a line entry |
+| 0x48 | IFREPLY: if variable == value, select operand 2 as the reply target (`state+2/state+0xa`; the port treats it as the reply group) |
 | 0x49 | if variable == value, switch line group (a group index, not a CC label) |
 | 0x4a/0x4b | disable/enable an answer entry plus redraw record |
 | 0x67 | store literal/variable into a scene local |
 | 0x74 | add literal/variable to a scene local |
+
+`0x48` is the one opcode whose original cursor (`state+2`) has no direct
+counterpart in the port's group machine: the implementation selects operand 2
+as the reply group when the variable matches. The real Hints1 conversation
+(`0x41e002`) uses it and completes (24 lines, 15 answer lists, 1,627
+instructions), which is the observed acceptance case.
 
 The port rejects every other conversation opcode with an explicit error (it does
 not skip it). `0x34/0x35`, `0x45/0x46`, the inventory/cursor branches and the

@@ -190,7 +190,8 @@ Player changes (`port/src/play_main.cpp`):
   `preferences.png`, `preferences-auto-off.png`, `kesif.png`,
   `credits-scroll.png` (0x422500 text over CREDBK.JPG), `notes.png`,
   `contacts.png` (TEMAS LİSTESİ from notebook.000), `notebook-hints.png`
-  (scene/dialog/line/speaker spread), `hints-screen.png` (HINTS.JPG + log),
+  (place title + real `.byz` lines), `hints1-conversation.png` (Hints1 Q&A),
+  `hints-screen.png` (the fallback HINTS.JPG + log),
   `hover-save-row.png` (ROLL.RLE frame 0 over OYUN KAYIT), `quit-confirm.png`.
 - Real SDL window on an isolated Xephyr `:8` (1280x960, 2x logical 640x480):
   `window-save-load.png` (slot 1 selected, OYUNA DEVAM correctly disabled) and
@@ -236,7 +237,12 @@ load scene=VH ... entry_skipped=1 background=none panorama=yes
 
 menu_notebook file=".../notebook.000" pages=28 contacts=16
 menu_credits file=".../text/CREDITS.TXT" lines=654 line_height=20
-menu_hints image=setupart/HINTS.JPG pages=28
+menu_hints conversation=Hints1 record=0 scene=HINTS
+conversation record=0 name=Hints1 ... clips=259 texts=260
+conversation_answers record=0 group=1 choices=2
+conversation_end record=0 name=Hints1 result=65535 lines=24
+                answer_lists=15 instructions=1627
+menu_hints conversation_end ok=yes name=Hints1 lines=24 answers=15
 ```
 
 A live Xephyr run with real pointer events (the host pointer was inside the
@@ -323,20 +329,31 @@ entry replay had re-run instruction 235 and requested `hagiakli`.
   Carlo Genevese, Camideki Genç Adam, Seyyar Satıcı, Arasta Shop Esnafı,
   Küratör.
 - **Notebook/hint pages** (mode 5): the same parser keeps each
-  `Scene/Dialog` block and its `line: id` entries; the spread shows the scene
-  name (SHOW.LCC), the dialog id, page `n/N` and the entry's line/speaker
-  (`0x4216fe`'s `entry_name`); controls 0x25/0x26 scroll two entries. The
-  actual dialogue line text needs `0x41db33`'s cross-archive lookup, which is
-  keyed by the session-local `DAT_00485a10` table and is not reconstructed.
+  `Scene/Dialog` block and its `line: id` entries. The page title is
+  `0x421690`'s 15-prefix table (MESSAGES.TXT lines 13..27, e.g. `mr` →
+  Mehmet'in Halı Dükkânı); each entry draws the speaker (`0x41d7ff`'s 16
+  contacts, `-1` → "Ben", `-3` → the line-0x33 text) and the actual line text
+  from `0x41db33`: block 6 record slot `Dialog` names `engine\<name>.byz`, and
+  the split `--byz` tree supplies line `%d`. Without that save record the text
+  is left out instead of guessed. Controls 0x25/0x26 move two pages
+  (`0x421949`). Real page 3/4 shows the SM conversation lines and the
+  Süleymaniye title.
 - **Credits** (`0x422500`): `text/CREDITS.TXT` is loaded (654 lines), `$`
   headings are drawn yellow, and the text scrolls up two pixels every 25 ms
   over `CREDBK.JPG`; a click or ESC stops. `CREDIT.WAV` is queued when the
   mixer is ready. `--credits-frames`/`--credits-shot` give a bounded headless
   frame.
-- **İPUCU** (`0x41e002`): the HINTS.JPG backdrop and the notebook hint log are
-  shown; the Hints1 conversation runner is explicitly reported as not
-  reconstructed in the log (`menu_hints … 0x41e002 Hints1 runner not
-  reconstructed`).
+- **İPUCU** (`0x41e002`): HINTS.JPG + the real Hints1 conversation. A
+  temporary HINTS `SceneView` is built from the sibling `--cd/--ci/--cy/--cs/
+  --ca/--co/--ce` tables, the CCB `Hints1` / CCF / BYZ archives are loaded, and
+  `run_conversation(0)` runs with HINTS.JPG rows 0x14.. as the playfield.
+  `0x48` IFREPLY was added to the conversation engine (matching variable →
+  reply group; `0x43340a` stores operand 2 in the per-call cursor). The real
+  Hints1 run completes: `lines=24 answer_lists=15 instructions=1627
+  result=65535`; the shipped Q&A list ("Neredeyim? / Kimim? / … /
+  İpuçlarından çık") renders. The clips are not on the CDs, so `media=0` and
+  the runner continues with text. If the HINTS tables are absent the screen
+  falls back to the notebook log.
 - **Hover art**: `0x41d7ff`'s ROLL.RLE (15 frames) and yellow.rle (4) are
   loaded. The hovered control 0..14 draws `ROLL.RLE[id]` (`0x41f90e`);
   save/load mode draws yellow 0/1 for page 0/other and KEŞİF draws yellow 2
@@ -353,17 +370,24 @@ New diagnostics: `--menu-text <utf8>`, `--menu-key enter|escape|backspace`,
 
 ## 6. Not implemented / differences
 
-- **Hints1 runner (`0x41e002`/`0x410669`/`0x432d6e`)** is not reconstructed;
-  the İPUCU screen shows the shipped backdrop and the notebook log.
-- **Hint line text** needs `0x41db33`'s `DAT_00485a10[dialog]` lookup; the
-  screen shows the scene/dialog/line/speaker ids instead.
-- **Blocks the port does not model** (per-scene CCB records block 6, the
-  0x5c-byte sound chain, the map thumbnail, `DAT_0045f210`, `DAT_0046066c`,
-  `DAT_0045f214`, `DAT_0045fd2c`) are preserved from the base save. A save
-  written with no base (a `new.can` start) leaves them empty/zero; the writer
-  still produces a structurally valid image.
-- **Node extra lists** with more than one entry cannot round-trip through the
-  original's own `0x4269ec`/`0x426b9d` mismatch; the writer refuses them.
+- **Hints1 media** (`hnthnt..`, `hntmic..`) is not on the shipped CDs; the
+  text/answer flow runs, but the actor clips are reported missing.
+- **Hint line text** resolves only when the save's block 6 has the record slot
+  the notebook names; the shipped `notebook.000` sample references some slots
+  that its save family does not carry, and those lines are left blank.
+- **Blocks the port does not model** (per-scene CCB record block 6, the
+  0x5c-byte sound chain, `DAT_0045f210`, `DAT_0046066c`, `DAT_0045f214`,
+  `DAT_0045fd2c`) are preserved from the base save. A save written with no base
+  (a `new.can` start) leaves them empty/zero; the writer still produces a
+  structurally valid image. Reconstructing them would need the per-field
+  semantics, which the exports do not state; the port does not invent values.
+  The 168x168 thumbnail is regenerated from the current playfield (0x420888's
+  map image is not available; the loader skips this block).
+- **Node extra lists** are written in the framing `0x426b9d` actually reads
+  (`1` + 8 bytes per entry, then `0`), because the original writer's count form
+  desynchronises its own reader for any non-empty list. `save-test` round-trips
+  a two-entry list; the shipped data has empty lists, so the byte-identical
+  check is unchanged.
 - **Movie placement** always uses mode 1's 2x 640x400 (gamepref[1] on); the
   small-window branch is not selected from the menu. A full 70 MB intro was not
   replayed.

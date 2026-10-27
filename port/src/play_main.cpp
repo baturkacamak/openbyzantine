@@ -4478,6 +4478,30 @@ byzantine::SaveGame build_save_from_state(const Session& session,
     if (save.thumbnail.size() != kSaveThumbnailBytes) {
         save.thumbnail.assign(kSaveThumbnailBytes, 0);
     }
+    // 0x420888 writes a 168x168 RGB16 thumbnail from image id 0x6c. The port
+    // does not have that map image; use the current playfield as a cosmetic
+    // thumbnail (the loader skips this block anyway).
+    {
+        const auto& source = session.display.surface;
+        save.thumbnail.assign(kSaveThumbnailBytes, 0);
+        if (source.width > 0 && source.height > 0) {
+            for (std::size_t row = 0; row < byzantine::kSaveThumbnailHeight; ++row) {
+                const int source_y = static_cast<int>(row) * source.height /
+                                     static_cast<int>(byzantine::kSaveThumbnailHeight);
+                for (std::size_t column = 0; column < byzantine::kSaveThumbnailWidth;
+                     ++column) {
+                    const int source_x =
+                        static_cast<int>(column) * source.width /
+                        static_cast<int>(byzantine::kSaveThumbnailWidth);
+                    const auto pixel = source.at(source_x, source_y);
+                    const auto at = (row * byzantine::kSaveThumbnailWidth + column) * 2;
+                    save.thumbnail[at] = static_cast<std::uint8_t>(pixel & 0xff);
+                    save.thumbnail[at + 1] =
+                        static_cast<std::uint8_t>((pixel >> 8) & 0xff);
+                }
+            }
+        }
+    }
     if (base != nullptr && base->scene_index != scene_index) {
         // Block 6 is the per-scene CCB record table (DAT_00482ad0), rebuilt on
         // every scene load. A base save from another scene would name the wrong
@@ -4772,6 +4796,9 @@ std::string utf8_to_cp1254(const std::string& text) {
 // (0x41f065/0x41f41c), OYUN YÜKLE loads the selected NN.BTB through the same
 // parser and travel path, KEŞİF replays the shipped movies/simulations and the
 // notebook pages show their shipped art.
+// Defined after run_conversation (0x41e002 needs the conversation runner).
+bool play_hints_conversation(Session& session);
+
 struct MenuUi {
     enum class Confirm { none, delete_slot, quit, overwrite };
 
@@ -4939,6 +4966,12 @@ struct MenuUi {
             return (page + 1) * 10 < static_cast<int>(slot_names.size());
         }
         if (mode == 1 && id == 0x1d) return page > 0;
+        // 0x421949 / 0x41fe46 case 5: the notebook page arrows are enabled by
+        // the current page (DAT_0046c5f5/0xf6 = controls 0x25/0x26).
+        if (mode == 5 && id == 0x25) {
+            return hint_index + 2 < static_cast<int>(note_pages.size());
+        }
+        if (mode == 5 && id == 0x26) return hint_index > 0;
         return byzantine::menu_control_enabled(mode, id, present, slot >= 0);
     }
 
@@ -5022,7 +5055,7 @@ struct MenuUi {
     const byzantine::Rgb16Surface* art(Session& session, int value) {
         const auto cached = art_cache.find(value);
         if (cached != art_cache.end()) return &cached->second;
-        const auto root = setup_dir(session.options);
+        const auto root = MenuUi::setup_dir(session.options);
         if (!root) return nullptr;
         const char* names[] = {"preffs", "setup00", "setup00", "s_note00",
                                "s_note01", "s_note02", "credbk", "hints"};
@@ -5227,38 +5260,114 @@ struct MenuUi {
         }
     }
 
-    void draw_notebook_hints(Session& session) {
+    void draw_hint_page(Session& session, const NotePage& page, int page_number,
+                        int left, int top) {
         const auto* font = menu_font(session);
         if (font == nullptr) return;
         auto& screen = session.display.screen;
-        if (note_pages.empty()) {
-            byzantine::draw_text(screen, *font, "NOTLAR bos", 0x172, 0x6c, 1, 3,
-                                 0x0000);
-            return;
-        }
-        hint_index = std::clamp(hint_index, 0, static_cast<int>(note_pages.size()) - 1);
-        const auto& page = note_pages[static_cast<std::size_t>(hint_index)];
-        std::string scene = "?";
-        if (session.metadata &&
-            page.scene >= 0 &&
+        // 0x4216fe: the page number + place name (0x421690's 15-prefix table,
+        // MESSAGES.TXT lines 13..27), then each entry's speaker and line text.
+        static const char* const keys[15] = {
+            "hs", "as", "am", "bc", "bb", "ea", "ft", "gt", "hl",
+            "iu", "mr", "nb", "tk", "sp", "sm"};
+        std::string title;
+        std::string scene_name;
+        if (session.metadata && page.scene >= 0 &&
             page.scene < static_cast<int>(session.metadata->scenes.size())) {
-            scene = session.metadata->scenes[static_cast<std::size_t>(page.scene)].scene;
+            const auto& scene =
+                session.metadata->scenes[static_cast<std::size_t>(page.scene)].scene;
+            scene_name = scene;
+            const auto prefix = lower_ascii(scene.substr(0, 2));
+            for (int index = 0; index < 15; ++index) {
+                if (prefix != keys[index]) continue;
+                const int line = 13 + index;
+                if (line < static_cast<int>(session.messages.size())) {
+                    title = session.messages[static_cast<std::size_t>(line)];
+                }
+                break;
+            }
         }
-        const auto header = "Scene " + scene + "  Dialog " + std::to_string(page.dialog) +
-                            "  (" + std::to_string(hint_index + 1) + '/' +
-                            std::to_string(note_pages.size()) + ")";
-        byzantine::draw_text(screen, *font, header, 0x172, 0x55, 1, 3, 0x0000);
+        if (title.empty()) {
+            title = !scene_name.empty()
+                        ? scene_name
+                        : (session.messages.size() > 59 ? session.messages[59]
+                                                         : "(devam edecek)");
+        }
+        byzantine::draw_text(screen, *font, std::to_string(page_number) + " " + title,
+                             left, top, 1, 3, 0x0000);
+        int y = top + 0x1b;
         const int first = std::clamp(hint_scroll, 0,
                                      std::max(0, static_cast<int>(page.entries.size()) - 1));
-        int y = 0x69 + font->line_height;
-        for (int index = first;
-             index < static_cast<int>(page.entries.size()) && y + font->line_height < 0x1d5;
-             ++index) {
+        for (int index = first; index < static_cast<int>(page.entries.size()); ++index) {
             const auto& entry = page.entries[static_cast<std::size_t>(index)];
             const auto name = entry_name(entry.id, session);
-            const auto line = std::to_string(entry.line) + ": " + name;
-            byzantine::draw_text(screen, *font, line, 0x172, y, 1, 3, 0x0000);
-            y += 0x14;
+            if (y + font->line_height >= 0x1df) break;
+            byzantine::draw_text(screen, *font, name, left, y, 1, 3, 0x0000);
+            y += font->line_height;
+            const auto text = note_line_text(session, page.dialog, entry.line);
+            if (!text.empty()) {
+                const auto lines = wrap_dialog_text(*font, text, 200);
+                for (const auto& line : lines) {
+                    if (y + font->line_height >= 0x1df) break;
+                    byzantine::draw_text(screen, *font, line, left + 10, y, 1, 3,
+                                         0x0000);
+                    y += font->line_height;
+                }
+            }
+            y += 2;
+        }
+    }
+
+    // 0x41db33: line `line` (0-based) of engine\<name>.byz, where the name is
+    // the block-6 record at slot `dialog`. The split `--byz` tree holds the same
+    // files. Without the matching save record the text is not invented.
+    std::string note_line_text(Session& session, int dialog, int line) {
+        if (!session.save_base) return {};
+        const auto record = std::find_if(
+            session.save_base->scene_records.begin(),
+            session.save_base->scene_records.end(),
+            [dialog](const byzantine::SaveSceneRecord& entry) {
+                return entry.slot == static_cast<std::uint16_t>(dialog);
+            });
+        if (record == session.save_base->scene_records.end()) return {};
+        const auto file = find_child(session.options.byz, record->name);
+        if (!file) return {};
+        try {
+            const auto bytes = read_file(*file);
+            std::string text;
+            int index = 0;
+            for (const auto byte : bytes) {
+                if (byte == '\n') {
+                    if (index == line) break;
+                    ++index;
+                    text.clear();
+                } else if (byte != '\r') {
+                    text.push_back(static_cast<char>(byte));
+                }
+            }
+            if (index != line) return {};
+            return byzantine::cp1254_to_game_text(text);
+        } catch (const std::exception&) {
+            return {};
+        }
+    }
+
+    void draw_notebook_hints(Session& session) {
+        if (note_pages.empty()) {
+            const auto* font = menu_font(session);
+            if (font != nullptr) {
+                byzantine::draw_text(session.display.screen, *font, "NOTLAR bos",
+                                     0x172, 0x6c, 1, 3, 0x0000);
+            }
+            return;
+        }
+        hint_index = std::clamp(hint_index, 0,
+                                static_cast<int>(note_pages.size()) - 1);
+        const auto& left = note_pages[static_cast<std::size_t>(hint_index)];
+        draw_hint_page(session, left, hint_index + 1, 0x93, 0x46);
+        if (hint_index + 1 < static_cast<int>(note_pages.size())) {
+            const auto& right = note_pages[static_cast<std::size_t>(hint_index + 1)];
+            draw_hint_page(session, right, hint_index + 2, 0x180, 0x4d);
         }
     }
 
@@ -6109,29 +6218,29 @@ struct MenuUi {
                     return set_notice(session, "Defter sayfa kaydirma bu ekranda yok.",
                                       "notes_scroll");
                 }
-                const auto& page = note_pages[static_cast<std::size_t>(
-                    std::clamp(hint_index, 0, static_cast<int>(note_pages.size()) - 1))];
-                const int limit = std::max(0, static_cast<int>(page.entries.size()) - 1);
-                hint_scroll += (hit == 0x25 ? 2 : -2);
-                hint_scroll = std::clamp(hint_scroll, 0, limit);
-                std::cout << "menu_notes_scroll page=" << hint_index
-                          << " scroll=" << hint_scroll << " entries="
-                          << page.entries.size() << '\n';
+                // 0x421949: DAT_0045f7e4 += 2 / -= 2; two pages are drawn.
+                hint_index += (hit == 0x25 ? 2 : -2);
+                hint_index = std::clamp(hint_index, 0,
+                                        std::max(0, static_cast<int>(note_pages.size()) - 1));
+                hint_scroll = 0;
+                std::cout << "menu_notes_page page=" << hint_index + 1 << '/'
+                          << note_pages.size() << '\n';
                 present(session);
                 return true;
             }
             case 0x27:
-                // 0x41e002: HINTS.JPG + the Hints1 conversation. The port shows
-                // the shipped backdrop and the notebook hint log; the Hints1
-                // runner is reported as not reconstructed.
+                // 0x41e002: HINTS.JPG + the Hints1 conversation.
                 load_notebook(session);
+                if (play_hints_conversation(session)) {
+                    present(session);
+                    return true;
+                }
                 hints = true;
                 hint_index = 0;
                 hint_scroll = 0;
                 std::cout << "menu_hints image=setupart/HINTS.JPG pages="
                           << note_pages.size()
-                          << " text=notebook.000 (0x41e002 Hints1 runner not "
-                             "reconstructed)\n";
+                          << " fallback=notebook (Hints1 conversation unavailable)\n";
                 present(session);
                 return true;
             default:
@@ -6742,6 +6851,100 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
         return outcome;
     }
     return outcome;
+}
+
+bool play_hints_conversation(Session& session) {
+    // 0x41e002: load HINTS.JPG, then 0x410669("Hints1") + 0x432d6e runs the
+    // hints conversation with the HINTS scene's own cd/ci/cy tables.
+    if (!session.metadata) return false;
+    int hint_scene = -1;
+    for (std::size_t index = 0; index < session.metadata->scenes.size(); ++index) {
+        if (lower_ascii(session.metadata->scenes[index].scene) == "hints") {
+            hint_scene = static_cast<int>(index);
+            break;
+        }
+    }
+    if (hint_scene < 0) return false;
+    const auto cc = sibling_scene_file(session.view.cc_path, "hints");
+    const auto cb = sibling_scene_file(session.view.cb_path, "hints");
+    if (!cc || !cb) return false;
+    auto next = session.options.scene;
+    next.erase("--save");
+    for (const char* key : {"--ci", "--cy", "--cf", "--cs", "--ca", "--co", "--ce", "--cd"}) {
+        const auto found = next.find(key);
+        if (found == next.end()) continue;
+        const auto file = sibling_scene_file(found->second, "hints");
+        if (file) found->second = file->string();
+        else next.erase(found);
+    }
+    const auto saved_scene = session.options.scene;
+    const auto saved_cc = session.options.cc_path;
+    const auto saved_cb = session.options.cb_path;
+    SceneView saved_view = session.view;
+    const auto saved_surface = session.display.surface;
+    SceneView hints;
+    hints.cc_path = cc->string();
+    hints.cb_path = cb->string();
+    try {
+        hints.script = byzantine::parse_cc(read_file(hints.cc_path));
+        hints.entries = byzantine::parse_cb(read_file(hints.cb_path));
+    } catch (const std::exception& error) {
+        std::cout << "menu_hints tables: " << error.what() << '\n';
+        return false;
+    }
+    hints.name = "HINTS";
+    auto setup = byzantine::load_scene_setup(hints.cc_path, next);
+    hints.entry_state = setup.state;
+    hints.state = setup.state;
+    hints.pool_on_arrival = setup.state.variable_pool;
+    session.view = std::move(hints);
+    session.options.scene = next;
+    session.options.cc_path = session.view.cc_path;
+    session.options.cb_path = session.view.cb_path;
+    // HINTS.JPG is a 640x480 screen; the conversation compositor places the
+    // playfield at row 0x14, so copy the matching rows.
+    const auto root = MenuUi::setup_dir(session.options);
+    if (root) {
+        if (const auto file = find_child(*root, "hints")) {
+            try {
+                const auto image = byzantine::decode_jpeg_file(file->string());
+                byzantine::Rgb16Surface surface =
+                    byzantine::make_surface(kSceneWidth, kSceneHeight, 0);
+                for (int row = 0; row < kSceneHeight && row + kScreenPlayfieldTop < image.height;
+                     ++row) {
+                    for (int column = 0; column < kSceneWidth && column < image.width;
+                         ++column) {
+                        const auto source =
+                            (static_cast<std::size_t>(row + kScreenPlayfieldTop) *
+                                 static_cast<std::size_t>(image.width) +
+                             static_cast<std::size_t>(column)) *
+                            3;
+                        const auto r = image.rgb[source];
+                        const auto g = image.rgb[source + 1];
+                        const auto b = image.rgb[source + 2];
+                        surface.pixels[static_cast<std::size_t>(row) * kSceneWidth +
+                                        column] = static_cast<std::uint16_t>(
+                            ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));
+                    }
+                }
+                session.display.surface = std::move(surface);
+            } catch (const std::exception& error) {
+                std::cout << "menu_hints image: " << error.what() << '\n';
+            }
+        }
+    }
+    std::cout << "menu_hints conversation=Hints1 record=0 scene=HINTS\n";
+    const auto outcome = run_conversation(session, 0, 0, true);
+    session.view = std::move(saved_view);
+    session.display.surface = std::move(saved_surface);
+    session.options.scene = saved_scene;
+    session.options.cc_path = saved_cc;
+    session.options.cb_path = saved_cb;
+    std::cout << "menu_hints conversation_end ok=" << (outcome.ok ? "yes" : "no")
+              << " name=" << outcome.name << " lines=" << outcome.lines
+              << " answers=" << outcome.answer_lists << " media=" << outcome.media
+              << '\n';
+    return outcome.ok;
 }
 
 // 0xfffe makes 0x42db22 return 1; 0x42d594 stores DAT_00484e28 and clears the

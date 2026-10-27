@@ -41,10 +41,14 @@ Verification: `make -C port -j2 all test` passes (new `menu-test`),
 `verify_ea_layer.py`, `verify_ea_photo.py`, `verify_ea_single_execution.py` and
 `verify_mr_arrival.py` still pass. Headless `--menu/--menu-click-at/--menu-shot`
 runs and a real Xephyr window (slot selected → OYUN YÜKLE → VH with the CD6
-overlay) are in `port/output/top-menu/`. Remaining: the 0x41e002 Hints1
-conversation runner and its `0x41db33` line lookup (the İPUCU screen shows
-HINTS.JPG + the notebook log), the unmodelled save blocks (kept from the base
-save), one-entry node-extra lists, and full-length intro replay. Report:
+overlay) are in `port/output/top-menu/`. The notebook pages now resolve
+`0x41db33`'s `<record>.byz` line through the save's block-6 `Dialog` slot and
+show the place title from `0x421690`; the İPUCU tab runs the real Hints1
+conversation (`0x48` IFREPLY added to the conversation engine; 24 lines, 15
+answer lists, 1627 instructions; clips are not on the CD). Remaining: the
+unmodelled save blocks (kept from the base save; their field semantics are
+not recovered), Hints1 media clips (not shipped), and full-length intro
+replay. Node extra lists and the save thumbnail are now generated. Report:
 `analysis/rea/TOP_MENU.md`.
 
 ## Site video revisit investigation (27 October 2026)

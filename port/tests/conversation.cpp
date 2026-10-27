@@ -431,6 +431,35 @@ void test_conditions() {
           "0x42 re-enabled the answer when the variable matched");
 }
 
+void test_ifreply() {
+    for (const auto value : {0, 2}) {
+        Writer writer;
+        write_header(writer);
+        write_groups(writer, {group({entry(1, {
+            Instr{0x48, {{2, 7}, {64, 2}, {8, 1}}},
+            Instr{0x39, {}}})})});
+        write_groups(writer, {group({}), group({entry(3, {Instr{0x39, {}}}),
+                                                entry(4, {Instr{0x39, {}}})})});
+        const auto text = lines({"null", "a", "b", "c", "d"});
+        auto program = byzantine::parse_conversation_program(writer.bytes, text, text, "ifreply");
+        auto state = zero_state();
+        state.variables[7] = value;
+        byzantine::ConversationSession session(program, state);
+        session.start();
+        (void)session.next();
+        session.line_shown();
+        const auto event = session.next();
+        if (value == 2) {
+            check(event.kind == byzantine::ConversationEventKind::answers &&
+                      event.answers.size() == 2,
+                  "0x48 IFREPLY must select the reply group when the variable matches");
+        } else {
+            check(event.kind != byzantine::ConversationEventKind::answers,
+                  "0x48 IFREPLY must not select the reply group on a mismatch");
+        }
+    }
+}
+
 void test_conditional_toggle() {
     for (const auto opcode : {0x4c, 0x4d}) {
         for (const auto value : {0, 2}) {
@@ -687,6 +716,7 @@ int main(int argc, char** argv) {
         test_slot_opcodes();
         test_memory_reentry();
         test_conditions();
+        test_ifreply();
         test_conditional_toggle();
         test_inline_voice();
         test_inline_voice_prelude_and_answer();

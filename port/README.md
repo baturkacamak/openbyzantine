@@ -15,12 +15,15 @@ tıklanınca `0x41e289`'un ekranı açılır:
   Kayıt adı için gerçek MESSAGE 0x3c istemi ve CP1254 metin girişi kullanılır;
   başka diskten yüklemede o diskin animasyon katmanı hazırlanır.
 - **NOTLAR** (mode 3): `s_note00.jpg` sayfası; sağ sayfaya tıklamak TEMAS
-  LİSTESİ (notebook.000 kişileri) ve defter sayfalarına geçer.
+  LİSTESİ (notebook.000 kişileri) ve defter sayfalarına geçer. Defter
+  sayfalarında yer adı (0x421690 tablosu), konuşmacı ve gerçek satır metni
+  (`0x41db33` → kayıttaki block-6 `Dialog` slotunun `.byz` dosyası) gösterilir.
 - **KEŞİF** (mode 2): `status.000`'a göre `MESSAGES.TXT` 0x34..0x3a satırları;
   jenerik (`CREDBK.JPG` + `text/CREDITS.TXT` kaydırması), dört simülasyon
   sahnesi (`vtdisc` → `vt` zinciri dahil) ve intro/epilogue filmleri (mevcut
-  FFmpeg klip yolu). Sağdaki İPUCU sekmesi HINTS.JPG + defter ipucu kaydını
-  gösterir (Hints1 konuşma yürütücüsü henüz yok).
+  FFmpeg klip yolu). Sağdaki İPUCU sekmesi HINTS.JPG + gerçek Hints1
+  konuşmasını çalıştırır (`0x48` IFREPLY eklendi; klipler CD'de yoksa metinle
+  devam eder, tablolar yoksa defter kaydına düşer).
 - **TERCİHLER** (mode 0): yedi tercih; değişiklik `savegame/gamepref_000`
   dosyasına yazılır (`0x41f7be`).
 

@@ -568,18 +568,21 @@ std::vector<std::uint8_t> write_save(const SaveGame& save) {
         writer.u32(node->frame_index_20);
         writer.u32(node->field_2c);
         writer.u32(node->field_30);
-        // FUN_004269ec writes a count byte, then count * (u32, u32). 0x426b9d
-        // reads the byte as a per-entry control value, so only 0 or 1
-        // round-trips; the shipped data is always 0.
-        if (node->extra.size() > 1) {
-            throw std::runtime_error(
-                "save writer: node extra list with more than one entry cannot be "
-                "read back by 0x426b9d");
-        }
-        writer.u8(static_cast<std::uint8_t>(node->extra.size()));
-        for (const auto& entry : node->extra) {
-            writer.u32(entry.first);
-            writer.u32(entry.second);
+        // 0x4269ec writes a count byte, then count * (u32, u32), but 0x426b9d
+        // reads a *control* byte and 8 bytes while it is 1..127. The shipped
+        // records always have an empty list, where both agree. To keep a list
+        // with one or more entries loadable by the original reader, write its
+        // framing: 1 + 8 bytes per entry, then a 0 terminator. The original
+        // writer's count form would desynchronise 0x426b9d.
+        if (node->extra.empty()) {
+            writer.u8(0);
+        } else {
+            for (const auto& entry : node->extra) {
+                writer.u8(1);
+                writer.u32(entry.first);
+                writer.u32(entry.second);
+            }
+            writer.u8(0);
         }
     }
 

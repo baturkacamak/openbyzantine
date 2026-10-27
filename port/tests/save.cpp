@@ -311,6 +311,35 @@ void check_restore_and_object_opcodes() {
             "0xcc did not sign-extend the encoded short");
 }
 
+void check_writer_node_extras() {
+    // FUN_004269ec writes a count; FAM_00426b9d reads control bytes. The writer
+    // emits the reader's framing (1 + 8 bytes per entry, 0 terminator), so a
+    // multi-entry list is loadable and parse_save sees it again.
+    byzantine::SaveGame save;
+    save.thumbnail.assign(byzantine::kSaveThumbnailBytes, 0);
+    save.node_values.assign(byzantine::kSaveNodeValueCount, 0);
+    byzantine::SaveNodeSlot node;
+    node.present = true;
+    node.slot = 3;
+    node.marker = 0;
+    node.frame_index_1c = 0xffff;
+    node.frame_index_20 = 0xffff;
+    node.field_2c = 0xffffffffu;
+    node.field_30 = 0xffffffffu;
+    node.extra.push_back(byzantine::SaveNodeExtra{1, 0x12345678u, 0x9abcdef0u});
+    node.extra.push_back(byzantine::SaveNodeExtra{1, 0x01020304u, 0x05060708u});
+    save.nodes.push_back(node);
+    const auto bytes = byzantine::write_save(save);
+    const auto parsed = byzantine::parse_save(bytes);
+    require(parsed.nodes.size() == 1 && parsed.nodes[0].extra.size() == 2,
+            "node extra list with two entries did not round-trip");
+    require(parsed.nodes[0].extra[0].first == 0x12345678u &&
+                parsed.nodes[0].extra[0].second == 0x9abcdef0u &&
+                parsed.nodes[0].extra[1].first == 0x01020304u &&
+                parsed.nodes[0].extra[1].second == 0x05060708u,
+            "node extra list values changed");
+}
+
 void check_chapter_list() {
     using byzantine::parse_chapter_scene_list;
     using byzantine::save_scene_name;
@@ -516,6 +545,7 @@ void check_real_save(const std::filesystem::path& path, const std::vector<std::s
 int main(int argc, char** argv) {
     try {
         check_chapter_list();
+        check_writer_node_extras();
         check_restore_and_object_opcodes();
 
         // Real saves are supplied by the caller; without them the layout checks
