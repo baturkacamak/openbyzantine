@@ -165,9 +165,9 @@ struct Options {
     std::size_t compose_frames = 0;
     // --anim-pass-hz <hz>: reference rate of the original's uncapped record
     // pass (0x43b216 draw + 0x43bb77 step). The shipped +0x04 delays divide
-    // this rate, so it sets the animation speed. Default 250 (see
-    // analysis/rea/ANIMATION_FRAME_PACING.md).
-    unsigned anim_pass_hz = 250;
+    // this rate, so it sets the animation speed. Default 60 (the delay table's
+    // 60 Hz tick scale; see analysis/rea/ANIMATION_RATE_GLOBAL.md).
+    unsigned anim_pass_hz = 60;
 
     // --conversation-choices 1,0,...: deterministic answers for --shot/tests.
     // The interactive player never uses this: an answer is a real mouse click.
@@ -1182,7 +1182,7 @@ struct Display {
     // The projector is 0x40241c's panorama branch: a 0xb9 node makes the
     // record's +0x00/+0x02 source coordinates (0x423e03 projects them onto the
     // viewport). Without a panorama they are already surface coordinates.
-    void compose(SceneView& view, bool verbose = true) {
+    void compose(SceneView& view, bool verbose = true, bool advance = true) {
         std::fill(surface.pixels.begin(), surface.pixels.end(), 0);
         // The scene layer is whichever of 0x69 (background) / 0xb9 (node) ran
         // LAST (see panorama_layer).
@@ -1205,13 +1205,16 @@ struct Display {
                                       background_pixels.data(), 0, 0);
             }
         }
-        const auto drawn = byzantine::compose_scene(view.state, surface, scene_projector(view));
+        const auto drawn = byzantine::compose_scene(view.state, surface, scene_projector(view), advance);
         // Records this pass drew and stepped (0x43b216's normal pass). The
         // animation clock applies any further passes the original's uncapped
         // loop would have run between two host frames to exactly these.
         drawn_record_ids.clear();
         for (const auto& entry : drawn.records) {
-            if (entry.snap || !entry.visible || !entry.blit.drawn) continue;
+            // 0x43b216 runs 0x43bb77 after every record it accepted, even when
+            // the current frame covers no pixels (a blank delta frame still
+            // advances); only rejected/hidden/snap records are skipped.
+            if (entry.snap || !entry.visible) continue;
             drawn_record_ids.push_back(entry.id);
         }
         draw_text_windows(view, verbose);
@@ -1260,7 +1263,7 @@ struct Display {
             // 0x43b216 only steps records it drew: an off-window origin is
             // rejected by 0x40241c and never advances, so it must not keep the
             // window repainting. In a panorama scene the origin is in source
-            // space, so the same 0x423e03 test decides visibility.
+            // space, so the same projection decides visibility.
             if (projector != nullptr) {
                 // Same 0x40241c anchor test the composer uses, with the current
                 // frame's geometry (0x43c114 reads it from the frame node).
@@ -1270,6 +1273,19 @@ struct Display {
                     *record.current_frame < record.frames.size()) {
                     width = record.frames[*record.current_frame].width;
                     height = record.frames[*record.current_frame].height;
+                }
+                // The source-space patch path can draw a partially visible
+                // record whose five anchors all fail (it is clipped by the
+                // viewport, not dropped); use its bbox when available.
+                int x0 = 0;
+                int y0 = 0;
+                int x1 = -1;
+                int y1 = -1;
+                if (projector->source_rect_viewport_bbox(
+                        record.x, record.y - byzantine::kPlayfieldTop, width,
+                        height, x0, y0, x1, y1)) {
+                    if (x0 <= x1 && y0 <= y1) return true;
+                    continue;
                 }
                 if (!byzantine::project_record_position(*projector, record.x, record.y,
                                                         width, height)) {
@@ -5064,7 +5080,7 @@ int main(int argc, char** argv) {
             const auto turn = [&](double yaw, double pitch) {
                 if (!panorama_layer(session.view)) return;
                 session.view.panorama->advance(yaw, pitch, 1.0);
-                session.display.compose(session.view, false);
+                session.display.compose(session.view, false, false);
                 session.display.present(session.view, options.overlay);
                 std::cout << "panorama yaw=" << session.view.panorama->yaw_degrees()
                           << " pitch=" << session.view.panorama->pitch_degrees()
@@ -5131,9 +5147,9 @@ int main(int argc, char** argv) {
             // after every visible record. The original's loop is uncapped, so
             // its pass rate (not the host's compose cost) decides how fast an
             // animation plays. The host renders on a 16 ms tick but keeps the
-            // record-pass clock separate (`--anim-pass-hz`): every pass the
-            // clock owes beyond the one the compose already did is applied to
-            // the records that compose drew.
+            // record-pass clock separate (`--anim-pass-hz`): the compose draws
+            // the current frame without stepping, then exactly the passes the
+            // clock owes are applied to the records that compose drew.
             byzantine::FramePacer pacer(SDL_GetTicks64());
             byzantine::PassClock pass_clock(SDL_GetTicks64(), options.anim_pass_hz);
             const auto stall_passes = static_cast<std::uint64_t>(options.anim_pass_hz);
@@ -5269,8 +5285,11 @@ int main(int argc, char** argv) {
                 }
                 if (pacer.due(now_ms) != 0) {
                     if (animates) {
-                        session.display.compose(session.view, false);  // one pass
-                        pass_clock.applied(1);
+                        // Draw the current frame without stepping it. The
+                        // record pass clock owns the step: the old "+1 per
+                        // compose" made the rate depend on the host's compose
+                        // count (and event composes stepped the animation).
+                        session.display.compose(session.view, false, false);
                         const auto owed = pass_clock.remaining(now_ms);
                         if (owed > stall_passes) {
                             // A scene load, conversation or media clip is not

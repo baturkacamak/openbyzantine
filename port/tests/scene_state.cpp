@@ -1155,6 +1155,83 @@ int main(int argc, char** argv) {
                         outside.records[0].blit.written == 0,
                     "compose_scene drew a record outside the panorama view");
         }
+        // A projector with the sampler inverse draws the record's SOURCE-SPACE
+        // patch: one source pixel can cover several viewport pixels, and the
+        // whole patch (not a single anchor) is clipped to the surface. This is
+        // the path real panorama scenes use for their background patches.
+        {
+            struct WarpProjector : byzantine::SceneProjector {
+                bool project_source(int source_x, int source_y, int& viewport_x,
+                                    int& viewport_y) const override {
+                    viewport_x = (source_x - 100) * 2;
+                    viewport_y = (source_y - 10) * 2;
+                    return true;
+                }
+                bool map_viewport(int viewport_x, int viewport_y, int& source_x,
+                                  int& source_y) const override {
+                    source_x = 100 + viewport_x / 2;
+                    source_y = 10 + viewport_y / 2;
+                    return true;
+                }
+                bool source_rect_viewport_bbox(int source_x, int source_y,
+                                               int width, int height, int& x0,
+                                               int& y0, int& x1, int& y1) const override {
+                    x0 = (source_x - 100) * 2;
+                    y0 = (source_y - 10) * 2;
+                    x1 = x0 + width * 2 - 1;
+                    y1 = y0 + height * 2 - 1;
+                    return true;
+                }
+            } warp_projector;
+            auto warp_state = compose_state;
+            warp_state.records.at(1).x = -1000;  // not part of this check
+            warp_state.records.at(2).x = 100;
+            warp_state.records.at(2).y = byzantine::kPlayfieldTop + 10;
+            auto warp_target = byzantine::make_surface(8, 4, 0);
+            const auto warped = byzantine::compose_scene(warp_state, warp_target,
+                                                         &warp_projector);
+            // The 4x2 frame covers only (0,0); at 2x that one source pixel
+            // covers viewport (0..1,0..1). The transparent pixels stay 0.
+            require(warped.drawn == 1 && warped.projected >= 1 &&
+                        warped.pixels_written == 4 &&
+                        warped.records[0].blit.x == 0 &&
+                        warped.records[0].blit.y == 0 &&
+                        warped.records[0].blit.covered == 1 &&
+                        warped.records[0].blit.written == 4 &&
+                        warp_target.at(0, 0) == 0x2211 &&
+                        warp_target.at(1, 1) == 0x2211 &&
+                        warp_target.at(2, 0) == 0,
+                    "warped record patch is not sampled through map_viewport");
+        }
+        // The interactive loop draws without stepping and applies owed passes
+        // separately; compose_scene must honour `advance=false` for that path.
+        {
+            auto step_state = compose_state;
+            auto& step_record = step_state.records.at(2);
+            step_record.flags = 0;
+            step_record.frames_known = true;
+            step_record.frame_count = 3;
+            step_record.current_frame = 0;
+            step_record.field04 = 0;
+            step_record.field06 = 0;
+            auto step_target = byzantine::make_surface(8, 8, 0);
+            byzantine::compose_scene(step_state, step_target, nullptr, true);
+            require(step_state.records.at(2).current_frame == 1,
+                    "compose_scene(advance=true) did not step the record");
+
+            auto hold_state = compose_state;
+            auto& hold_record = hold_state.records.at(2);
+            hold_record.flags = 0;
+            hold_record.frames_known = true;
+            hold_record.frame_count = 3;
+            hold_record.current_frame = 0;
+            hold_record.field04 = 0;
+            hold_record.field06 = 0;
+            auto hold_target = byzantine::make_surface(8, 8, 0);
+            byzantine::compose_scene(hold_state, hold_target, nullptr, false);
+            require(hold_state.records.at(2).current_frame == 0,
+                    "compose_scene(advance=false) stepped the record");
+        }
         // 0x40241c rejects a record whose top-left is above the playfield: the
         // original never draws through a negative origin.
         auto above_state = compose_state;

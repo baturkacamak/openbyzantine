@@ -1,3 +1,10 @@
+> Follow-up 27 October 2026: the single-anchor, axis-aligned blit described
+> here was the cause of the reported NB alignment defect at off-axis yaws.
+> The player now draws the record as a source-space patch through the
+> sampler's inverse map (`map_viewport`/`source_rect_viewport_bbox`); see
+> `PANORAMA_SPRITE_PATCH_WARP.md`. The projection and source-space evidence
+> below remains valid.
+
 # Panorama scene sprites: 0x40241c's projection branch
 
 Date: 27 October 2026. Target `analysis/rea/BETRAYAL.EXE`, SHA-256

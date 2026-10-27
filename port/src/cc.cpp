@@ -659,7 +659,7 @@ std::optional<std::pair<std::int32_t, std::int32_t>> project_record_position(
 }
 
 SceneCompose compose_scene(SceneState& state, Rgb16Surface& target,
-                           const SceneProjector* projector) {
+                           const SceneProjector* projector, bool advance) {
     SceneCompose result;
     // 0x43c114 + 0x40241c + 0x42b679 for a record at one position. `screen_y`
     // is the record's +0x02/+0x26 value (it carries the +0x14 surface bias).
@@ -692,8 +692,117 @@ SceneCompose compose_scene(SceneState& state, Rgb16Surface& target,
         }
         entry.width = current_decoded->width;
         entry.height = current_decoded->height;
-        std::int32_t x = screen_x;
-        std::int32_t y = screen_y - kPlayfieldTop;
+        const std::int32_t source_x = screen_x;
+        const std::int32_t source_y = screen_y - kPlayfieldTop;
+        // A panorama projector exposes the sampler's inverse. Shipped panorama
+        // records are SOURCE-space patches (their frame 0 is a crop of the
+        // panorama with the actor baked in), so the whole patch must be
+        // resampled through the same map as the background. The old point
+        // placement below is only a fallback for a projector without an inverse
+        // (synthetic tests) and for non-panorama scenes.
+        int bx0 = 0;
+        int by0 = 0;
+        int bx1 = -1;
+        int by1 = -1;
+        if (projector != nullptr &&
+            projector->source_rect_viewport_bbox(source_x, source_y,
+                                                 current_decoded->width,
+                                                 current_decoded->height, bx0,
+                                                 by0, bx1, by1)) {
+            // A projector reports the panorama viewport; the destination can be
+            // smaller (a test surface or `--surface`). Clamp before scanning.
+            bx0 = std::max(0, bx0);
+            by0 = std::max(0, by0);
+            bx1 = std::min(target.width - 1, bx1);
+            by1 = std::min(target.height - 1, by1);
+            entry.visible = bx0 <= bx1 && by0 <= by1;
+            if (!entry.visible) {
+                entry.blit.x = bx0;
+                entry.blit.y = by0;
+                entry.blit.covered = current_decoded->run_pixels;
+                entry.blit.clipped = current_decoded->run_pixels;
+                result.records.push_back(entry);
+                return false;
+            }
+            ++result.projected;
+            const auto width = current_decoded->width;
+            const auto height = current_decoded->height;
+            const auto patch_size = static_cast<std::size_t>(width) *
+                                    static_cast<std::size_t>(height);
+            std::vector<std::uint16_t> patch(patch_size);
+            std::vector<std::uint8_t> covered(patch_size, 0);
+            for (std::uint16_t node = 0; node <= current; ++node) {
+                const auto decoded = node == current
+                                         ? current_decoded
+                                         : state.anims_library->decode(name, node);
+                if (!decoded) continue;
+                const auto node_width = decoded->width;
+                const auto node_height = decoded->height;
+                if (node_width <= 0 || node_height <= 0) continue;
+                if (decoded->pixels.size() !=
+                        static_cast<std::size_t>(node_width) *
+                            static_cast<std::size_t>(node_height) ||
+                    decoded->covered.size() != decoded->pixels.size()) {
+                    continue;
+                }
+                for (std::int32_t row = 0; row < node_height; ++row) {
+                    if (row < 0 || row >= height) continue;
+                    for (std::int32_t column = 0; column < node_width; ++column) {
+                        if (column < 0 || column >= width) continue;
+                        const auto node_index =
+                            static_cast<std::size_t>(row) *
+                                static_cast<std::size_t>(node_width) +
+                            static_cast<std::size_t>(column);
+                        if (decoded->covered[node_index] == 0) continue;
+                        const auto patch_index =
+                            static_cast<std::size_t>(row) *
+                                static_cast<std::size_t>(width) +
+                            static_cast<std::size_t>(column);
+                        patch[patch_index] = decoded->pixels[node_index];
+                        covered[patch_index] = 1;
+                    }
+                }
+            }
+            std::size_t covered_total = 0;
+            for (const auto value : covered) covered_total += value != 0 ? 1 : 0;
+            std::size_t written = 0;
+            for (int viewport_y = by0; viewport_y <= by1; ++viewport_y) {
+                for (int viewport_x = bx0; viewport_x <= bx1; ++viewport_x) {
+                    int mapped_x = 0;
+                    int mapped_y = 0;
+                    if (!projector->map_viewport(viewport_x, viewport_y, mapped_x,
+                                                 mapped_y)) {
+                        continue;
+                    }
+                    const auto column = mapped_x - source_x;
+                    const auto row = mapped_y - source_y;
+                    if (column < 0 || row < 0 || column >= width || row >= height) {
+                        continue;
+                    }
+                    const auto patch_index =
+                        static_cast<std::size_t>(row) *
+                            static_cast<std::size_t>(width) +
+                        static_cast<std::size_t>(column);
+                    if (covered[patch_index] == 0) continue;
+                    target.at(viewport_x, viewport_y) = patch[patch_index];
+                    ++written;
+                }
+            }
+            entry.blit.x = bx0;
+            entry.blit.y = by0;
+            entry.blit.covered = covered_total;
+            entry.blit.written = written;
+            entry.blit.clipped = covered_total >= written
+                                     ? covered_total - written
+                                     : 0;
+            entry.blit.drawn = written > 0;
+            result.pixels_written += written;
+            if (entry.blit.drawn) ++result.drawn;
+            result.records.push_back(entry);
+            return entry.visible;
+        }
+        std::int32_t x = source_x;
+        std::int32_t y = source_y;
         if (projector != nullptr) {
             // 0x40241c's panorama branch (see project_record_position).
             const auto placed = project_record_position(*projector, screen_x, screen_y,
@@ -799,7 +908,7 @@ SceneCompose compose_scene(SceneState& state, Rgb16Surface& target,
             // visible. The head walk above rebuilds the complete picture from
             // the full frame, so the next step can draw a delta onto it.
             if (draw_frame(it->first, record, record.current_frame, record.x, record.y, false)) {
-                advance_record_animation(record);
+                if (advance) advance_record_animation(record);
             }
         }
     }

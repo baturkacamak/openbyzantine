@@ -4,6 +4,7 @@
 // returns for the same viewport point.
 #include "byzantine/panorama_view.hpp"
 
+#include <algorithm>
 #include <cstdint>
 #include <iostream>
 #include <map>
@@ -67,8 +68,7 @@ void check_round_trip(const byzantine::PanoramaView& view, const char* where) {
 // (host libm vs the original's x87/table path), so up to two pixels of
 // difference are allowed.
 void check_projection_matches_render(const byzantine::PanoramaView& view,
-                                     const char* where) {
-    auto target = byzantine::make_surface(view.viewport_width(),
+                                     const char* where) {    auto target = byzantine::make_surface(view.viewport_width(),
                                          view.viewport_height(), 0xffff);
     view.render(target);
     const int centre_x = view.viewport_width() / 2;
@@ -117,6 +117,55 @@ void check_projection_matches_render(const byzantine::PanoramaView& view,
         ++checked;
     }
     require(checked > 200, "projection round trip checked too few pixels");
+}
+
+// The source-space record patch path uses map_viewport + source_rect_viewport_bbox.
+// The bbox must be a superset of every viewport pixel whose inverse lands in
+// the source rect, including a rectangle that crosses the viewport edge.
+void check_patch_bbox(const byzantine::PanoramaView& view, int source_x,
+                      int source_y, int width, int height, const char* where) {
+    int x0 = 0;
+    int y0 = 0;
+    int x1 = -1;
+    int y1 = -1;
+    require(view.source_rect_viewport_bbox(source_x, source_y, width, height, x0,
+                                           y0, x1, y1),
+            "patch bbox was not reported");
+    require(x0 <= x1 && y0 <= y1, "patch bbox is empty");
+    bool any = false;
+    for (int y = 0; y < view.viewport_height(); ++y) {
+        for (int x = 0; x < view.viewport_width(); ++x) {
+            int mapped_x = 0;
+            int mapped_y = 0;
+            if (!view.map_viewport(x, y, mapped_x, mapped_y)) continue;
+            const bool inside = mapped_x >= source_x && mapped_x < source_x + width &&
+                                mapped_y >= source_y && mapped_y < source_y + height;
+            if (!inside) continue;
+            any = true;
+            if (x < x0 || x > x1 || y < y0 || y > y1) {
+                throw std::runtime_error(std::string("patch bbox misses a visible "
+                                                     "source pixel at ") +
+                                         where);
+            }
+        }
+    }
+    require(any, "patch bbox test rectangle was not visible");
+    // The inverse test must also reject everything outside the bbox, otherwise
+    // a warp would scan/clip an arbitrary part of the viewport.
+    for (int y = 0; y < view.viewport_height(); ++y) {
+        for (int x = 0; x < view.viewport_width(); ++x) {
+            if (x >= x0 && x <= x1 && y >= y0 && y <= y1) continue;
+            int mapped_x = 0;
+            int mapped_y = 0;
+            if (!view.map_viewport(x, y, mapped_x, mapped_y)) continue;
+            if (mapped_x >= source_x && mapped_x < source_x + width &&
+                mapped_y >= source_y && mapped_y < source_y + height) {
+                throw std::runtime_error(std::string("patch bbox excluded a visible "
+                                                     "source pixel at ") +
+                                         where);
+            }
+        }
+    }
 }
 }  // namespace
 
@@ -194,6 +243,42 @@ int main() {
         for (int step = 0; step < 24; ++step) view.advance(37, 0, 1);
         check_round_trip(view, "wrapped");
         check_projection_matches_render(view, "wrapped");
+
+        // The record patch path uses map_viewport (the sampler's own inverse,
+        // not the analytic projection) and a bbox around the source rect.
+        for (int y = 0; y < kViewHeight; y += 3) {
+            for (int x = 0; x < kViewWidth; x += 5) {
+                int mapped_x = 0;
+                int mapped_y = 0;
+                require(view.map_viewport(x, y, mapped_x, mapped_y),
+                        "map_viewport rejected a viewport pixel");
+                const auto point = view.canvas_point(x, y);
+                require(mapped_x == point.source_x && mapped_y == point.source_y,
+                        "map_viewport disagrees with canvas_point");
+            }
+        }
+        for (const int viewport_x : {0, kViewWidth / 2, kViewWidth - 1}) {
+            int mapped_x = 0;
+            int mapped_y = 0;
+            require(view.map_viewport(viewport_x, kViewHeight / 2, mapped_x,
+                                      mapped_y),
+                    "patch bbox sample point is outside the viewport");
+            const int patch_x = std::max(0, std::min(kWidth - 16, mapped_x - 8));
+            const int patch_y = std::max(0, std::min(kHeight - 16, mapped_y - 8));
+            check_patch_bbox(view, patch_x, patch_y, 16, 16, "viewport edge");
+        }
+        // A rectangle the camera is looking at is reported too (not only the
+        // edges); the bbox is the superset the warp scans.
+        {
+            int centre_x = 0;
+            int centre_y = 0;
+            require(view.map_viewport(kViewWidth / 2, kViewHeight / 2, centre_x,
+                                      centre_y),
+                    "patch bbox centre is outside the viewport");
+            const int patch_x = std::max(0, std::min(kWidth - 24, centre_x - 12));
+            const int patch_y = std::max(0, std::min(kHeight - 24, centre_y - 12));
+            check_patch_bbox(view, patch_x, patch_y, 24, 24, "viewport centre");
+        }
 
         // The viewport ends: 0x4240ae's bounds test is 0 <= x < width and
         // 0 <= y < height, and a rejected point carries no coordinate.

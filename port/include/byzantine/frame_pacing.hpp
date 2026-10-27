@@ -26,13 +26,13 @@ namespace byzantine {
 // * A 16 ms render tick (`FramePacer`): compose and present at most once per
 //   tick, so the host does not burn CPU on a scene that barely changes.
 // * A record-pass clock (`PassClock`): the original's draw+step rate. It is not
-//   the render rate; the extra passes that elapsed between two host frames are
+//   the render rate; the passes that elapsed between two host frames are
 //   applied to the records the last compose drew (`advance_record_passes`).
-//   The reference rate is a host-model value (`--anim-pass-hz`, default 250):
-//   the shipped delays are pass-rate divisors, and 250 Hz makes 20 a normal
-//   idle-animation speed instead of the ~3 frames/s the old 16 ms-per-pass
-//   model produced. The user compared both on screen and identified the
-//   uncapped pass rate as the original's speed (ANIMATION_FRAME_PACING.md).
+//   The reference rate is a host-model value (`--anim-pass-hz`, default 60):
+//   the shipped delays are pass-rate divisors and read as a 60 Hz tick scale
+//   (the record default `+0x04` is 10 in 0x410021, so 5.5 steps/s), not the
+//   250 Hz that was chosen for one TK delay-20 record. See
+//   ANIMATION_RATE_GLOBAL.md. The effective step rate is pass_hz/(delay+1).
 class FramePacer {
 public:
     static constexpr std::uint64_t tick_ms = 16;
@@ -75,7 +75,7 @@ private:
 // animation to the compose cost, so it keeps the pass rate as its own clock and
 // applies the passes that elapsed to the records the last compose drew.
 // `passes_per_second` is the host's reference for the original pass rate; the
-// default is a host-model value (see ANIMATION_FRAME_PACING.md), overridable
+// default is a host-model value (see ANIMATION_RATE_GLOBAL.md), overridable
 // with `--anim-pass-hz`.
 class PassClock {
 public:

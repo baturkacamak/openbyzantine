@@ -860,8 +860,20 @@ std::optional<std::pair<std::int32_t, std::int32_t>> project_record_position(
 // projected through 0x423e03 before the draw (0x43c114 itself copies them
 // unchanged). Pass nullptr for a background/close-up scene, where the record
 // coordinates are already surface coordinates.
+//
+// A projector that exposes the sampler's inverse (`map_viewport`) switches the
+// draw to the source-space patch path: the record's frames are accumulated in
+// source coordinates and each viewport pixel samples the patch through the same
+// map the background used. This is required because shipped panorama records
+// (e.g. NB `nbBr00a`, SM `Smim00b`) are background patches, not screen-space
+// cut-outs; a fixed 1:1 blit is only correct when the local scale is 1.
+//
+// `advance` keeps 0x43bb77's step after a drawn record. The interactive loop
+// passes false and applies the owed passes through `advance_record_passes` so
+// the animation rate is the pass clock, not the host's compose count.
 SceneCompose compose_scene(SceneState& state, Rgb16Surface& target,
-                           const SceneProjector* projector = nullptr);
+                           const SceneProjector* projector = nullptr,
+                           bool advance = true);
 
 // 0x43bb77, called by 0x43b216 after every visible normal-pass draw
 // (`param_2 != 1`): the frame list is circular (the last node's next points at

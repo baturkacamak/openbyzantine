@@ -1,5 +1,49 @@
 # Compact handoff — 26 October 2026
 
+## Latest fix — panorama record patches are warped and the animation clock is global (27 October 2026)
+
+Pinned user run `run-20261027T160640.291181Z-yhxqcbai` (NB entry at yaw -49,
+then rotation to -28.375 and away; the same entry is in the 15:31 and 15:47
+runs). The NB bartender `nbBr00a` did not sit on the background unless the
+camera reached a certain yaw, and it moved too fast.
+
+1. **The record is a SOURCE-space background patch.** `Nbbr00a` frame 0 is a
+   140x160 crop of `NB00.jpg` (record x/y 1124,370; source crop 1124,350) with
+   the bartender baked in; `Smim00b` is the same for SM. The port used to blit
+   it 1:1 at the centre projection while the background and click rectangles
+   were warped by the panorama map. New `SceneProjector::map_viewport` and
+   `source_rect_viewport_bbox`; `PanoramaView` implements them with
+   `canvas_point` (the sampler's exact inverse) and a conservative analytic
+   bbox (+8 px margin, full viewport when a corner crosses the camera plane).
+   `compose_scene` now accumulates frames 0..current into a source patch with
+   coverage masks, scans the clamped bbox, inverse-maps each viewport pixel and
+   writes the covered patch pixel. Partially visible patches are clipped, not
+   dropped; the first-success-anchor placement is only the fallback for
+   projectors without an inverse (synthetic tests) and non-panorama scenes.
+   `scene_animates` uses the same bbox. Real data: NB yaw -49/-30/-28.375/0/+20
+   all draw the patch (unique pixels 15850/28977/27938/23384/33375); +30 and
+   +40 were `drawn=0` before and now draw 21388/2651. The +20 rectangular seam
+   is gone; SM stays `drawn=2 projected=2` and VA entry `drawn=2 projected=4`. Frames:
+   `port/output/nb-alignment/after/` (`before-after-*.png`,
+   `nbwarp-20-crop.png`). Report:
+   `analysis/rea/PANORAMA_SPRITE_PATCH_WARP.md`.
+2. **The animation clock was a 250 Hz TK calibration.** NB delay 1 ran 125
+   steps/s (31-frame cycle 0.25 s); SM 0.18 s; HL 0.74 s. `+0x04` defaults to
+   10 (`0x410021`) and the shipped 1..60 delays read as a 60 Hz tick scale.
+   `--anim-pass-hz` now defaults to 60; the paced loop draws with
+   `compose_scene(..., advance=false)` and applies `PassClock::remaining`
+   through `advance_record_passes` (the implicit `applied(1)` per compose is
+   gone). `turn()` also composes with `advance=false`, so the 84 drag composes
+   in one second of the pinned NB run no longer add 84 steps. Live NB trace:
+   3-4 steps per 112 ms = 30 steps/s, cycle ~1.03 s. Tradeoff: TK delay 20 is
+   now 2.86 steps/s (~6.3 s cycle) instead of 11.9 (~1.5 s); `--anim-pass-hz
+   250` reproduces the old rate for an A/B. Report:
+   `analysis/rea/ANIMATION_RATE_GLOBAL.md`.
+
+`make -C port -j2 all test` passes (new `panorama-view-test` inverse/bbox
+checks, `scene-state-test` 2x warp and `advance=false` checks); all
+`analysis/rea/verify_*.py` checks still pass.
+
 ## Latest fix — `0xbd` CF videos now play (blocking) and are logged (27 October 2026)
 
 Pinned user run `run-20261027T153102.008778Z-wo0x6pwm`: in NB the stairs-down

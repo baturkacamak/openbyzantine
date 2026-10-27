@@ -169,8 +169,11 @@ etiket kümesinde bulunuyor. Kanıt ve bilinmeyen listesi:
   **Animasyon hızı**: `0x43b216` (çiz + `0x43bb77` ile kare ilerlet) orijinalde
   sınırsız döngüde çalışır; `+0x04` gecikmeleri bu pass hızının bölenleridir.
   Port 16 ms'lik çizim tikiyle çizer ama kayıt-pass saatini ayrı tutar
-  (`--anim-pass-hz`, varsayılan 250; 20 gecikmeli bir kayıt ~80 ms'de bir kare
-  ilerler). Detay: [`ANIMATION_FRAME_PACING.md`](../analysis/rea/ANIMATION_FRAME_PACING.md).
+  (`--anim-pass-hz`, varsayılan 60; gerçek adım hızı `pass / (delay+1)`).
+  Gecikme tablosu (varsayılan `+0x04` = 10, değerler 1..60) 60 Hz'lik bir
+  tasarım ölçeğine oturur; 250 Hz tek bir TK kaydı için seçilmişti ve
+  delay-1 karakterleri (NB/SM/HL) yaklaşık 4x hızlandırıyordu. Detay:
+  [`ANIMATION_RATE_GLOBAL.md`](../analysis/rea/ANIMATION_RATE_GLOBAL.md).
   **İmleçler (oyunun kendi fare imleçleri)**: `0x40dd7f`/`0x40dae5` iki ayrı
   32'lik tabloyu `cursors/<ad>*.tga` (normal) ve `cursors/klio/<ad>*.tga`
   (alternatif mod, `0x68` -> `DAT_00464878`) olarak yükler; adlar ve hotspot'lar

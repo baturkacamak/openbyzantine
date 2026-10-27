@@ -82,11 +82,32 @@ public:
     bool project_source(int source_x, int source_y, int& viewport_x,
                         int& viewport_y) const override;
 
+    // SceneProjector: 0x4240ae's exact inverse. `canvas_point` already returns
+    // the wrapped source column; this is the mapping the background sampler
+    // used for the same viewport pixel.
+    bool map_viewport(int viewport_x, int viewport_y, int& source_x,
+                      int& source_y) const override;
+
+    // Conservative bbox of the source rect in viewport coordinates. It uses the
+    // same x87-independent analytic projection as `project_source`, expanded by
+    // a small margin because the sampler's table arithmetic can differ by a few
+    // pixels. A rectangle that crosses the camera plane falls back to the whole
+    // viewport; the per-pixel inverse test still decides the actual pixels.
+    bool source_rect_viewport_bbox(int source_x, int source_y, int width,
+                                   int height, int& x0, int& y0, int& x1,
+                                   int& y1) const override;
+
     double yaw_degrees() const;
     double pitch_degrees() const;
     bool at_pitch_limit() const;
 
 private:
+    // Analytic source -> viewport projection. With `apply_window` it also
+    // rejects the +/-60 degree window (0x423e03); without it, only points at or
+    // behind the camera are rejected. The viewport bounds check is left to the
+    // caller so the bbox can see partially visible rectangles.
+    bool project_source_raw(int source_x, int source_y, int& viewport_x,
+                            int& viewport_y, bool apply_window) const;
     std::string path_;
     int source_width_ = 0;
     int source_height_ = 0;

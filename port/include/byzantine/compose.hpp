@@ -104,6 +104,38 @@ struct SceneProjector {
     virtual ~SceneProjector() = default;
     virtual bool project_source(int source_x, int source_y, int& viewport_x,
                                 int& viewport_y) const = 0;
+
+    // 0x4240ae's inverse direction, used to draw a source-space record patch.
+    // The background sampler and the mouse mapping read the same offset map, so
+    // this is the exact mapping the panorama renderer used for that pixel. A
+    // projector without a source-space layer (or a synthetic test projector)
+    // leaves the default false and keeps the old screen-space placement.
+    virtual bool map_viewport(int viewport_x, int viewport_y, int& source_x,
+                              int& source_y) const {
+        (void)viewport_x;
+        (void)viewport_y;
+        (void)source_x;
+        (void)source_y;
+        return false;
+    }
+
+    // Conservative viewport bbox of a source rectangle, including the part of a
+    // rectangle that is only partially visible. `x0 > x1` means no viewport
+    // pixel can map into it. Returns false when the projector has no inverse
+    // mapping (old screen-space path).
+    virtual bool source_rect_viewport_bbox(int source_x, int source_y, int width,
+                                           int height, int& x0, int& y0, int& x1,
+                                           int& y1) const {
+        (void)source_x;
+        (void)source_y;
+        (void)width;
+        (void)height;
+        (void)x0;
+        (void)y0;
+        (void)x1;
+        (void)y1;
+        return false;
+    }
 };
 
 // Writes a binary PPM (P6): RGB565 -> RGB888 with bit replication, which is

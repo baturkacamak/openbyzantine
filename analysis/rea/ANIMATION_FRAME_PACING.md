@@ -1,3 +1,12 @@
+> Superseded 27 October 2026. The 250 Hz default and the "+1 per compose"
+> rule in this report were calibrated on TK alone. The player now uses one
+> global 60 Hz reference, the interactive loop draws with
+> `compose_scene(..., advance=false)` and applies `PassClock::remaining`, and
+> `turn()` no longer steps the animation. The effective delay is
+> `delay + 1` (`250/20` below is really `250/21`). The 0x43b216/0x43bb77 and
+> 16 ms-gate analysis below remains valid. Current model:
+> `ANIMATION_RATE_GLOBAL.md`.
+
 # Animation frame pacing — 27 October 2026
 
 Reported: in the TK entrance the character moves slower than in the rest of the
