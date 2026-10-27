@@ -72,9 +72,10 @@ MR's conversation folders are `dialog/mmhmr1a`, `dialog/imhmr1a`,
 
 `mr2meh02..09`, `Mr2meh11..14` exist; **`mr2meh00`, `mr2meh01` and `mr2meh10` are
 not on any CD** (the CD1 listing has no `mr2meh00/01/10`, and no `mr2pro*` at
-all). The `pro` clips in the CCF are the player's own lines: the speaker list
-`0x40ced0` does not contain `pro`, so the original never calls `0x40d2a1` for
-them. Lines whose clip has no file still show their text (0x40d2a1 returns 0).
+all). The `pro` clips in the CCF are the player's own lines: `0x40ced0` returns
+`-1` for `"pro"` and `0x424780` skips `0x40d2a1` only for that id, so the
+original never plays them. Lines whose clip has no file still show their text
+(0x40d2a1 returns 0). See "Correction: `0x40ced0` is case-insensitive" below.
 
 ## 3. CCB format (FUN_00412762 / FUN_00412aea / FUN_004119e3)
 
@@ -124,10 +125,12 @@ them. Lines whose clip has no file still show their text (0x40d2a1 returns 0).
 - `0x424780` (`c31b11acff556e9d`) displays/plays a line: `state+0x720` is the
   BYZ text, `state+0x12dc` the CCF clip; `null` (case-insensitive) means no text
   and no media, `#` means media only. The speaker is clip characters 3..5 and
-  `0x40ced0` (`dabc11839d698c3d`) accepts exactly
-  `aka nur sha esk meh car emr jer ima prf cur bar bas coi boo mer`. When the
-  speaker is accepted, `0x40d2a1` (`7378a7da0065e607`) tries `avi\<clip>.avi`
-  then `dialog\<name1>\<clip>.avi`.
+  `0x40ced0` (`dabc11839d698c3d`) compares it with **`__strcmpi`** against
+  `aka nur sha esk meh car emr jer ima prf cur bar bas coi boo mer`, then against
+  `hnt` (`-2`) and `pro` (`-1`), else `-3`. `0x424780` calls `0x40d2a1`
+  (`7378a7da0065e607`) when the id is not `-1` and the text is not `null`, so it
+  tries `avi\<clip>.avi` then `dialog\<name1>\<clip>.avi` for every speaker
+  except the player's own `pro` lines.
 
 ### Opcodes IMhMR2a uses
 

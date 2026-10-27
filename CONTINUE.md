@@ -1,6 +1,37 @@
 # Compact handoff — 26 October 2026
 
-## Latest step — panorama scene sprites were never drawn (27 October 2026)
+## Latest step — dialogue FMVs were skipped by a case-sensitive speaker test (27 October 2026)
+
+Pinned user run `run-20261027T140201.207358Z-cuxn9p2q` (EA 602 / `26.btb` ->
+MAP -> SM, clicked Ima, chose answers). The sprite and both conversations work,
+but every line logged `media=no` and `conversation_end ... media=0`: no actor
+video, only subtitles. A `0x40d2a1` attempt was never made.
+
+Cause: `FUN_0040ced0` compares the clip's 3-character speaker code with
+**`__strcmpi`** (case-insensitive) and returns `-2` for `"hnt"`, `-1` for
+`"pro"`; `FUN_00424780` calls `0x40d2a1` whenever the id is not `-1` and the
+text is not `null`. The port compared case-sensitively against a lowercase
+16-name table **and** required membership in it, so `IIaIma05` (speaker `Ima`)
+and every `hnt` line were dropped. The shipped `.ccf` mixes cases for the same
+actor: `Nur` 22, `Ima` 20, `Coi` 20, `Prf` 15, `Boo` 15, `Car` 10, `Esk` 8,
+`Cur` 8, `Bas` 7, `Jer` 6 vs their lowercase forms, plus `hnt` 123; `pro` 491 is
+the player's own voice and stays excluded.
+
+New: `speaker_id()` (0x40ced0 including `hnt`/`pro`) and
+`media_allowed = id != -1 && text != "null"` in `src/conversation.cpp`;
+`tests/conversation.cpp::test_media_speaker_rules` covers `Ima`/`ima`/`Nur`
+(media), `pro` (none), `hnt`, unknown, `null` (text+media none) and `#`
+(media only). Real run: SM at yaw 19.3173 -> `conversation_media
+extracted=/tmp/byz-scene/dialog/iimsm1a/Iiaima05.avi source=Byzantine_1.iso`,
+`frames=84 fps=15 size=320x200 audio=pcm`, `conversation_audio ... duration_ms=5600`,
+`conversation_end ... media=1`; the FMV frame + subtitle is
+`port/output/dialogue-media/sm-iima05-video-frame.png` (dummy video, not a
+display claim). `make -C port -j2 all test` and all `analysis/rea/verify_*.py`
+still pass. Report: `analysis/rea/DIALOGUE_MEDIA_SPEAKER_CASE.md`.
+Still open: answer-line media is not attempted (every shipped answer observed is
+`pro`, which the original also excludes).
+
+## Previous step — panorama scene sprites were never drawn (27 October 2026)
 
 Pinned user run `run-20261027T132308.815408Z-eox_w1hb` (EA 602, `26.btb` -> MAP
 -> SM, then a click on the woman at screen `280,256` -> `slot 7 action 375`

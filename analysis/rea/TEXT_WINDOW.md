@@ -111,8 +111,11 @@ The earlier claim that conversations are voice-only was **wrong**. `0x410669`
 (`1a4831f4aa67ebf9`) loads three packed records for a cd entry:
 `engine/<stem>.ccb` (bytecode), `.ccf` (voice-clip names) and `.byz` (the
 dialogue lines, e.g. `MMhmr1a`, `IMhMR2a` inside `Byz.all`). `0x424780` draws the
-BYZ line and `0x40d2a1` plays the paired `dialog/<name>/<clip>.avi` when the
-speaker is in `0x40ced0`'s 16-name list. `0x424780` selects the line; `0x424981`
+BYZ line and `0x40d2a1` plays the paired `dialog/<name>/<clip>.avi` unless the
+speaker id from `0x40ced0` is `-1` (`pro`, the player's own lines) or the text is
+`null`; `0x40ced0` compares the clip's speaker code with `__strcmpi`, so the
+shipped mixed-case codes (`Ima`, `Nur`, `Coi`, ...) count too. `0x424780` selects
+the line; `0x424981`
 clears rows 420..479 and draws it at (55,420) with font slot 4, green `0x03eb`,
 wrapped at 530 px for at most 3 lines. The shipped Turkish `CAPTIONS.SFN/TGA`
 has blanks where most Turkish glyphs belong, and its ASCII glyphs are

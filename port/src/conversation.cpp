@@ -138,13 +138,22 @@ bool same_text(const std::string& text, const char* against) {
     return lower(text) == lower(against);
 }
 
-bool known_speaker(const std::string& speaker) {
-    // PTR_DAT_0045f4a0, 16 entries read by FUN_0040ced0.
+// 0x40ced0: the speaker id of a line, taken from clip characters 3..5. The
+// original compares with __strcmpi, i.e. case-insensitively: the shipped CCF
+// mixes cases for the same actor (`Iiaima05`/`ima`, `Nt1nur02`/`Nur`, `Coi`,
+// `Prf`, `Boo`, ...), and a case-sensitive test silently removed the media from
+// roughly half of the dialogue lines. After the 16-entry table (PTR_DAT_0045f4a0)
+// two extra names are tested: "hnt" -> -2 and "pro" -> -1; anything else -> -3.
+int speaker_id(const std::string& speaker) {
     static const char* const names[16] = {
         "aka", "nur", "sha", "esk", "meh", "car", "emr", "jer",
         "ima", "prf", "cur", "bar", "bas", "coi", "boo", "mer"};
-    return std::any_of(std::begin(names), std::end(names),
-                       [&speaker](const char* name) { return speaker == name; });
+    for (int index = 0; index < 16; ++index) {
+        if (same_text(speaker, names[index])) return index;
+    }
+    if (same_text(speaker, "hnt")) return -2;
+    if (same_text(speaker, "pro")) return -1;
+    return -3;
 }
 
 }  // namespace
@@ -801,7 +810,12 @@ ConversationLine ConversationSession::make_line(std::uint16_t index) const {
     line.clip = program_.clips[index];
     if (line.clip.size() >= 6) line.speaker = line.clip.substr(3, 3);
     line.show_text = !same_text(line.text, "null") && line.text != "#";
-    line.media_allowed = !same_text(line.text, "null") && known_speaker(line.speaker);
+    // 0x424780: the clip plays unless the speaker is "pro" (-1, the player's own
+    // lines) and the text is not "null" (case-insensitive). An "hnt" (-2) or
+    // unknown (-3) speaker still reaches 0x40d2a1, which logs and returns 0 when
+    // no AVI exists for the clip, so only "pro"/"null" may suppress the attempt.
+    line.media_allowed =
+        speaker_id(line.speaker) != -1 && !same_text(line.text, "null");
     return line;
 }
 

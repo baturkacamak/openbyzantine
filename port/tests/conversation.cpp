@@ -522,6 +522,55 @@ void test_inline_voice_prelude_and_answer() {
           "answer VOICE resumes and completes");
 }
 
+void test_media_speaker_rules() {
+    // 0x424780 plays the clip unless the speaker id is -1 ("pro", the player's
+    // own lines) or the text is "null"; 0x40ced0 compares the clip's 3-letter
+    // speaker code with __strcmpi, so the shipped mixed-case codes (Iiaima05 ->
+    // "Ima", Nt1nur02 -> "Nur", Coi, Prf, ...) must match their table entry.
+    // "hnt" (-2) and an unknown code (-3) still reach 0x40d2a1, which logs and
+    // returns 0 when no AVI exists, so only "pro"/"null" suppress the attempt.
+    struct MediaCase {
+        const char* clip;
+        const char* text;
+        bool media;
+        bool show_text;
+    };
+    const MediaCase cases[] = {
+        {"AbcIma01", "hello", true, true},          // capitalised speaker code
+        {"Abcima02", "hello", true, true},          // lowercase form
+        {"AbcNur03", "hello", true, true},
+        {"Abcpro04", "player line", false, true},   // -1: player's own line
+        {"Abchnt05", "hint", true, true},           // -2 still calls 0x40d2a1
+        {"Abcxyz06", "unknown", true, true},        // -3 likewise
+        {"AbcIma07", "null", false, false},         // no text and no media
+        {"AbcIma08", "#", true, false},             // media only
+    };
+    for (const auto& item : cases) {
+        Writer writer;
+        write_header(writer);
+        write_groups(writer, {group({entry(1, {})})});
+        write_groups(writer, {});
+        const auto clips = lines({"null", item.clip});
+        const auto texts = lines({"null", item.text});
+        auto program = byzantine::parse_conversation_program(writer.bytes, clips, texts,
+                                                             "media");
+        auto state = zero_state();
+        byzantine::ConversationSession session(program, state);
+        session.start();
+        const auto event = session.next();
+        const std::string name = item.clip;
+        check(event.kind == byzantine::ConversationEventKind::line,
+              "media fixture yields a line: " + name);
+        if (event.kind != byzantine::ConversationEventKind::line) continue;
+        check(event.line.speaker == name.substr(3, 3),
+              "speaker comes from clip characters 3..5: " + name);
+        check(event.line.media_allowed == item.media,
+              "0x424780 media rule for " + name);
+        check(event.line.show_text == item.show_text,
+              "0x424780 text rule for " + name);
+    }
+}
+
 void test_unsupported_and_rejections() {
     {
         Writer writer;
@@ -641,6 +690,7 @@ int main(int argc, char** argv) {
         test_conditional_toggle();
         test_inline_voice();
         test_inline_voice_prelude_and_answer();
+        test_media_speaker_rules();
         test_unsupported_and_rejections();
         test_real_byz(argc > 1 ? argv[1] : "");
     } catch (const std::exception& error) {
