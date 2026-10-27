@@ -87,6 +87,19 @@ std::vector<std::uint8_t> read_file(const std::filesystem::path& path) {
     return {std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
 }
 
+std::string shell_quote(const std::string& text) {
+    std::string quoted = "'";
+    for (const char ch : text) {
+        if (ch == '\'') {
+            quoted += "'\\''";
+        } else {
+            quoted += ch;
+        }
+    }
+    quoted += "'";
+    return quoted;
+}
+
 // Case-insensitive child lookup: the shipped trees mix .JPG/.jpg and the LCC
 // scene names are lowercase while the extracted files are uppercase.
 std::optional<std::filesystem::path> find_child(const std::filesystem::path& directory,
@@ -178,6 +191,11 @@ struct Options {
     std::optional<int> menu_mode;
     // --menu-click-at <x>,<y>: deterministic menu clicks in order.
     std::vector<std::pair<int, int>> menu_clicks;
+    std::vector<std::string> menu_texts;       // --menu-text <utf8>
+    std::vector<std::string> menu_keys;        // --menu-key enter|escape|backspace
+    std::vector<std::pair<int, int>> menu_hovers;  // --menu-hover <x>,<y>
+    std::optional<int> credits_frames;         // --credits-frames <n> (headless stop)
+    std::string credits_shot;                  // --credits-shot <ppm>
     std::string menu_shot;                     // --menu-shot <file.ppm>
     // --bar-show <0..4>: force the top bar visible with that hovered button for
     // a headless shot (the window path uses the real pointer).
@@ -205,7 +223,9 @@ const std::set<std::string> kValued = {
     "--conversation-object", "--conversation-video-shot", "--conversation-cancel",
     "--video-shot",
     "--bar-select", "--media-isos", "--anim-pass-hz", "--cursor-at",
-    "--panorama-yaw", "--menu", "--menu-click-at", "--menu-shot", "--bar-show"};
+    "--panorama-yaw", "--menu", "--menu-click-at", "--menu-shot", "--bar-show",
+    "--menu-text", "--menu-key", "--menu-hover", "--credits-frames",
+    "--credits-shot"};
 
 Options parse_options(int argc, char** argv) {
     Options options;
@@ -325,7 +345,20 @@ Options parse_options(int argc, char** argv) {
                 }
                 options.menu_mode = mode;
             } else if (token == "--menu-shot") options.menu_shot = value;
-            else if (token == "--bar-show") {
+            else if (token == "--menu-text") options.menu_texts.push_back(value);
+            else if (token == "--menu-key") options.menu_keys.push_back(value);
+            else if (token == "--menu-hover") {
+                const auto comma = value.find(',');
+                if (comma == std::string::npos) {
+                    throw std::runtime_error("--menu-hover expects <x>,<y>");
+                }
+                options.menu_hovers.emplace_back(std::stoi(value.substr(0, comma)),
+                                                 std::stoi(value.substr(comma + 1)));
+            } else if (token == "--credits-frames") {
+                options.credits_frames = std::stoi(value);
+            } else if (token == "--credits-shot") {
+                options.credits_shot = value;
+            } else if (token == "--bar-show") {
                 const auto button = std::stoi(value);
                 if (button < 0 || button > 4) {
                     throw std::runtime_error("--bar-show must be 0..4");
@@ -394,7 +427,8 @@ Options parse_options(int argc, char** argv) {
             "[--no-hotspots] [--no-audio] [--print-audio] [--print-hotspots] "
             "[--print-objects] [--print-variables] [--print-records] "
             "[--compose-frames <n>] [--selftest-events] [--anim-pass-hz <hz>] "
-            "[--menu <0..5>] [--menu-click-at <x>,<y> ...] [--menu-shot <ppm>]");
+            "[--menu <0..5>] [--menu-click-at <x>,<y> ...] [--menu-text <utf8>] "
+            "[--menu-key enter|escape|backspace] [--menu-shot <ppm>]");
     }
     options.cc_path = positional[0];
     options.cb_path = positional[1];
@@ -1164,6 +1198,11 @@ struct Display {
     std::vector<UiImage> hotbar_frames;   // HOTBAR.RLE frames 1..4 are the buttons
     std::vector<UiImage> dwnbar_frames;   // DWNBAR.RLE frames 1..4 (pressed)
     std::vector<UiImage> marker_frames;   // on_off.rle frames 0..12
+    // 0x41d7ff: ROLL.RLE (0x46c620, 15 frames) is the hover art for controls
+    // 0..14; yellow.rle (0x46c7f0, 4 frames) highlights the save-list/KEŞİF/
+    // hint tabs.
+    std::vector<UiImage> roll_frames;
+    std::vector<UiImage> yellow_frames;
     // on_off.rle frame i+6 is the "off" overlay of preference row i (0x41f94e is
     // called when the stored value is 0, see FUN_0041fe46 case 0).
     bool top_bar_visible = false;
@@ -1299,6 +1338,10 @@ struct Display {
         load_rle_set("hotbar", hotbar_frames);
         load_rle_set("dwnbar", dwnbar_frames);
         load_rle_set("on_off", marker_frames);
+        // 0x41d7ff: FUN_004200bb(0x46c620, "roll.rle") expects 0xf frames and
+        // FUN_004200bb(0x46c7f0, "yellow.rle") expects 4.
+        load_rle_set("roll", roll_frames);
+        load_rle_set("yellow", yellow_frames);
         // 0x4090c4 indexes the RLE set with 0x408fe7's 1..4 button number; a
         // missing frame is reported instead of silently shifting the ids.
         if (hotbar_frames.size() < 5 || dwnbar_frames.size() < 5) {
@@ -1958,6 +2001,10 @@ struct Session {
     // While a conversation is running its 640x480 screen is what the window
     // shows, including during audio waits. run_conversation sets and clears it.
     const byzantine::Rgb16Surface* conversation_frame = nullptr;
+    // The save this session was started or last loaded from (FUN_00425ab4).
+    // The writer (FUN_00424dc0) preserves the blocks the port does not model
+    // from this image and updates the ones it does.
+    std::optional<byzantine::SaveGame> save_base;
 };
 
 // 0xbd playback (defined after the clip decoder, below). The script runners need
@@ -2460,8 +2507,187 @@ void carry_inventory(const byzantine::SceneState& from, byzantine::SceneState& t
     to.current_use_item = from.current_use_item;
 }
 
+// 0x426935's resume: a save load does not replay the scene entry. The script
+// pointer is 0x432464's first 0x6f node (the end), and the visible layer comes
+// from the save's mid-block:
+//   DAT_0045c060 == 0  -> DAT_0048253e indexes the scene's CB background table
+//                         (0x431ec2 -> 0x41045b)
+//   DAT_0045c060 != 0  -> DAT_00480330 indexes CO.ALL and DAT_0045c064 is the
+//                         staged panorama x (0x432295 -> 0x40186e)
+void restore_saved_layer(Session& session, const byzantine::SaveGame& save,
+                         bool verbose) {
+    auto& view = session.view;
+    auto& options = session.options;
+    if (save.field_45c060 != 0) {
+        const auto record = static_cast<std::size_t>(save.field_480330);
+        if (record >= view.state.panorama_records.size()) {
+            std::cout << "load_layer panorama record=" << record
+                      << " skipped: outside the "
+                      << view.state.panorama_records.size() << "-entry CO table\n";
+            return;
+        }
+        const auto& entry = view.state.panorama_records[record];
+        const auto file = node_path(options, entry.name);
+        if (file.empty()) {
+            std::cout << "load_layer panorama record=" << record
+                      << " name=" << entry.name << " missing under "
+                      << options.backgrounds << '\n';
+            return;
+        }
+        try {
+            const auto image = byzantine::decode_jpeg_file(file.string());
+            if (view.panorama_size &&
+                *view.panorama_size != std::pair<int, int>{image.width, image.height}) {
+                std::cout << "load_layer panorama name=" << entry.name << " size="
+                          << image.width << 'x' << image.height
+                          << " differs from the renderer's " << view.panorama_size->first
+                          << 'x' << view.panorama_size->second << " (0x401256 rejects it)\n";
+                return;
+            }
+            view.panorama_size = std::pair<int, int>{image.width, image.height};
+            const auto key = "nodes/" + lower_ascii(entry.name.substr(0, 2)) + "/" +
+                             file.filename().string();
+            view.panorama.emplace(key, image.width, image.height,
+                                  byzantine::rgb_to_rgb565(image), kSceneWidth,
+                                  kSceneHeight);
+            view.layer = SceneLayer::panorama;
+            int staged = static_cast<int>(save.field_45c064);
+            if (staged < -1 || staged > 2495) staged = -1;
+            view.panorama->apply_staged_x(staged, false);
+            if (verbose) {
+                std::cout << "load_layer panorama record=" << record
+                          << " name=" << entry.name << " staged_x=" << staged
+                          << " yaw=" << view.panorama->yaw_degrees() << '\n';
+            }
+        } catch (const std::exception& error) {
+            std::cout << "load_layer panorama " << file.string() << ": "
+                      << error.what() << '\n';
+        }
+        return;
+    }
+    const auto id = static_cast<std::size_t>(save.field_48253e);
+    if (save.field_48253e != 0xffff && id < view.entries.size() &&
+        !view.entries[id].name.empty()) {
+        view.committed_background = view.entries[id].name;
+        view.layer = SceneLayer::background;
+        if (verbose) {
+            std::cout << "load_layer background=" << view.committed_background
+                      << " cb_index=" << id << '\n';
+        }
+    } else {
+        view.layer = SceneLayer::none;
+        if (verbose) {
+            std::cout << "load_layer background=none cb_index=" << save.field_48253e
+                      << '\n';
+        }
+    }
+}
+
+// 0x41d7ff loads the per-disc animation overlay the launcher prepared. A save
+// from another disc needs that disc's `anims/` tree, because the same file name
+// can carry different art (TKNUXA is the known case). The launcher's Python
+// helper already owns the cache identity; call it instead of duplicating the
+// hashing, and report a failure instead of silently mixing discs.
+std::optional<std::filesystem::path> disc_iso(const Options& options, int disc) {
+    if (options.media_isos.empty()) return std::nullopt;
+    std::ifstream sources(options.media_isos);
+    if (!sources) return std::nullopt;
+    const auto wanted = "byzantine_" + std::to_string(disc) + ".iso";
+    std::optional<std::filesystem::path> fallback;
+    std::string line;
+    while (std::getline(sources, line)) {
+        if (line.empty()) continue;
+        const auto path = std::filesystem::path(line);
+        if (!std::filesystem::is_regular_file(path)) continue;
+        const auto name = lower_ascii(path.filename().string());
+        if (name == wanted) return path;
+        if (!fallback &&
+            (name.find("_cd" + std::to_string(disc)) != std::string::npos ||
+             name.find("_" + std::to_string(disc) + ".") != std::string::npos)) {
+            fallback = path;
+        }
+    }
+    return fallback;
+}
+
+std::optional<std::filesystem::path> prepare_disc_overlay(const Options& options,
+                                                          int disc) {
+    if (options.backgrounds.empty()) return std::nullopt;
+    const auto iso = disc_iso(options, disc);
+    if (!iso) {
+        std::cout << "anims_overlay disc=" << disc
+                  << " skipped: no matching ISO in " << options.media_isos << '\n';
+        return std::nullopt;
+    }
+    std::vector<std::filesystem::path> scripts;
+    std::error_code error;
+    const auto self = std::filesystem::read_symlink("/proc/self/exe", error);
+    if (!error && !self.empty()) {
+        scripts.push_back(self.parent_path() / "prepare_disc_anims.py");
+    }
+    scripts.push_back(std::filesystem::current_path() / "port" /
+                      "prepare_disc_anims.py");
+    std::optional<std::filesystem::path> script;
+    for (const auto& candidate : scripts) {
+        if (std::filesystem::is_regular_file(candidate, error)) {
+            script = candidate;
+            break;
+        }
+    }
+    if (!script) {
+        std::cout << "anims_overlay disc=" << disc
+                  << " skipped: prepare_disc_anims.py not found beside the player\n";
+        return std::nullopt;
+    }
+    const auto command = "python3 " + shell_quote(script->string()) + " " +
+                         shell_quote(options.backgrounds.string()) + " " +
+                         shell_quote(iso->string()) + " " + std::to_string(disc) +
+                         " 2>/dev/null";
+    FILE* pipe = popen(command.c_str(), "r");
+    if (pipe == nullptr) {
+        std::cout << "anims_overlay disc=" << disc << " failed: popen\n";
+        return std::nullopt;
+    }
+    std::string output;
+    std::array<char, 512> buffer{};
+    while (std::fgets(buffer.data(), static_cast<int>(buffer.size()), pipe) != nullptr) {
+        output += buffer.data();
+    }
+    const auto status = pclose(pipe);
+    while (!output.empty() && (output.back() == '\n' || output.back() == '\r')) {
+        output.pop_back();
+    }
+    const auto target = std::filesystem::path(output);
+    if (status != 0 || output.empty() ||
+        !std::filesystem::is_regular_file(target / "ready.json", error)) {
+        std::cout << "anims_overlay disc=" << disc << " failed status=" << status
+                  << " output=" << output << '\n';
+        return std::nullopt;
+    }
+    std::cout << "anims_overlay disc=" << disc << " iso=" << iso->filename().string()
+              << " path=" << target << '\n';
+    return target;
+}
+
+int overlay_disc(const Options& options) {
+    const auto overlay = options.scene.find("--anims-overlay");
+    if (overlay == options.scene.end()) return 0;
+    const auto folder = std::filesystem::path(overlay->second).filename().string();
+    const auto at = folder.find("cd");
+    if (at == std::string::npos) return 0;
+    int disc = 0;
+    std::size_t index = at + 2;
+    while (index < folder.size() &&
+           std::isdigit(static_cast<unsigned char>(folder[index]))) {
+        disc = disc * 10 + (folder[index] - '0');
+        ++index;
+    }
+    return disc;
+}
+
 bool travel_to(Session& session, std::uint16_t index, bool verbose,
-               const std::string& save_path = {}) {
+               const std::string& save_path = {},
+               const byzantine::SaveGame* loaded_save = nullptr) {
     auto& options = session.options;
     if (!save_path.empty()) {
         // A load starts a new session: the close-up parent snapshot and the
@@ -2469,6 +2695,11 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose,
         session.return_armed = false;
         session.return_view = SceneView{};
         session.closeup_index.reset();
+    }
+    std::optional<byzantine::SaveGame> parsed_save;
+    if (!save_path.empty() && loaded_save == nullptr) {
+        parsed_save = byzantine::parse_save(read_file(save_path));
+        loaded_save = &*parsed_save;
     }
     if (session.return_armed && !session.return_view.name.empty()) {
         // 0x42db22 case 0x73: when DAT_004603d0 is non-NULL, the operand is
@@ -2535,6 +2766,23 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose,
     auto next = options.scene;
     if (save_path.empty()) next.erase("--save");
     else next["--save"] = save_path;
+    if (loaded_save != nullptr) {
+        const auto current = overlay_disc(options);
+        if (current != 0 && current != static_cast<int>(loaded_save->cd_number)) {
+            std::cout << "anims_overlay load cd=" << loaded_save->cd_number
+                      << " current=" << current << '\n';
+            if (const auto overlay = prepare_disc_overlay(options,
+                                                          static_cast<int>(
+                                                              loaded_save->cd_number))) {
+                next["--anims-overlay"] = overlay->string();
+                options.scene["--anims-overlay"] = overlay->string();
+            } else {
+                std::cout << "anims_overlay load cd=" << loaded_save->cd_number
+                          << " kept current overlay=" << current
+                          << " (a different disc may use different animation art)\n";
+            }
+        }
+    }
     std::string missing;
     for (const char* key : {"--ci", "--cy", "--cf", "--cs", "--ca", "--co", "--ce", "--cd"}) {
         const auto found = next.find(key);
@@ -2591,8 +2839,10 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose,
         written = "save";
     }
     // 0x40fd7b: the scene load pre-loads the CA type 2/3 records before the
-    // script runs (the save path is not used here, so nothing replaces them).
-    const auto preload = byzantine::preload_scene_records(setup.state);
+    // script runs. A save load already replaced the node table (0x425ab4 frees
+    // it first), so its records must not be preloaded again.
+    byzantine::SceneRecordPreload preload;
+    if (save_path.empty()) preload = byzantine::preload_scene_records(setup.state);
     next_view.entry_state = setup.state;
     // DAT_00462ef8 is process-global and is not reset by a scene load.
     next_view.entry_state.random_state = session.view.state.random_state;
@@ -2628,11 +2878,44 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose,
     std::cout << '\n';
 
     session.view = std::move(next_view);
+    if (loaded_save != nullptr) session.save_base = *loaded_save;
     session.reload_available = false;
     options.scene = std::move(next);
     options.cc_path = session.view.cc_path;
     options.cb_path = session.view.cb_path;
     load_scene_text(session, verbose);
+
+    if (!save_path.empty()) {
+        // 0x425ab4 loads the state; 0x432464 puts the script pointer at the
+        // first 0x6f end node, so the entry head is NOT replayed. 0x426935
+        // then restores the saved background/panorama, and 0x40c02c rebuilds
+        // the click rectangles from the saved object table.
+        session.view.trace = byzantine::SceneTrace{};
+        session.view.trace.active_hotspots = byzantine::active_hotspots_for_state(
+            session.view.script, session.view.state);
+        restore_saved_layer(session, *loaded_save, verbose);
+        resume_ambient(session, verbose);
+        refresh_background(options, session.view);
+        session.display.compose(session.view, verbose);
+        session.display.present(session.view, options.overlay);
+        if (session.display.window != nullptr) {
+            SDL_SetWindowTitle(session.display.window,
+                               ("Byzantine - " + session.view.name + " save").c_str());
+        }
+        std::cout << "load scene=" << session.view.name
+                  << " save=" << save_path
+                  << " entry_skipped=1 (0x432464 script end pointer)"
+                  << " background=" << (session.view.committed_background.empty()
+                                            ? "none"
+                                            : session.view.committed_background)
+                  << " panorama=" << (panorama_layer(session.view) ? "yes" : "no")
+                  << " hotspots=" << session.view.trace.active_hotspots.size()
+                  << " records=" << session.view.state.records.size()
+                  << " locals_digest=0x" << std::hex
+                  << locals_digest(session.view.state) << std::dec << '\n';
+        warn_if_nothing_clickable(session.view, "load");
+        return session.running;
+    }
 
     // The new scene runs from its first instruction (DAT_0047a238), exactly
     // like 0x42c8a0's reload; its sounds are gated like any other script. The
@@ -3270,19 +3553,6 @@ std::string describe_trace(const byzantine::SceneTrace& trace,
 // instruction lists and group tables), .ccf (voice-clip names) and .byz (the
 // dialogue lines). The three files are the shipped data; nothing here invents a
 // subtitle or a choice.
-
-std::string shell_quote(const std::string& text) {
-    std::string quoted = "'";
-    for (const char ch : text) {
-        if (ch == '\'') {
-            quoted += "'\\''";
-        } else {
-            quoted += ch;
-        }
-    }
-    quoted += "'";
-    return quoted;
-}
 
 std::optional<std::filesystem::path> find_directory_child(
     const std::filesystem::path& directory, const std::string& name) {
@@ -4124,6 +4394,370 @@ int answer_at(const std::vector<SDL_Rect>& rects, float x, float y) {
 }
 
 // ---------------------------------------------------------------------------
+// Save writing (0x424dc0) from the live state
+// ---------------------------------------------------------------------------
+std::filesystem::path savegame_directory(const Options& options) {
+    const auto save = options.scene.find("--save");
+    if (save != options.scene.end() && !save->second.empty()) {
+        return std::filesystem::path(save->second).parent_path();
+    }
+    if (!options.backgrounds.empty()) {
+        return options.backgrounds / "copy2hd" / "savegame";
+    }
+    return {};
+}
+
+template <std::size_t N>
+void put_u16(std::array<std::uint8_t, N>& raw, std::size_t at, std::uint16_t value) {
+    raw[at] = static_cast<std::uint8_t>(value & 0xff);
+    raw[at + 1] = static_cast<std::uint8_t>((value >> 8) & 0xff);
+}
+
+template <std::size_t N>
+void put_u32(std::array<std::uint8_t, N>& raw, std::size_t at, std::uint32_t value) {
+    for (int shift = 0; shift < 32; shift += 8) {
+        raw[at + static_cast<std::size_t>(shift / 8)] =
+            static_cast<std::uint8_t>((value >> shift) & 0xff);
+    }
+}
+
+// The per-scene CB background id of the committed picture (0x431ec2's
+// DAT_0048253e); 0xffff when the current layer is a close-up/none.
+std::uint16_t saved_background_id(const Session& session) {
+    const auto& view = session.view;
+    if (view.background_name.empty() || panorama_layer(view)) return 0xffff;
+    const auto wanted = lower_ascii(view.background_name);
+    for (std::size_t index = 0; index < view.entries.size(); ++index) {
+        if (lower_ascii(view.entries[index].name) == wanted) {
+            return static_cast<std::uint16_t>(index);
+        }
+    }
+    return 0xffff;
+}
+
+// The CO.ALL record of the visible panorama (0x432295's DAT_00480330) and a
+// source x that reproduces the current centre (DAT_0045c064).
+std::pair<std::int32_t, std::int32_t> saved_panorama(const Session& session) {
+    const auto& view = session.view;
+    if (!panorama_layer(view) || !view.panorama) return {-1, -1};
+    const auto path = view.panorama->path();
+    const auto file = std::filesystem::path(path).filename().stem().string();
+    for (std::size_t index = 0; index < view.state.panorama_records.size(); ++index) {
+        if (lower_ascii(view.state.panorama_records[index].name) == lower_ascii(file)) {
+            const auto centre = view.panorama->canvas_point(kSceneWidth / 2,
+                                                            kSceneHeight / 2);
+            const int x = centre.mapped ? centre.source_x : -1;
+            return {static_cast<std::int32_t>(index), x};
+        }
+    }
+    return {-1, -1};
+}
+
+// Builds the image FUN_00424dc0 would write for the current state. Blocks the
+// port does not model (per-scene CCB records, the sound chain, the thumbnail,
+// the optional text object, DAT_0045f210/0x46066c) come from `base`, the save
+// this session was started/loaded from; with no base they stay empty/zero and
+// the writer still emits a structurally valid image.
+byzantine::SaveGame build_save_from_state(const Session& session,
+                                          const byzantine::SaveGame* base,
+                                          const std::string& description,
+                                          std::uint16_t scene_index,
+                                          std::uint32_t cd_number) {
+    using byzantine::kSaveDialogueStackDepth;
+    using byzantine::kSaveThumbnailBytes;
+    using byzantine::SaveDialogueChain;
+    using byzantine::SaveMediaRecord;
+    using byzantine::SaveNodeSlot;
+    using byzantine::SaveObjectRecord;
+    using byzantine::SaveSoundRecord;
+
+    byzantine::SaveGame save = base != nullptr ? *base : byzantine::SaveGame{};
+    save.cd_number = cd_number;
+    if (save.chapter.empty()) save.chapter = "show";
+    save.description = description;
+    if (save.thumbnail.size() != kSaveThumbnailBytes) {
+        save.thumbnail.assign(kSaveThumbnailBytes, 0);
+    }
+    if (base != nullptr && base->scene_index != scene_index) {
+        // Block 6 is the per-scene CCB record table (DAT_00482ad0), rebuilt on
+        // every scene load. A base save from another scene would name the wrong
+        // conversations; the port has no equivalent of the 0xcc/0x70-created
+        // records, so the block stays empty rather than stale.
+        save.scene_records.clear();
+        std::cout << "save_scene_records cleared base_scene=" << base->scene_index
+                  << " current=" << scene_index
+                  << " (per-scene CCB records are not modelled)\n";
+    }
+    save.scene_index = scene_index;
+
+    const auto& state = session.view.state;
+    if (session.metadata) {
+        const auto& layout =
+            byzantine::scene_variable_layout(*session.metadata, session.view.name);
+        save.node_values = byzantine::export_variable_pool(state, layout);
+    } else if (state.variable_pool.size() == byzantine::kSaveNodeValueCount) {
+        save.node_values = state.variable_pool;
+    }
+    save.node_values.resize(byzantine::kSaveNodeValueCount, 0);
+
+    save.field_45d1c0 = state.dialogue_visible ? 1 : 0;
+    save.field_45d1c4 = state.current_dialogue_channel;
+    save.field_45d1bc = state.dialogue_scroll < 0
+                            ? 0
+                            : static_cast<std::uint32_t>(state.dialogue_scroll);
+    save.dialogue_depths = {};
+    save.dialogue_stacks = {};
+    std::uint32_t max_item = 0;
+    for (std::size_t channel = 0; channel < state.dialogue_channels.size(); ++channel) {
+        const auto& stack = state.dialogue_channels[channel];
+        save.dialogue_depths[channel] = static_cast<std::uint32_t>(stack.size());
+        for (std::size_t index = 0;
+             index < stack.size() && index < kSaveDialogueStackDepth; ++index) {
+            save.dialogue_stacks[channel * kSaveDialogueStackDepth + index] = stack[index];
+            max_item = std::max(max_item, static_cast<std::uint32_t>(stack[index]));
+        }
+    }
+    save.dialogue_index =
+        state.current_dialogue_record ? *state.current_dialogue_record : -1;
+    std::uint32_t mark_count =
+        std::max(max_item + 1, static_cast<std::uint32_t>(state.dialogue_records.size()));
+    for (const auto& [id, record] : state.dialogue_records) {
+        mark_count = std::max(mark_count, static_cast<std::uint32_t>(id) + 1);
+    }
+    save.dialogue_marks.assign(mark_count, std::pair<std::uint8_t, std::uint8_t>{0, 0});
+    for (const auto& [id, record] : state.dialogue_records) {
+        if (id < save.dialogue_marks.size()) save.dialogue_marks[id].second = record.state;
+    }
+
+    save.field_460668 = state.field_460668;
+    const auto [panorama_record, panorama_x] = saved_panorama(session);
+    if (panorama_record >= 0) {
+        save.field_45c060 = 1;
+        save.field_480330 = static_cast<std::uint32_t>(panorama_record);
+        save.field_45c064 = panorama_x < 0 ? 0xffffffffu
+                                           : static_cast<std::uint32_t>(panorama_x);
+    } else if (panorama_layer(session.view)) {
+        // A panorama is displayed but its CO record could not be named (no
+        // --co or the node is not in the table). Keep the base save's block 16'
+        // instead of claiming the current CB background is visible.
+        std::cout << "save_panorama unresolved node="
+                  << (session.view.panorama ? session.view.panorama->path() : "none")
+                  << " (block 16' kept from the base save)\n";
+    } else {
+        save.field_45c060 = 0;
+        save.field_48253e = saved_background_id(session);
+    }
+
+    std::map<std::uint16_t, const SaveNodeSlot*> base_nodes;
+    for (const auto& node : save.nodes) base_nodes[node.slot] = &node;
+    save.nodes.clear();
+    for (const auto& [slot, record] : state.records) {
+        SaveNodeSlot node;
+        node.present = true;
+        node.slot = static_cast<std::uint16_t>(slot);
+        const auto cached = base_nodes.find(static_cast<std::uint16_t>(slot));
+        if (cached != base_nodes.end()) {
+            node = *cached->second;
+            node.slot = static_cast<std::uint16_t>(slot);
+            node.present = true;
+        } else {
+            node.raw.fill(0);
+            // 0x40ffee's initialiser defaults for a record the port created.
+            put_u16(node.raw, 0x02, 0x14);
+            put_u16(node.raw, 0x04, 10);
+            node.raw[0x09] = 0x20;
+            node.frame_index_20 = 0xffff;
+            node.field_2c = 0xffffffffu;
+            node.field_30 = 0xffffffffu;
+        }
+        put_u16(node.raw, 0x00, static_cast<std::uint16_t>(record.x));
+        put_u16(node.raw, 0x02, static_cast<std::uint16_t>(record.y));
+        put_u16(node.raw, 0x04, static_cast<std::uint16_t>(record.field04));
+        put_u16(node.raw, 0x06, static_cast<std::uint16_t>(record.field06));
+        node.raw[0x08] = record.kind;
+        node.raw[0x09] = record.flags;
+        put_u16(node.raw, 0x14, record.frame_count);
+        put_u16(node.raw, 0x24, static_cast<std::uint16_t>(record.snap_x));
+        put_u16(node.raw, 0x26, static_cast<std::uint16_t>(record.snap_y));
+        node.frame_index_1c = record.current_frame ? *record.current_frame : 0xffff;
+        node.field_2c = record.field_2c;
+        node.field_30 = record.field_30;
+        node.extra.clear();
+        for (const auto& extra : record.extra) {
+            byzantine::SaveNodeExtra entry;
+            entry.control = extra.control;
+            entry.first = extra.first;
+            entry.second = extra.second;
+            node.extra.push_back(entry);
+        }
+        save.nodes.push_back(std::move(node));
+    }
+
+    std::map<std::uint16_t, const SaveObjectRecord*> base_objects;
+    for (const auto& object : save.objects) base_objects[object.slot] = &object;
+    save.objects.clear();
+    for (const auto& [slot, object] : state.objects) {
+        SaveObjectRecord record;
+        record.slot = static_cast<std::uint16_t>(slot);
+        const auto cached = base_objects.find(record.slot);
+        if (cached != base_objects.end()) record = *cached->second;
+        record.slot = static_cast<std::uint16_t>(slot);
+        record.x = object.x;
+        record.y = object.y;
+        record.width = object.width;
+        record.height = object.height;
+        record.active = object.active;
+        record.kind = object.kind;
+        record.label = object.label;
+        record.name_id = object.name_id;
+        record.argument = object.argument;
+        put_u16(record.raw, 0x00, static_cast<std::uint16_t>(object.x));
+        put_u16(record.raw, 0x02, static_cast<std::uint16_t>(object.y));
+        put_u16(record.raw, 0x04, static_cast<std::uint16_t>(object.width));
+        put_u16(record.raw, 0x06, static_cast<std::uint16_t>(object.height));
+        record.raw[0x08] = object.active;
+        record.raw[0x09] = object.kind;
+        put_u32(record.raw, 0x0c, object.label);
+        put_u32(record.raw, 0x10, object.name_id);
+        put_u32(record.raw, 0x14, object.argument);
+        save.objects.push_back(record);
+    }
+
+    std::map<std::uint16_t, const SaveSoundRecord*> base_sounds;
+    for (const auto& sound : save.sounds) base_sounds[sound.slot] = &sound;
+    save.sounds.clear();
+    for (const auto& [slot, sound] : state.sounds) {
+        SaveSoundRecord record;
+        record.slot = static_cast<std::uint16_t>(slot);
+        const auto cached = base_sounds.find(record.slot);
+        if (cached != base_sounds.end()) record = *cached->second;
+        record.slot = static_cast<std::uint16_t>(slot);
+        const auto put = [&record](std::size_t at, std::uint16_t value) {
+            record.raw[at] = static_cast<std::uint8_t>(value & 0xff);
+            record.raw[at + 1] = static_cast<std::uint8_t>((value >> 8) & 0xff);
+        };
+        put(0x04, sound.enabled);
+        put(0x08, sound.field08);
+        put(0x0c, sound.field0c);
+        put(0x10, sound.field10);
+        put(0x14, sound.field14);
+        put(0x18, sound.field18);
+        put(0x1c, sound.field1c);
+        put(0x20, sound.field20);
+        put(0x24, sound.field24);
+        put(0x28, sound.field28);
+        put(0x2c, sound.field2c);
+        put(0x30, sound.field30);
+        record.raw[0x34] = sound.active ? 1 : 0;
+        save.sounds.push_back(record);
+    }
+
+    std::map<std::uint16_t, const SaveMediaRecord*> base_media;
+    for (const auto& media : save.media) base_media[media.slot] = &media;
+    save.media.clear();
+    for (const auto& [slot, media] : state.media) {
+        SaveMediaRecord record;
+        record.slot = static_cast<std::uint16_t>(slot);
+        const auto cached = base_media.find(record.slot);
+        if (cached != base_media.end()) record = *cached->second;
+        record.slot = static_cast<std::uint16_t>(slot);
+        record.value = media.value;
+        record.frame = media.frame;
+        record.timestamp = media.timestamp;
+        record.media_id = media.media_id;
+        record.active = media.active;
+        record.type = media.type;
+        put_u16(record.raw, 0x00, media.value);
+        put_u32(record.raw, 0x04, media.frame);
+        put_u32(record.raw, 0x08, media.timestamp);
+        put_u32(record.raw, 0x0c, media.media_id);
+        record.raw[0x10] = media.active;
+        record.raw[0x11] = media.type;
+        save.media.push_back(record);
+    }
+
+    std::map<std::uint16_t, const SaveDialogueChain*> base_chains;
+    for (const auto& chain : save.dialogue_chains) base_chains[chain.slot] = &chain;
+    save.dialogue_chains.clear();
+    for (const auto& [slot, chain] : state.dialogue_chains) {
+        SaveDialogueChain record;
+        record.slot = static_cast<std::uint16_t>(slot);
+        const auto cached = base_chains.find(record.slot);
+        if (cached != base_chains.end()) record = *cached->second;
+        record.slot = static_cast<std::uint16_t>(slot);
+        for (std::size_t index = 0; index < chain.ids.size(); ++index) {
+            put_u32(record.raw, index * 4, chain.ids[index]);
+        }
+        put_u32(record.raw, 0x64, chain.count);
+        save.dialogue_chains.push_back(record);
+    }
+
+    save.current_scene = static_cast<std::uint32_t>(state.alternate_mode);
+
+    // 0x42118c copies savegame/notebook.000 line by line; read the current file
+    // so the tail matches what the engine would append next.
+    const auto notebook = find_filename(savegame_directory(session.options), "notebook.000");
+    if (notebook) {
+        try {
+            const auto bytes = read_file(*notebook);
+            std::string text(bytes.begin(), bytes.end());
+            if (text.find('\0') == std::string::npos &&
+                (text.empty() || text.back() == '\n')) {
+                save.notebook = std::move(text);
+            }
+        } catch (const std::exception&) {
+            // Keep the base save's tail; the writer still validates it.
+        }
+    }
+    return save;
+}
+
+// SDL_TEXTINPUT is UTF-8; the save description on disk is CP1254, the same
+// single-byte encoding MESSAGES.TXT uses. ASCII and the twelve Turkish letters
+// (plus the circumflexed a/i/u) are mapped; anything else is dropped and
+// reported by the caller.
+std::string utf8_to_cp1254(const std::string& text) {
+    static const std::map<std::uint32_t, std::uint8_t> table = {
+        {0x00e2, 0xe2}, {0x00c2, 0xc2}, {0x00e7, 0xe7}, {0x00c7, 0xc7},
+        {0x011f, 0xf0}, {0x011e, 0xd0}, {0x0131, 0xfd}, {0x0130, 0xdd},
+        {0x00ee, 0xee}, {0x00ce, 0xce}, {0x00f6, 0xf6}, {0x00d6, 0xd6},
+        {0x015f, 0xfe}, {0x015e, 0xde}, {0x00fc, 0xfc}, {0x00dc, 0xdc},
+        {0x00fb, 0xfb}, {0x00db, 0xdb}};
+    std::string result;
+    for (std::size_t at = 0; at < text.size();) {
+        const auto lead = static_cast<unsigned char>(text[at]);
+        if (lead < 0x80) {
+            result.push_back(static_cast<char>(lead));
+            ++at;
+            continue;
+        }
+        std::uint32_t code = 0;
+        std::size_t length = 0;
+        if ((lead & 0xe0) == 0xc0) {
+            code = lead & 0x1f;
+            length = 2;
+        } else if ((lead & 0xf0) == 0xe0) {
+            code = lead & 0x0f;
+            length = 3;
+        } else if ((lead & 0xf8) == 0xf0) {
+            code = lead & 0x07;
+            length = 4;
+        } else {
+            ++at;
+            continue;
+        }
+        if (at + length > text.size()) break;
+        for (std::size_t index = 1; index < length; ++index) {
+            code = (code << 6) | (static_cast<unsigned char>(text[at + index]) & 0x3f);
+        }
+        at += length;
+        const auto found = table.find(code);
+        if (found != table.end()) result.push_back(static_cast<char>(found->second));
+    }
+    return result;
+}
+
+// ---------------------------------------------------------------------------
 // The top-bar screens (0x41e289 + 0x41f9ea)
 // ---------------------------------------------------------------------------
 // Clicking a top-bar button leaves the scene loop and enters FUN_0041e289's
@@ -4139,7 +4773,7 @@ int answer_at(const std::vector<SDL_Rect>& rects, float x, float y) {
 // parser and travel path, KEŞİF replays the shipped movies/simulations and the
 // notebook pages show their shipped art.
 struct MenuUi {
-    enum class Confirm { none, delete_slot, quit };
+    enum class Confirm { none, delete_slot, quit, overwrite };
 
     bool open = false;
     int mode = 2;
@@ -4151,6 +4785,30 @@ struct MenuUi {
     bool credits = false;
     Confirm confirm = Confirm::none;
     std::string notice;
+    // OYUN KAYIT's name dialog (0x421fa2). The original uses a Windows edit
+    // box; the port draws the same MESSAGES id 0x3c prompt and reads
+    // SDL_TEXTINPUT into the CP1254 description.
+    bool editing = false;
+    std::string edit_text;
+    std::string edit_file;
+    int edit_slot = -1;
+    // TEMAS LİSTESİ / notebook pages (0x420c51, 0x4215d6): the ids and blocks
+    // come from savegame/notebook.000, which the engine appends to as the game
+    // runs.
+    struct NoteEntry {
+        int line = 0;
+        int id = 0;
+    };
+    struct NotePage {
+        int scene = 0;
+        int dialog = 0;
+        std::vector<NoteEntry> entries;
+    };
+    std::vector<int> contact_ids;
+    std::vector<NotePage> note_pages;
+    int hint_index = 0;
+    int hint_scroll = 0;
+    bool hints = false;  // 0x41e002's HINTS.JPG screen
     std::filesystem::path savegame_dir;
     std::vector<std::string> slot_names;
     std::map<std::string, std::string> descriptions;
@@ -4214,6 +4872,9 @@ struct MenuUi {
         const auto add = [&](std::string name) {
             if (name.empty()) return;
             if (!find_filename(savegame_dir, name)) return;
+            for (const auto& existing : slot_names) {
+                if (lower_ascii(existing) == lower_ascii(name)) return;
+            }
             slot_names.push_back(std::move(name));
         };
         // 0x41f065: autosave.btb first, then every line of btb.sav.
@@ -4307,13 +4968,20 @@ struct MenuUi {
         kesif_hover = -1;
         notice.clear();
         credits = false;
+        hints = false;
         confirm = Confirm::none;
+        editing = false;
         if (mode == 1) {
             page = 0;
             slot = -1;
             refresh_slots();
         }
         if (mode == 2) status_count = read_status_count();
+        if (mode >= 3 && mode <= 5) {
+            load_notebook(session);
+            hint_index = 0;
+            hint_scroll = 0;
+        }
         open = true;
         log_open();
         present(session);
@@ -4323,7 +4991,10 @@ struct MenuUi {
         std::cout << "menu_close reason=" << reason << " mode=" << mode << '\n';
         open = false;
         credits = false;
+        hints = false;
         confirm = Confirm::none;
+        editing = false;
+        SDL_StopTextInput();
         session.display.top_bar_visible = false;
         session.display.top_bar_hover = 0;
         session.display.top_bar_press = 0;
@@ -4354,8 +5025,8 @@ struct MenuUi {
         const auto root = setup_dir(session.options);
         if (!root) return nullptr;
         const char* names[] = {"preffs", "setup00", "setup00", "s_note00",
-                               "s_note01", "s_note02", "credbk"};
-        const int index = value == 6 ? 6 : (value >= 0 && value <= 5 ? value : -1);
+                               "s_note01", "s_note02", "credbk", "hints"};
+        const int index = (value >= 0 && value <= 7) ? value : -1;
         if (index < 0) return nullptr;
         const auto file = find_child(*root, names[index]);
         if (!file) {
@@ -4469,6 +5140,128 @@ struct MenuUi {
         }
     }
 
+    // 0x420c51: unique dialogue ids from the notebook's `%d: %d` lines, in the
+    // order first seen, skipping -1 and -3. 0x41d7ff stores the 16 contact
+    // names from MESSAGES.TXT lines 29..44; an id above 15 has no name.
+    void load_notebook(Session& session) {
+        contact_ids.clear();
+        note_pages.clear();
+        const auto file = game_file("notebook.000");
+        if (!file) return;
+        std::vector<std::string> lines;
+        try {
+            const auto bytes = read_file(*file);
+            std::string line;
+            for (const auto byte : bytes) {
+                if (byte == '\r') continue;
+                if (byte == '\n') {
+                    lines.push_back(line);
+                    line.clear();
+                } else {
+                    line.push_back(static_cast<char>(byte));
+                }
+            }
+            if (!line.empty()) lines.push_back(line);
+        } catch (const std::exception& error) {
+            std::cout << "menu_notebook " << *file << ": " << error.what() << '\n';
+            return;
+        }
+        NotePage* page = nullptr;
+        for (const auto& line : lines) {
+            int first = 0;
+            int second = 0;
+            if (std::sscanf(line.c_str(), "Scene: %d\tDialog: %d", &first, &second) == 2) {
+                note_pages.push_back(NotePage{first, second, {}});
+                page = &note_pages.back();
+                continue;
+            }
+            if (line == "EndScene") {
+                page = nullptr;
+                continue;
+            }
+            if (page != nullptr &&
+                std::sscanf(line.c_str(), "%d: %d", &first, &second) == 2) {
+                page->entries.push_back(NoteEntry{first, second});
+                if (second != -1 && second != -3) {
+                    const bool seen =
+                        std::find(contact_ids.begin(), contact_ids.end(), second) !=
+                        contact_ids.end();
+                    if (!seen && contact_ids.size() < 16) contact_ids.push_back(second);
+                }
+            }
+        }
+        std::cout << "menu_notebook file=" << *file << " pages=" << note_pages.size()
+                  << " contacts=" << contact_ids.size() << '\n';
+        (void)session;
+    }
+
+    std::string contact_name(int id, const Session& session) const {
+        const int index = 29 + id;
+        if (id >= 0 && id < 16 && index >= 0 &&
+            index < static_cast<int>(session.messages.size())) {
+            return session.messages[static_cast<std::size_t>(index)];
+        }
+        return {};
+    }
+
+    std::string entry_name(int id, const Session& session) const {
+        if (id == -1) {
+            return session.messages.size() > 28 ? session.messages[28] : "-";
+        }
+        if (id == -3) {
+            return session.messages.size() > 51 ? session.messages[51] : "-";
+        }
+        const auto name = contact_name(id, session);
+        return name.empty() ? "-" : name;
+    }
+
+    void draw_contacts(Session& session) {
+        const auto* font = menu_font(session);
+        if (font == nullptr) return;
+        auto& screen = session.display.screen;
+        for (std::size_t index = 0; index < contact_ids.size(); ++index) {
+            const auto name = contact_name(contact_ids[index], session);
+            if (name.empty()) continue;
+            const int y = 0x6c + static_cast<int>(index) * 0x14;
+            byzantine::draw_text(screen, *font, name, 0x172, y, 1, 3, 0x0000);
+        }
+    }
+
+    void draw_notebook_hints(Session& session) {
+        const auto* font = menu_font(session);
+        if (font == nullptr) return;
+        auto& screen = session.display.screen;
+        if (note_pages.empty()) {
+            byzantine::draw_text(screen, *font, "NOTLAR bos", 0x172, 0x6c, 1, 3,
+                                 0x0000);
+            return;
+        }
+        hint_index = std::clamp(hint_index, 0, static_cast<int>(note_pages.size()) - 1);
+        const auto& page = note_pages[static_cast<std::size_t>(hint_index)];
+        std::string scene = "?";
+        if (session.metadata &&
+            page.scene >= 0 &&
+            page.scene < static_cast<int>(session.metadata->scenes.size())) {
+            scene = session.metadata->scenes[static_cast<std::size_t>(page.scene)].scene;
+        }
+        const auto header = "Scene " + scene + "  Dialog " + std::to_string(page.dialog) +
+                            "  (" + std::to_string(hint_index + 1) + '/' +
+                            std::to_string(note_pages.size()) + ")";
+        byzantine::draw_text(screen, *font, header, 0x172, 0x55, 1, 3, 0x0000);
+        const int first = std::clamp(hint_scroll, 0,
+                                     std::max(0, static_cast<int>(page.entries.size()) - 1));
+        int y = 0x69 + font->line_height;
+        for (int index = first;
+             index < static_cast<int>(page.entries.size()) && y + font->line_height < 0x1d5;
+             ++index) {
+            const auto& entry = page.entries[static_cast<std::size_t>(index)];
+            const auto name = entry_name(entry.id, session);
+            const auto line = std::to_string(entry.line) + ": " + name;
+            byzantine::draw_text(screen, *font, line, 0x172, y, 1, 3, 0x0000);
+            y += 0x14;
+        }
+    }
+
     void draw_box(int left, int top, int right, int bottom) {
         auto& screen = display_->screen;
         for (int y = top; y < bottom; ++y) {
@@ -4504,11 +5297,15 @@ struct MenuUi {
         draw_box(120, 170, 520, 340);
         int message_id = 11;  // "Kaydedilen oyun silinsin mi?"
         if (confirm == Confirm::quit) message_id = 9;  // "Kaydetmeden oyundan çıkmak istiyor musunuz?"
+        if (confirm == Confirm::overwrite) message_id = 12;  // "Oyunun üzerine kaydetmek..."
         const std::string message =
             message_id < static_cast<int>(session.messages.size())
                 ? session.messages[static_cast<std::size_t>(message_id)]
-                : (confirm == Confirm::quit ? "Oyundan cikmak istiyor musunuz?"
-                                            : "Kaydedilen oyun silinsin mi?");
+                : (confirm == Confirm::quit
+                       ? "Oyundan cikmak istiyor musunuz?"
+                       : (confirm == Confirm::overwrite
+                              ? "Oyunun uzerine kaydetmek istiyor musunuz?"
+                              : "Kaydedilen oyun silinsin mi?"));
         const auto lines = wrap_dialog_text(*font, message, 360);
         int y = 190;
         for (const auto& line : lines) {
@@ -4535,12 +5332,38 @@ struct MenuUi {
 
     void draw(Session& session) {
         display_ = &session.display;
+        if (editing) {
+            draw_art(session, mode);
+            draw_edit(session);
+            return;
+        }
+        if (hints) {
+            draw_art(session, 7);
+            draw_notebook_hints(session);
+            return;
+        }
         if (credits) {
             draw_art(session, 6);
             draw_notice(session);
             return;
         }
         draw_art(session, mode);
+        // 0x420587's tab highlight: yellow frames 0/1 for the save-list page,
+        // 2 for KEŞİF. The gray OYUN TERCİHLERİ tab is baked in the art.
+        if (mode == 1 && !display_->yellow_frames.empty()) {
+            const auto index = std::min<std::size_t>(page == 0 ? 0 : 1,
+                                                     display_->yellow_frames.size() - 1);
+            const auto& frame = display_->yellow_frames[index];
+            display_->blit_ui(frame, frame.x, frame.y);
+        } else if (mode == 2 && display_->yellow_frames.size() > 2) {
+            const auto& frame = display_->yellow_frames[2];
+            display_->blit_ui(frame, frame.x, frame.y);
+        }
+        // 0x41f90e: ROLL.RLE[control] is the hover art for ids 0..14.
+        if (hover >= 0 && hover < static_cast<int>(display_->roll_frames.size())) {
+            const auto& frame = display_->roll_frames[static_cast<std::size_t>(hover)];
+            display_->blit_ui(frame, frame.x, frame.y);
+        }
         // 0x41f98e: the enabled rows 0..5 get their on_off marker.
         for (int id = 0; id <= 5; ++id) {
             if (control_enabled(id)) draw_marker(id);
@@ -4548,6 +5371,8 @@ struct MenuUi {
         if (mode == 0) draw_preferences(session);
         if (mode == 1) draw_save_slots(session);
         if (mode == 2) draw_kesif(session);
+        if (mode == 4) draw_contacts(session);
+        if (mode == 5) draw_notebook_hints(session);
         if (confirm != Confirm::none) draw_confirm(session);
         draw_notice(session);
     }
@@ -4618,6 +5443,232 @@ struct MenuUi {
         return static_cast<bool>(output);
     }
 
+    std::uint32_t current_disc(const Session& session) const {
+        if (session.save_base) return session.save_base->cd_number;
+        const auto overlay = session.options.scene.find("--anims-overlay");
+        if (overlay != session.options.scene.end()) {
+            const auto folder = std::filesystem::path(overlay->second).filename().string();
+            const auto at = folder.find("cd");
+            if (at != std::string::npos) {
+                int disc = 0;
+                std::size_t index = at + 2;
+                while (index < folder.size() &&
+                       std::isdigit(static_cast<unsigned char>(folder[index]))) {
+                    disc = disc * 10 + (folder[index] - '0');
+                    ++index;
+                }
+                if (disc != 0) return static_cast<std::uint32_t>(disc);
+            }
+        }
+        return 2;  // CD1 install default; reported when a save is written
+    }
+
+    int first_free_slot() const {
+        // 0x41effe: the first NN.btb that does not exist, 00 upward.
+        for (int index = 0; index < 100; ++index) {
+            char name[16];
+            std::snprintf(name, sizeof(name), "%02d.btb", index);
+            if (!find_filename(savegame_dir, name)) return index;
+        }
+        return -1;
+    }
+
+    void begin_name_edit(Session& session, std::string file, std::string text, int index) {
+        editing = true;
+        edit_file = std::move(file);
+        edit_text = std::move(text);
+        edit_slot = index;
+        notice.clear();
+        SDL_StartTextInput();
+        std::cout << "menu_save_name file=" << edit_file
+                  << " existing=" << (index >= 0 ? "yes" : "no") << '\n';
+        present(session);
+    }
+
+    void append_slot_list(const std::string& name) {
+        // 0x41f1ac appends the bare file name to savegame/btb.sav. The shipped
+        // list already names 00.btb..73.btb even when a file is missing, so do
+        // not add a duplicate line when the name is already listed.
+        auto path = find_filename(savegame_dir, "btb.sav");
+        const auto target = path ? *path : savegame_dir / "btb.sav";
+        if (std::filesystem::exists(target)) {
+            try {
+                const auto bytes = read_file(target);
+                std::string line;
+                for (const auto byte : bytes) {
+                    if (byte == '\r') continue;
+                    if (byte == '\n') {
+                        if (lower_ascii(line) == lower_ascii(name)) {
+                            std::cout << "menu_slot_list already_listed=" << name << '\n';
+                            return;
+                        }
+                        line.clear();
+                    } else {
+                        line.push_back(static_cast<char>(byte));
+                    }
+                }
+                if (lower_ascii(line) == lower_ascii(name)) {
+                    std::cout << "menu_slot_list already_listed=" << name << '\n';
+                    return;
+                }
+            } catch (const std::exception&) {
+                // Fall through and append; the list is repaired by refresh.
+            }
+        }
+        std::ofstream output(target, std::ios::binary | std::ios::app);
+        if (!output) {
+            std::cout << "menu_slot_list write_failed file=" << target << '\n';
+            return;
+        }
+        output << name << '\n';
+        std::cout << "menu_slot_list appended=" << name << " file=" << target << '\n';
+    }
+
+    bool commit_save(Session& session) {
+        if (edit_file.empty()) return false;
+        std::string description = edit_text;
+        if (description.empty()) {
+            description = std::filesystem::path(edit_file).stem().string();
+        }
+        if (description.size() > 69) description.resize(69);
+        std::uint16_t scene_index = 0;
+        bool found_scene = false;
+        if (session.metadata) {
+            for (std::size_t index = 0; index < session.metadata->scenes.size(); ++index) {
+                if (lower_ascii(session.metadata->scenes[index].scene) ==
+                    lower_ascii(session.view.name)) {
+                    scene_index = static_cast<std::uint16_t>(index);
+                    found_scene = true;
+                    break;
+                }
+            }
+        }
+        if (!found_scene) {
+            return set_notice(session, "SHOW.LCC yok: sahne indeksi yazilamadi.",
+                              "save_scene_index");
+        }
+        std::vector<std::uint8_t> bytes;
+        byzantine::SaveGame save;
+        try {
+            save = build_save_from_state(session,
+                                         session.save_base ? &*session.save_base : nullptr,
+                                         description, scene_index,
+                                         current_disc(session));
+            bytes = byzantine::write_save(save);
+        } catch (const std::exception& error) {
+            std::cout << "menu_save failed: " << error.what() << '\n';
+            return set_notice(session, std::string("Kayit yazilamadi: ") + error.what(),
+                              "save_write");
+        }
+        std::error_code error;
+        std::filesystem::create_directories(savegame_dir, error);
+        const auto path = savegame_dir / edit_file;
+        const bool is_new = !std::filesystem::exists(path);
+        std::ofstream output(path, std::ios::binary | std::ios::trunc);
+        if (!output) {
+            return set_notice(session, "Kayit dosyasi acilamadi: " + edit_file,
+                              "save_open");
+        }
+        output.write(reinterpret_cast<const char*>(bytes.data()),
+                     static_cast<std::streamsize>(bytes.size()));
+        output.close();
+        if (!output) {
+            return set_notice(session, "Kayit dosyasi yazilamadi: " + edit_file,
+                              "save_io");
+        }
+        if (is_new) append_slot_list(edit_file);
+        session.save_base = save;
+        descriptions.erase(edit_file);
+        refresh_slots();
+        int selected = -1;
+        for (std::size_t index = 0; index < slot_names.size(); ++index) {
+            if (lower_ascii(slot_names[index]) == lower_ascii(edit_file)) {
+                selected = static_cast<int>(index);
+                break;
+            }
+        }
+        slot = selected;
+        page = selected >= 0 ? selected / 10 : 0;
+        editing = false;
+        SDL_StopTextInput();
+        std::cout << "menu_save file=" << path << " bytes=" << bytes.size()
+                  << " description=" << description << " scene=" << session.view.name
+                  << " scene_index=" << scene_index << " new=" << (is_new ? "yes" : "no")
+                  << " cd=" << current_disc(session) << '\n';
+        notice = "Kayit yazildi: " + edit_file;
+        present(session);
+        return true;
+    }
+
+    void request_save(Session& session) {
+        if (editing) return;
+        if (slot >= 0) {
+            confirm = Confirm::overwrite;
+            std::cout << "menu_confirm open action=overwrite\n";
+            present(session);
+            return;
+        }
+        const int index = first_free_slot();
+        if (index < 0) {
+            set_notice(session, "Bos kayit yuvasi yok.", "save_no_slot");
+            return;
+        }
+        char name[16];
+        std::snprintf(name, sizeof(name), "%02d.btb", index);
+        begin_name_edit(session, name, "", -1);
+    }
+
+    bool text_input(Session& session, const std::string& text) {
+        if (!editing) return false;
+        auto converted = utf8_to_cp1254(text);
+        for (const char character : converted) {
+            if (edit_text.size() >= 69) break;
+            edit_text.push_back(character);
+        }
+        present(session);
+        return true;
+    }
+
+    bool key_event(Session& session, const SDL_KeyboardEvent& key) {
+        if (!editing) return false;
+        switch (key.keysym.sym) {
+            case SDLK_BACKSPACE:
+                if (!edit_text.empty()) edit_text.pop_back();
+                present(session);
+                return true;
+            case SDLK_RETURN:
+            case SDLK_KP_ENTER:
+                commit_save(session);
+                return true;
+            case SDLK_ESCAPE:
+                editing = false;
+                SDL_StopTextInput();
+                std::cout << "menu_save_name cancelled file=" << edit_file << '\n';
+                present(session);
+                return true;
+            default:
+                return true;
+        }
+    }
+
+    void draw_edit(Session& session) {
+        const auto* font = menu_font(session);
+        if (font == nullptr) return;
+        draw_box(90, 170, 550, 320);
+        const std::string prompt =
+            session.messages.size() > 60 ? session.messages[60]
+                                         : "Kaydettiginiz oyuna isim verin:";
+        byzantine::draw_text(session.display.screen, *font, prompt, 110, 190, 2, 3,
+                             0xffff);
+        const std::string shown = edit_text + "_";
+        byzantine::draw_text(session.display.screen, *font, shown, 110, 230, 1, 3,
+                             0xffe0);
+        byzantine::draw_text(session.display.screen, *font,
+                             "Dosya: " + edit_file + "   ENTER: kaydet   ESC: iptal",
+                             110, 285, 1, 3, 0xffff);
+    }
+
+
     bool load_slot(Session& session, int index, const char* reason) {
         const auto path = slot_path(index);
         if (!path) return set_notice(session, "Kayit dosyasi bulunamadi.", reason);
@@ -4632,25 +5683,9 @@ struct MenuUi {
                   << " description=" << save.description
                   << " scene_index=" << save.scene_index
                   << " reason=" << reason << '\n';
-        // The launcher prepared --anims-overlay for the disc the *starting*
-        // save names. A load from another disc keeps that overlay (the player
-        // cannot rebuild it); say so instead of silently mixing the art.
-        const auto overlay = session.options.scene.find("--anims-overlay");
-        if (overlay != session.options.scene.end()) {
-            const auto folder =
-                std::filesystem::path(overlay->second).filename().string();
-            const auto at = folder.find("cd");
-            if (at != std::string::npos && at + 2 < folder.size() &&
-                std::isdigit(static_cast<unsigned char>(folder[at + 2])) &&
-                folder[at + 2] - '0' != static_cast<int>(save.cd_number)) {
-                std::cout << "menu_load anims_overlay_disc_mismatch overlay=" << folder
-                          << " save_cd=" << save.cd_number
-                          << " (the overlay is not recomputed on load)\n";
-            }
-        }
         const bool was_open = open;
         open = false;
-        const bool ok = travel_to(session, save.scene_index, true, path->string());
+        const bool ok = travel_to(session, save.scene_index, true, path->string(), &save);
         if (!ok) {
             open = was_open;
             return set_notice(session, "Kayit sahnesi yuklenemedi.", "load_failed");
@@ -4675,7 +5710,7 @@ struct MenuUi {
                   << " scene_index=" << save.scene_index << '\n';
         const bool was_open = open;
         open = false;
-        const bool ok = travel_to(session, save.scene_index, true, path->string());
+        const bool ok = travel_to(session, save.scene_index, true, path->string(), &save);
         if (!ok) {
             open = was_open;
             return set_notice(session, "Yeni oyun baslatilamadi.", "new_game_failed");
@@ -4750,6 +5785,132 @@ struct MenuUi {
         return true;
     }
 
+    bool play_credits(Session& session) {
+        // 0x422500: setupart/credbk.jpg is the backdrop; text/CREDITS.TXT is
+        // read into 600 lines and scrolled up two pixels every 25 ms. A click
+        // or ESC leaves the scroll (the original watches DAT_0045f050/58).
+        const auto* font = menu_font(session);
+        if (font == nullptr) return false;
+        std::optional<std::filesystem::path> text;
+        for (const auto& candidate :
+             {session.options.backgrounds / "text" / "CREDITS.TXT",
+              session.options.backgrounds / "copy2hd" / "text" / "CREDITS.TXT",
+              session.options.backgrounds / "setupart" / "CREDITS.TXT"}) {
+            std::error_code error;
+            if (std::filesystem::is_regular_file(candidate, error)) {
+                text = candidate;
+                break;
+            }
+        }
+        if (!text) {
+            return set_notice(session, "text/CREDITS.TXT bulunamadi.",
+                              "credits_missing");
+        }
+        std::vector<std::string> lines;
+        std::vector<bool> headings;
+        try {
+            const auto bytes = read_file(*text);
+            std::string line;
+            const auto flush = [&]() {
+                bool heading = !line.empty() && line.front() == '$';
+                if (heading) line.erase(line.begin());
+                lines.push_back(byzantine::cp1254_to_game_text(line));
+                headings.push_back(heading);
+                line.clear();
+            };
+            for (const auto byte : bytes) {
+                if (byte == '\r') continue;
+                if (byte == '\n') flush();
+                else line.push_back(static_cast<char>(byte));
+            }
+            if (!line.empty()) flush();
+        } catch (const std::exception& error) {
+            std::cout << "menu_credits read " << *text << ": " << error.what() << '\n';
+            return set_notice(session, "Jenerik dosyasi okunamadi.", "credits_read");
+        }
+        const auto* backdrop = art(session, 6);
+        if (backdrop == nullptr) {
+            return set_notice(session, "CREDBK.JPG bulunamadi.", "credits_art");
+        }
+        if (session.audio.ready() && !session.options.sounds.empty()) {
+            const auto wav = sound_path(session.options.sounds, "credit", "");
+            if (wav) {
+                try {
+                    session.audio.queue(byzantine::parse_wav(read_file(*wav),
+                                                             wav->string()));
+                    std::cout << "menu_credits audio=" << wav->filename().string()
+                              << '\n';
+                } catch (const std::exception& error) {
+                    std::cout << "menu_credits audio skipped: " << error.what() << '\n';
+                }
+            }
+        }
+        const int line_height = std::max(1, font->line_height);
+        int y = 0x1de;
+        const auto started = std::chrono::steady_clock::now();
+        std::cout << "menu_credits file=" << *text << " lines=" << lines.size()
+                  << " line_height=" << line_height << '\n';
+        session.display.top_bar_visible = false;
+        int frames = 0;
+        while (session.running) {
+            auto& display = session.display;
+            std::fill(display.screen.pixels.begin(), display.screen.pixels.end(), 0);
+            const int width = std::min(display.screen.width, backdrop->width);
+            const int height = std::min(display.screen.height, backdrop->height);
+            for (int row = 0; row < height; ++row) {
+                for (int column = 0; column < width; ++column) {
+                    display.screen.at(column, row) = backdrop->at(column, row);
+                }
+            }
+            for (std::size_t index = 0; index < lines.size(); ++index) {
+                const int line_y = y + static_cast<int>(index) * line_height;
+                if (line_y <= -line_height || line_y >= display.screen.height) continue;
+                byzantine::draw_text(display.screen, *font, lines[index],
+                                     kScreenWidth / 2, line_y, 1, 1,
+                                     headings[index] ? 0xffe0 : 0xffff);
+            }
+            display.present_image(display.screen, session.view, false, 0);
+            ++frames;
+            if (session.options.credits_frames &&
+                frames >= *session.options.credits_frames) {
+                if (!session.options.credits_shot.empty()) {
+                    byzantine::write_ppm(display.screen, session.options.credits_shot);
+                    std::cout << "menu_credits shot=" << session.options.credits_shot
+                              << '\n';
+                }
+                std::cout << "menu_credits frames=" << frames
+                          << " (diagnostic stop)\n";
+                break;
+            }
+            SDL_Event event;
+            bool stop = false;
+            while (poll_logged_event(&event, "credits", session)) {
+                if (event.type == SDL_QUIT) {
+                    session.running = false;
+                    stop = true;
+                } else if (event.type == SDL_KEYDOWN &&
+                           event.key.keysym.sym == SDLK_ESCAPE) {
+                    stop = true;
+                } else if (event.type == SDL_MOUSEBUTTONDOWN &&
+                           event.button.button == SDL_BUTTON_LEFT) {
+                    stop = true;
+                }
+            }
+            if (stop) break;
+            if (y + static_cast<int>(lines.size()) * line_height < 0) break;
+            SDL_Delay(25);
+            y -= 2;
+        }
+        const auto elapsed = static_cast<std::uint64_t>(
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - started)
+                .count());
+        std::cout << "menu_credits end elapsed_ms=" << elapsed
+                  << " lines=" << lines.size() << '\n';
+        present(session);
+        return true;
+    }
+
     bool travel_to_named(Session& session, const std::string& scene) {
         if (!session.metadata) {
             return set_notice(session, "SHOW.LCC yok: sahne indeksi cozulemiyor.", "scene_index");
@@ -4774,6 +5935,12 @@ struct MenuUi {
 
     bool click(Session& session, int x, int y) {
         notice.clear();
+        if (hints) {
+            hints = false;
+            std::cout << "menu_hints close\n";
+            present(session);
+            return true;
+        }
         if (confirm != Confirm::none) {
             for (int index = 0; index < 2; ++index) {
                 const int left = 180 + index * 120;
@@ -4793,6 +5960,12 @@ struct MenuUi {
                         std::cout << "menu_quit\n";
                         session.running = false;
                         return true;
+                    } else if (action == Confirm::overwrite) {
+                        if (slot >= 0 && slot < static_cast<int>(slot_names.size())) {
+                            begin_name_edit(session, slot_names[static_cast<std::size_t>(slot)],
+                                            slot_description(slot), slot);
+                            return true;
+                        }
                     }
                     present(session);
                     return true;
@@ -4813,9 +5986,8 @@ struct MenuUi {
         if (hit < 0) return false;
         switch (hit) {
             case 0x00:  // OYUN KAYIT
-                return set_notice(session,
-                                  "Kayit yazma bu portta uygulanmadi (0x424dc0).",
-                                  "save_not_reconstructed");
+                request_save(session);
+                return true;
             case 0x01:  // OYUN YÜKLE
                 return load_slot(session, slot, "oyun_yukle");
             case 0x02:  // OYUN İPTAL
@@ -4919,11 +6091,9 @@ struct MenuUi {
                                   : std::string("?"))
                           << '\n';
                 if (index == 0x34) {
-                    credits = true;
                     std::cout << "menu_credits image=setupart/CREDBK.JPG"
-                              << " (0x41fcf3's scroll is not modelled)\n";
-                    present(session);
-                    return true;
+                              << " text=text/CREDITS.TXT (0x422500 scroll)\n";
+                    return play_credits(session);
                 }
                 if (index == 0x35) return play_movie(session, "mintro");
                 if (index == 0x3a) return play_movie(session, "mepilog");
@@ -4934,12 +6104,36 @@ struct MenuUi {
                 return false;
             }
             case 0x25:
-            case 0x26:
-                return set_notice(session, "Defter sayfa kaydirma uygulanmadi.",
-                                  "notes_scroll");
+            case 0x26: {
+                if (mode != 5 || note_pages.empty()) {
+                    return set_notice(session, "Defter sayfa kaydirma bu ekranda yok.",
+                                      "notes_scroll");
+                }
+                const auto& page = note_pages[static_cast<std::size_t>(
+                    std::clamp(hint_index, 0, static_cast<int>(note_pages.size()) - 1))];
+                const int limit = std::max(0, static_cast<int>(page.entries.size()) - 1);
+                hint_scroll += (hit == 0x25 ? 2 : -2);
+                hint_scroll = std::clamp(hint_scroll, 0, limit);
+                std::cout << "menu_notes_scroll page=" << hint_index
+                          << " scroll=" << hint_scroll << " entries="
+                          << page.entries.size() << '\n';
+                present(session);
+                return true;
+            }
             case 0x27:
-                return set_notice(session, "Ipucu ekrani (0x41e002) uygulanmadi.",
-                                  "hints");
+                // 0x41e002: HINTS.JPG + the Hints1 conversation. The port shows
+                // the shipped backdrop and the notebook hint log; the Hints1
+                // runner is reported as not reconstructed.
+                load_notebook(session);
+                hints = true;
+                hint_index = 0;
+                hint_scroll = 0;
+                std::cout << "menu_hints image=setupart/HINTS.JPG pages="
+                          << note_pages.size()
+                          << " text=notebook.000 (0x41e002 Hints1 runner not "
+                             "reconstructed)\n";
+                present(session);
+                return true;
             default:
                 return false;
         }
@@ -4947,6 +6141,37 @@ struct MenuUi {
 
     Display* display_ = nullptr;
 };
+
+// Deterministic input for --menu-click-at/--menu-text/--menu-key: the same
+// handlers the window's event loop uses, in the order the arguments appear on
+// the command line is not preserved; clicks, then text, then keys.
+void apply_headless_menu_input(Session& session, MenuUi& menu, const Options& options) {
+    for (const auto& point : options.menu_clicks) {
+        if (!menu.open) break;
+        menu.click(session, point.first, point.second);
+    }
+    for (const auto& text : options.menu_texts) {
+        if (!menu.open || !menu.editing) break;
+        menu.text_input(session, text);
+    }
+    for (const auto& name : options.menu_keys) {
+        if (!menu.open || !menu.editing) break;
+        SDL_KeyboardEvent key{};
+        key.type = SDL_KEYDOWN;
+        if (name == "enter" || name == "return") key.keysym.sym = SDLK_RETURN;
+        else if (name == "escape" || name == "esc") key.keysym.sym = SDLK_ESCAPE;
+        else if (name == "backspace") key.keysym.sym = SDLK_BACKSPACE;
+        else {
+            std::cout << "menu_key unknown=" << name << '\n';
+            continue;
+        }
+        menu.key_event(session, key);
+    }
+    for (const auto& point : options.menu_hovers) {
+        if (!menu.open || menu.editing) break;
+        menu.hover_at(session, point.first, point.second);
+    }
+}
 
 
 bool wait_dialog_ms(Session& session, std::uint64_t milliseconds) {
@@ -5788,6 +7013,15 @@ int main(int argc, char** argv) {
 
         session.view = open_scene(options.scene, options.cc_path, options.cb_path,
                                   static_cast<std::uint16_t>(label_value));
+        const auto initial_save = options.scene.find("--save");
+        if (initial_save != options.scene.end()) {
+            try {
+                session.save_base = byzantine::parse_save(read_file(initial_save->second));
+            } catch (const std::exception& error) {
+                std::cout << "save_base " << initial_save->second << ": " << error.what()
+                          << " (a new save keeps the empty unmodelled blocks)\n";
+            }
+        }
         session.view.pool_on_arrival = session.view.state.variable_pool;
         session.view.reload_point = SceneReloadPoint{
             static_cast<std::uint16_t>(label_value), options.entry};
@@ -6216,10 +7450,7 @@ int main(int argc, char** argv) {
             if (options.menu_mode) {
                 menu.open_screen(*options.menu_mode, session);
             }
-            for (const auto& point : options.menu_clicks) {
-                if (!menu.open) break;
-                menu.click(session, point.first, point.second);
-            }
+            apply_headless_menu_input(session, menu, options);
             if (!options.menu_shot.empty() && menu.open) {
                 menu.draw(session);
                 if (byzantine::write_ppm(session.display.screen, options.menu_shot)) {
@@ -6243,16 +7474,26 @@ int main(int argc, char** argv) {
                     if (menu.open) {
                         // 0x41e289's screen loop owns input until it returns:
                         // ESC closes it, clicks hit its own 0x45f548 controls.
+                        // OYUN KAYIT's name box (0x421fa2) takes text input.
                         if (event.type == SDL_QUIT) {
                             session.running = false;
-                        } else if (event.type == SDL_KEYDOWN &&
-                                   event.key.keysym.sym == SDLK_ESCAPE) {
-                            menu.close(session, "escape");
+                        } else if (event.type == SDL_TEXTINPUT) {
+                            menu.text_input(session, event.text.text);
+                        } else if (event.type == SDL_KEYDOWN) {
+                            if (menu.editing) {
+                                menu.key_event(session, event.key);
+                            } else if (event.key.keysym.sym == SDLK_ESCAPE) {
+                                menu.close(session, "escape");
+                            }
                         } else if (event.type == SDL_MOUSEMOTION) {
-                            menu.hover_at(session, event.motion.x, event.motion.y);
+                            if (!menu.editing) {
+                                menu.hover_at(session, event.motion.x, event.motion.y);
+                            }
                         } else if (event.type == SDL_MOUSEBUTTONDOWN &&
                                    event.button.button == SDL_BUTTON_LEFT) {
-                            menu.click(session, event.button.x, event.button.y);
+                            if (!menu.editing) {
+                                menu.click(session, event.button.x, event.button.y);
+                            }
                         }
                         continue;
                     }
@@ -6646,14 +7887,12 @@ int main(int argc, char** argv) {
         // driven without SDL input. This is the deterministic path for the
         // menu screens and their actions (a load/new game still runs the same
         // travel_to, so its scene becomes the current view).
-        if (options.menu_mode || !options.menu_shot.empty() || !options.menu_clicks.empty()) {
+        if (options.menu_mode || !options.menu_shot.empty() || !options.menu_clicks.empty() ||
+            !options.menu_texts.empty() || !options.menu_keys.empty()) {
             MenuUi shot_menu;
             shot_menu.init(session);
             shot_menu.open_screen(options.menu_mode.value_or(2), session);
-            for (const auto& point : options.menu_clicks) {
-                if (!shot_menu.open) break;
-                shot_menu.click(session, point.first, point.second);
-            }
+            apply_headless_menu_input(session, shot_menu, options);
             if (!options.menu_shot.empty()) {
                 if (shot_menu.open) {
                     shot_menu.draw(session);

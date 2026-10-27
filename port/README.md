@@ -9,20 +9,26 @@ Fare ekranın üst 20 pikseline girdiğinde oyunun kendi `setupart/TOP_BAR.TGA`
 tıklanınca `0x41e289`'un ekranı açılır:
 
 - **YÜKLE/KAYDET** (mode 1): `autosave.btb` + `btb.sav` slot listesi; OYUN
-  YÜKLE seçilen `.btb`'yi gerçek kayıt durumuyla yükler, YENİ OYUN `new.can`'ı
-  açar, OYUN İPTAL onaylı siler. OYUN KAYIT yazıcısı (`0x424dc0`) henüz yok;
-  ekranda ve logda açıkça bildirilir.
+  YÜKLE seçilen `.btb`'yi gerçek kayıt durumuyla yükler (giriş betiği yeniden
+  çalıştırılmaz; arka plan/panorama kayıttan gelir), YENİ OYUN `new.can`'ı
+  açar, OYUN İPTAL onaylı siler, OYUN KAYIT tam `0x424dc0` görüntüsü yazar.
+  Kayıt adı için gerçek MESSAGE 0x3c istemi ve CP1254 metin girişi kullanılır;
+  başka diskten yüklemede o diskin animasyon katmanı hazırlanır.
 - **NOTLAR** (mode 3): `s_note00.jpg` sayfası; sağ sayfaya tıklamak TEMAS
-  LİSTESİ/yayılım sayfalarına geçer (metinleri henüz doldurulmuyor).
+  LİSTESİ (notebook.000 kişileri) ve defter sayfalarına geçer.
 - **KEŞİF** (mode 2): `status.000`'a göre `MESSAGES.TXT` 0x34..0x3a satırları;
-  jenerik (`CREDBK.JPG`), dört simülasyon sahnesi (`vtdisc` → `vt` zinciri
-  dahil) ve intro/epilogue filmleri (mevcut FFmpeg klip yolu).
+  jenerik (`CREDBK.JPG` + `text/CREDITS.TXT` kaydırması), dört simülasyon
+  sahnesi (`vtdisc` → `vt` zinciri dahil) ve intro/epilogue filmleri (mevcut
+  FFmpeg klip yolu). Sağdaki İPUCU sekmesi HINTS.JPG + defter ipucu kaydını
+  gösterir (Hints1 konuşma yürütücüsü henüz yok).
 - **TERCİHLER** (mode 0): yedi tercih; değişiklik `savegame/gamepref_000`
   dosyasına yazılır (`0x41f7be`).
 
 ESC ekranı kapatır, OYUNA DEVAM oyuna döner, OYUNDAN ÇIK onay ister. Masaüstü
-tanılamaları: `--menu <0..5>`, `--menu-click-at <x>,<y>` (tekrarlanabilir),
-`--menu-shot <ppm>` ve `--bar-show <0..4>`. Ayrıntı ve sınırlar:
+tanılamaları: `--menu <0..5>`, `--menu-click-at <x>,<y>`, `--menu-hover
+<x>,<y>`, `--menu-text <utf8>`, `--menu-key enter|escape|backspace`,
+`--menu-shot <ppm>`, `--credits-frames <n>`, `--credits-shot <ppm>` ve
+`--bar-show <0..4>`. Ayrıntı ve sınırlar:
 [`../analysis/rea/TOP_MENU.md`](../analysis/rea/TOP_MENU.md).
 
 ## Disklere göre animasyon seçimi

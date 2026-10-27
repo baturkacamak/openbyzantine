@@ -59,7 +59,7 @@ struct SaveSceneChainEntry {
     std::uint8_t table_index = 0;
 };
 struct SaveSceneRecord {
-    std::uint8_t slot = 0;  // 0..0x15d
+    std::uint16_t slot = 0;  // 0..0x15d
     std::string name;       // copied to record +0x1e94
     std::uint16_t word08 = 0;  // +0x08, fread 2
     std::array<std::uint8_t, 5> bytes0a{};  // +0x0a..+0x0e
@@ -68,6 +68,11 @@ struct SaveSceneRecord {
     std::array<std::uint8_t, 0x32> bytes73{};
     std::array<std::vector<SaveLinkEntry>, 0x32> list4c4;  // FUN_0042658f
     std::array<std::vector<SaveLinkEntry>, 0x32> list58c;  // FUN_0042658f
+    // The raw signed count byte of each list. FUN_0042658f treats 0x80..0xff
+    // as "no entries", and the shipped writer copies that byte unchanged (an
+    // empty list often stores 0xff, not 0x00).
+    std::array<std::uint8_t, 0x32> list4c4_count{};
+    std::array<std::uint8_t, 0x32> list58c_count{};
     std::array<SaveScenePointer, 0x32> pointersA8;   // FUN_00426662
     std::array<SaveScenePointer, 0x32> pointers170;  // FUN_00426662
     std::array<SaveScenePointer, 0x32> pointers238;  // FUN_00426662
@@ -78,7 +83,7 @@ struct SaveSceneRecord {
 
 // DAT_00464300[i], 0x18 bytes. Layout recovered from 0x42db22 case 0x72.
 struct SaveObjectRecord {
-    std::uint8_t slot = 0;
+    std::uint16_t slot = 0;
     std::int16_t x = 0;       // +0x00
     std::int16_t y = 0;       // +0x02, already includes 0x72's +0x14 bias
     std::int16_t width = 0;   // +0x04
@@ -97,7 +102,7 @@ struct SaveObjectRecord {
 // DAT_00464f60[i], 0x14 bytes. Layout from 0x42db22 case 0x6a; 0x6c clears
 // +0x10.
 struct SaveMediaRecord {
-    std::uint8_t slot = 0;
+    std::uint16_t slot = 0;
     std::uint16_t value = 0;    // +0x00
     std::uint32_t frame = 0;    // +0x04, initialised to 0
     std::uint32_t timestamp = 0;  // +0x08, timeGetTime() at definition
@@ -109,7 +114,7 @@ struct SaveMediaRecord {
 
 // DAT_00486220[i], 0x3c bytes, consumed by 0x65/0xbc/0xbf/0xc0/0xc1/0xc2.
 struct SaveSoundRecord {
-    std::uint8_t slot = 0;
+    std::uint16_t slot = 0;
     std::array<std::uint8_t, 0x3c> raw{};
     std::uint16_t word(std::size_t offset) const {
         return static_cast<std::uint16_t>(raw.at(offset) |
@@ -127,7 +132,7 @@ struct SaveNodeExtra {
 // DAT_004649e8[i], 0x40 bytes, plus the two frame indices and the extra list.
 struct SaveNodeSlot {
     bool present = false;
-    std::uint8_t slot = 0;
+    std::uint16_t slot = 0;
     std::uint8_t marker = 0;  // 1 requests FUN_0040fe70 in the original
     std::array<std::uint8_t, 0x40> raw{};
     std::uint32_t frame_index_1c = 0;  // 0xffff means "none" (0x40cf73)
@@ -143,7 +148,7 @@ struct SaveNodeSlot {
 
 // DAT_00486a10[i], 0x68 bytes: per-object dialogue chains (0x407c5a).
 struct SaveDialogueChain {
-    std::uint8_t slot = 0;
+    std::uint16_t slot = 0;
     std::array<std::uint8_t, 0x68> raw{};
     std::uint32_t count() const {  // +0x64
         return static_cast<std::uint32_t>(raw.at(0x64)) |
@@ -205,6 +210,11 @@ struct SaveGame {
 // offset when the image is truncated, a count/marker is invalid, or the
 // trailing notebook region is not the line text that 0x4210af/0x42118c write.
 SaveGame parse_save(const std::vector<std::uint8_t>& bytes);
+
+// FUN_00424dc0: serialises the same 25 blocks the reader consumes. Throws when
+// a fixed-size table or a marker cannot be written by the original (see
+// analysis/rea/SAVE_FORMAT.md); it never emits a partially valid image.
+std::vector<std::uint8_t> write_save(const SaveGame& save);
 
 // engine/SHOW.LCC as read by 0x438173: one scene name per line, lowercased,
 // CR/LF trimmed (the original opens in text mode), at most 8 characters.

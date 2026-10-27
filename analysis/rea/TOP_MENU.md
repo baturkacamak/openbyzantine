@@ -157,13 +157,15 @@ Player changes (`port/src/play_main.cpp`):
   - OYUNA DEVAM (5) closes the screen.
   - OYUNDAN ÇIK (4) asks line 9, then ends the session.
   - OYUN YÜKLE (1) parses the selected `NN.BTB` and reloads that scene through
-    the same travel path, with the save's variable pool and inventory. The entry
-    starts at instruction 0 because the port does not model the saved script
-    pointer (`0x426935`); the save's scene index, state and media are real.
+    the same travel path, with the save's variable pool and inventory. A load
+    does not replay the entry: `0x432464` places the script at its end node and
+    the visible layer comes from the save's block 16/16′ (see §5.2).
   - YENİ OYUN (3) loads `new.can` the same way.
   - OYUN İPTAL (2) asks line 11 and removes the selected save, then refreshes
     the list (50 -> 49 in the test).
-  - OYUN KAYIT (0) reports that the writer `0x424dc0` is not reconstructed.
+  - OYUN KAYIT (0) writes a full `FUN_00424dc0` image (see §5.1): with a
+    selected slot it confirms overwrite (message 12), otherwise it picks the
+    first free `NN.btb`; the name box uses message 0x3c and CP1254 text input.
   - Preferences 6..12 flip the dword, redraw the off overlay and write
     `savegame/gamepref_000`.
   - Tabs 0x0e/0x0f/0x10/0x11/0x1e/0x21 and page areas 0x1f/0x20/0x22/0x23
@@ -182,16 +184,22 @@ Player changes (`port/src/play_main.cpp`):
   the new `menu-test`.
 - Real-data regressions still pass: `verify_ea_layer.py`, `verify_ea_photo.py`,
   `verify_ea_single_execution.py`, `verify_mr_arrival.py`.
-- Headless screenshots (`port/output/top-menu/`):
-  `bar-hover-loadsave.png`, `bar-hover-kesif.png` (the bar with the bright
-  HOTBAR frame), `save-load.png`, `save-load-page2.png`, `preferences.png`,
-  `preferences-auto-off.png` (the "kapat" overlay after toggling), `kesif.png`,
-  `credits.png`, `notes.png`, `quit-confirm.png`,
-  `save-not-reconstructed.png`.
+- Headless screenshots (`port/output/top-menu/`): `bar-hover-loadsave.png`,
+  `bar-hover-kesif.png` (the bar with the bright HOTBAR frame), `save-load.png`,
+  `save-load-page2.png`, `save-name-box.png` (MESSAGE 0x3c + typed CP1254),
+  `preferences.png`, `preferences-auto-off.png`, `kesif.png`,
+  `credits-scroll.png` (0x422500 text over CREDBK.JPG), `notes.png`,
+  `contacts.png` (TEMAS LİSTESİ from notebook.000), `notebook-hints.png`
+  (scene/dialog/line/speaker spread), `hints-screen.png` (HINTS.JPG + log),
+  `hover-save-row.png` (ROLL.RLE frame 0 over OYUN KAYIT), `quit-confirm.png`.
 - Real SDL window on an isolated Xephyr `:8` (1280x960, 2x logical 640x480):
   `window-save-load.png` (slot 1 selected, OYUNA DEVAM correctly disabled) and
-  `window-loaded-vh.png` after OYUN YÜKLE switched `MR` to `VH`
-  (`travel index=39 scene=vh … save=…/25.btb`, 6 hotspots).
+  `window-loaded-vh.png` after OYUN YÜKLE switched `MR` to `VH`.
+- Writer round-trip: `save-test` is byte-identical for the 4 fixtures and for
+  all **51** extracted CD1 saves; `menu_save`/`--save-dump`/reload produced
+  `bytes=95606 description=Test Kayit scene=MR`, then
+  `load scene=MR … background=MRDoorOp hotspots=2` (and an overwrite at
+  `bytes=95607`, `new=no`).
 - Selected log lines from the deterministic runs:
 
 ```
@@ -213,6 +221,22 @@ menu_delete slot=0 file=autosave.btb removed=yes           (after EVET)
 menu_kesif_click index=54 text=Topkapı Simülasyonu tekrar
 menu_kesif scene=vtdisc index=43
 travel index=42 scene=vt from=VTDISC ...                   (entry 0x73 chain)
+
+menu_save file=".../00.btb" bytes=95606 description=Test Kayit
+          scene=MR scene_index=27 new=yes cd=2
+menu_slot_list appended=00.btb file=".../BTB.SAV"
+load scene=MR ... entry_skipped=1 (0x432464 script end pointer)
+     background=MRDoorOp panorama=no hotspots=2
+
+anims_overlay load cd=6 current=2
+anims_overlay disc=6 iso=Byzantine_6.iso path=".../disc-media/cd6-..."
+load_layer panorama record=4 name=vh04 staged_x=1497 yaw=36
+load scene=VH ... entry_skipped=1 background=none panorama=yes
+     hotspots=4 records=11
+
+menu_notebook file=".../notebook.000" pages=28 contacts=16
+menu_credits file=".../text/CREDITS.TXT" lines=654 line_height=20
+menu_hints image=setupart/HINTS.JPG pages=28
 ```
 
 A live Xephyr run with real pointer events (the host pointer was inside the
@@ -221,25 +245,127 @@ window) also produced `ui_click top_bar x=225 y=11 button=2` ->
 x=357 y=7 button=3` -> `menu_open mode=2 name=kesif`, which is the reported
 interaction repaired end to end.
 
-## 5. Not implemented / differences
+## 5. Save writer, resume and the remaining screen data (same day follow-up)
 
-- **Save writer (`0x424dc0`)**. OYUN KAYIT only reports the gap; the port still
-  cannot write a valid 25-block `.btb`. Nothing is silently half-saved.
-- **Save script pointer.** A load enters the scene at instruction 0 with the
-  save's state; the original restarts at the saved pointer (`0x426935`).
-- **Cross-disc animation overlay.** The launcher computes
-  `--anims-overlay` for the starting save's disc. Loading a save from another
-  disc keeps that overlay and logs `menu_load anims_overlay_disc_mismatch`.
-- **Credits scroll.** `CREDBK.JPG` is shown; `0x422500`'s scroll is not.
-- **TEMAS LİSTESİ text.** The shipped page art is drawn, but the contact names
-  (`0x420c51` + `0x41d7ff`'s MESSAGES rows / notebook.000 dialogue ids) are not
-  reconstructed. The notebook pages 1/2 are likewise art-only.
-- **Hover highlight art.** ROLL.RLE (15 frames) and yellow.rle (4 frames) are
-  loaded by `0x41d7ff` for `0x41f90e`/`0x420587`; the port changes the pointer
-  and logs `menu_hover`, but does not draw those frames yet.
-- **İPUCU (`0x41e002`)** is reported as not implemented from its tab.
+### 5.1 `0x424dc0` writer
+
+`byzantine::write_save` (`port/src/save.cpp`) is the exact inverse of
+`parse_save`: the same 25 blocks, the same markers (`0xff` absent for the fixed
+tables, `0x00/0x01` for nodes, the signed count byte of `FUN_0042658f`, the
+`0x00`/`0xff` sound-chain terminator) and the same fixed sizes
+(0xdc80 thumbnail, 3000 words, 10×350 inventory ids). It refuses table sizes or
+markers the original cannot write instead of emitting a broken image.
+
+A byte-identical check was added to `save-test`: for every shipped `.btb`
+supplied by the caller, `write_save(parse_save(bytes)) == bytes`. It passes on
+the four fixtures and on all **51** extracted CD1 saves (`00.BTB`, `12.BTB`,
+`26.btb`, `73.btb`, `autosave.btb`, … `75.btb`), each with a distinct size.
+The round-trip also re-parses the written image.
+
+`build_save_from_state` builds the image from the live `SceneState`:
+
+- scene index from `SHOW.LCC`, description from the name dialog, CD number from
+  the current save (or the launcher's `cdN-` overlay);
+- 3000-word pool through the scene's LCV layout, inventory visibility/page/
+  scroll/depths/stacks/selection/state bytes from `SceneState`;
+- block 16 from the visible layer: the CB background index (0x431ec2) or the
+  CO record + staged x of the panorama (0x432295);
+- block 17 nodes, block 18 objects, blocks 19–21 sounds, block 22 media and
+  block 24 chains from the live maps; unknown bytes of an existing slot are
+  preserved from the base save;
+- blocks the port does not model (per-scene CCB records, the sound chain,
+  thumbnail, `DAT_0045f210`/`0x46066c`/`0x45f214`, `0x45fd2c`) keep the base
+  save's bytes; a save without a base gets structural empties (thumbnail zeros);
+- the notebook tail is re-read from `savegame/notebook.000` (0x42118c).
+
+UI: OYUN KAYIT with a selected slot asks MESSAGE 12 ("üzerine kaydet…"), then
+opens a name box using MESSAGE 0x3c ("Kaydettiğiniz oyuna isim verin:"); without
+a selection `0x41effe`'s first free `NN.btb` is used. SDL text input is mapped
+from UTF-8 to CP1254 (the twelve Turkish letters and the circumflexed vowels),
+limited to 69 bytes. A new file appends its name to `btb.sav` (`0x41f1ac`),
+skipping a duplicate line when the shipped list already names it.
+
+Real run (`MR`, `30.btb`): `menu_save file=…/00.btb bytes=95606
+description=Test Kayit scene=MR scene_index=27 new=yes cd=2`; `--save-dump`
+reports `scene_index=27 scene=mr objects=44 sounds=14
+dialogue_channels=10 depths=12,…`, and loading it back gives
+`load scene=MR … background=MRDoorOp hotspots=2`. Overwriting `00.btb` with
+`Test Kayit2` produced `bytes=95607` and `new=no`.
+
+### 5.2 A load does not replay the entry head
+
+`0x425ab4` loads the state and `0x432464` places `DAT_0047a230` at the first
+`0x6f` node (the script end). `0x426935` then restores the current node
+animation or panorama (`DAT_0045c060` / `DAT_0048253e` / `DAT_00480330` /
+`DAT_0045c064`) without running the scene's entry. The port's save load now:
+
+- skips `preload_scene_records` (0x425ab4 frees the node table first);
+- does not run `trace_scene_entry`;
+- builds the click rectangles with `active_hotspots_for_state` (the static
+  `0x72` rectangles filtered by the object table's `+0x08`);
+- restores the layer: `field_45c060 == 0` → `entries[field_48253e]` as the CB
+  background; `!= 0` → CO record `field_480330` with `field_45c064` staged x
+  (or default yaw for `0xffffffff`).
+
+Real run: loading `25.btb` from a `cd2` session reloads **CD6's animation
+overlay**, then `load_layer panorama record=4 name=vh04 staged_x=1497 yaw=36`,
+`load scene=VH … entry_skipped=1 background=none panorama=yes hotspots=4
+records=11`; no `video_request`/entry replay. The same save loaded with the old
+entry replay had re-run instruction 235 and requested `hagiakli`.
+
+### 5.3 Notebook, credits, hints, hover, disc overlay
+
+- **TEMAS LİSTESİ** (mode 4): `load_notebook` parses
+  `savegame/notebook.000` like `0x420c51` (unique ids from the `%d: %d` lines,
+  skipping -1/-3, first 16), and draws the `MESSAGES.TXT` lines 29..44
+  (`0x41d7ff` → `0x46c840` at `0x172, 0x6c + 0x14*i`). The MR notebook shows
+  Nuray Uçhan, Şerife Gelecek, Emre Bahis, İskender Lasoviç, Mehmet Bahis,
+  Carlo Genevese, Camideki Genç Adam, Seyyar Satıcı, Arasta Shop Esnafı,
+  Küratör.
+- **Notebook/hint pages** (mode 5): the same parser keeps each
+  `Scene/Dialog` block and its `line: id` entries; the spread shows the scene
+  name (SHOW.LCC), the dialog id, page `n/N` and the entry's line/speaker
+  (`0x4216fe`'s `entry_name`); controls 0x25/0x26 scroll two entries. The
+  actual dialogue line text needs `0x41db33`'s cross-archive lookup, which is
+  keyed by the session-local `DAT_00485a10` table and is not reconstructed.
+- **Credits** (`0x422500`): `text/CREDITS.TXT` is loaded (654 lines), `$`
+  headings are drawn yellow, and the text scrolls up two pixels every 25 ms
+  over `CREDBK.JPG`; a click or ESC stops. `CREDIT.WAV` is queued when the
+  mixer is ready. `--credits-frames`/`--credits-shot` give a bounded headless
+  frame.
+- **İPUCU** (`0x41e002`): the HINTS.JPG backdrop and the notebook hint log are
+  shown; the Hints1 conversation runner is explicitly reported as not
+  reconstructed in the log (`menu_hints … 0x41e002 Hints1 runner not
+  reconstructed`).
+- **Hover art**: `0x41d7ff`'s ROLL.RLE (15 frames) and yellow.rle (4) are
+  loaded. The hovered control 0..14 draws `ROLL.RLE[id]` (`0x41f90e`);
+  save/load mode draws yellow 0/1 for page 0/other and KEŞİF draws yellow 2
+  (`0x420587`). A hovered OYUN KAYIT is visibly brighter in
+  `port/output/top-menu/hover-save-row.png`.
+- **Cross-disc animation overlay**: loading a save whose `cd_number` differs
+  from the launcher's overlay runs `prepare_disc_anims.py` for the matching
+  ISO in `--media-isos`, switches `--anims-overlay` for the new scene and
+  reloads the `AnimsLibrary`. Real run: `anims_overlay load cd=6 current=2` →
+  `anims_overlay disc=6 iso=Byzantine_6.iso path=…/disc-media/cd6-…`.
+
+New diagnostics: `--menu-text <utf8>`, `--menu-key enter|escape|backspace`,
+`--menu-hover <x>,<y>`, `--credits-frames <n>`, `--credits-shot <ppm>`.
+
+## 6. Not implemented / differences
+
+- **Hints1 runner (`0x41e002`/`0x410669`/`0x432d6e`)** is not reconstructed;
+  the İPUCU screen shows the shipped backdrop and the notebook log.
+- **Hint line text** needs `0x41db33`'s `DAT_00485a10[dialog]` lookup; the
+  screen shows the scene/dialog/line/speaker ids instead.
+- **Blocks the port does not model** (per-scene CCB records block 6, the
+  0x5c-byte sound chain, the map thumbnail, `DAT_0045f210`, `DAT_0046066c`,
+  `DAT_0045f214`, `DAT_0045fd2c`) are preserved from the base save. A save
+  written with no base (a `new.can` start) leaves them empty/zero; the writer
+  still produces a structurally valid image.
+- **Node extra lists** with more than one entry cannot round-trip through the
+  original's own `0x4269ec`/`0x426b9d` mismatch; the writer refuses them.
 - **Movie placement** always uses mode 1's 2x 640x400 (gamepref[1] on); the
-  small-window branch is not selected from the menu. The movies themselves use
-  the existing decoded-clip path; a full 70 MB intro was not replayed here.
-- The menu's confirmation boxes and the notice box are port layouts; their
-  messages, labels and button ids are the shipped ones.
+  small-window branch is not selected from the menu. A full 70 MB intro was not
+  replayed.
+- The menu's confirmation boxes, the name box and the notice box are port
+  layouts; their messages, labels and button ids are the shipped ones.

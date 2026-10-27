@@ -2907,4 +2907,24 @@ std::size_t load_save_variables(SceneState& state, const SaveGame& save,
     return 300;
 }
 
+std::vector<SceneHotspot> active_hotspots_for_state(
+    const std::vector<CcInstruction>& script, const SceneState& state) {
+    // The same filter the trace applies after its last instruction: the static
+    // 0x72 rectangle plus the object table's own +0x08 byte, with the
+    // hotspot_enabled mirror only as the fallback for a missing object.
+    std::vector<SceneHotspot> active;
+    for (const auto& hotspot : static_hotspots(script)) {
+        bool is_active = false;
+        const auto object = state.objects.find(hotspot.slot);
+        if (object != state.objects.end()) {
+            is_active = object->second.active != 0;
+        } else {
+            const auto enabled = state.hotspot_enabled.find(hotspot.slot);
+            if (enabled != state.hotspot_enabled.end()) is_active = enabled->second;
+        }
+        if (is_active) active.push_back(hotspot);
+    }
+    return active;
+}
+
 }  // namespace byzantine

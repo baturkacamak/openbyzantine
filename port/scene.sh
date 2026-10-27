@@ -112,7 +112,7 @@ if [ ! -f "$data/.prepared" ]; then
         "copy2hd/savegame/BTB.SAV" "copy2hd/savegame/STATUS.000" \
         "copy2hd/savegame/NEW.CAN" "copy2hd/savegame/notebook.000" \
         "copy2hd/savegame/GAMEPREF.000" \
-        "copy2hd/fonts/*" "copy2hd/setupart/MESSAGES.TXT" -o"$data" >/dev/null
+        "copy2hd/fonts/*" "copy2hd/setupart/MESSAGES.TXT" "text/*" -o"$data" >/dev/null
     # Every CD: backgrounds, panorama nodes, animation assets, sounds.
     for index in 1 2 3 4 5 6; do
         iso="$(find_iso "$index")" || continue
@@ -155,7 +155,7 @@ fi
 if [ ! -f "$data/.menu_v1" ]; then
     7z x -y "$iso1" "copy2hd/savegame/BTB.SAV" "copy2hd/savegame/STATUS.000" \
         "copy2hd/savegame/NEW.CAN" "copy2hd/savegame/notebook.000" \
-        "copy2hd/savegame/GAMEPREF.000" \
+        "copy2hd/savegame/GAMEPREF.000" "text/*" \
         -o"$data" >/dev/null 2>&1 || true
     touch "$data/.menu_v1"
 fi

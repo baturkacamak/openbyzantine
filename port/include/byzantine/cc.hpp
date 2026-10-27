@@ -771,6 +771,13 @@ struct SceneTrace {
 // script end) and for a 0x73 scene switch, otherwise a short "reason=detail".
 std::string trace_blocker(const SceneTrace& trace);
 
+// 0x40c02c's active set for a state that was not produced by a trace (a save
+// load does not re-run the entry head; the original places the script pointer
+// at its 0x6f end node). The static 0x72 rectangles are matched against the
+// object table's own +0x08 byte, exactly like the trace tail.
+std::vector<SceneHotspot> active_hotspots_for_state(
+    const std::vector<CcInstruction>& script, const SceneState& state);
+
 // 0x460466 + opcode: the argument count FUN_00412762 reads. Exposed so the
 // conversation bytecode parser (.ccb) uses the same recovered table.
 std::uint8_t cc_argument_count(std::uint8_t opcode);

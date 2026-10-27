@@ -351,6 +351,33 @@ void check_real_save(const std::filesystem::path& path, const std::vector<std::s
     const auto tag = path.filename().string();
 
     require(save.size == bytes.size(), tag + ": size mismatch");
+    // FUN_00424dc0 round-trip: the writer must reproduce the reader's image
+    // byte for byte on the shipped save set.
+    const auto written = byzantine::write_save(save);
+    if (written != bytes) {
+        std::size_t at = 0;
+        while (at < written.size() && at < bytes.size() && written[at] == bytes[at]) ++at;
+        std::cerr << tag << ": first write_save difference at " << at << " orig="
+                  << (at < bytes.size() ? std::to_string(bytes[at]) : "-") << " new="
+                  << (at < written.size() ? std::to_string(written[at]) : "-")
+                  << " sizes=" << bytes.size() << '/' << written.size() << '\n';
+        std::cerr << "  orig: ";
+        for (std::size_t i = at > 16 ? at - 16 : 0; i < std::min(bytes.size(), at + 16); ++i)
+            std::cerr << std::hex << static_cast<int>(bytes[i]) << ' ';
+        std::cerr << "\n  new:  ";
+        for (std::size_t i = at > 16 ? at - 16 : 0; i < std::min(written.size(), at + 16); ++i)
+            std::cerr << std::hex << static_cast<int>(written[i]) << ' ';
+        std::cerr << std::dec << '\n';
+    }
+    require(written == bytes, tag + ": write_save is not byte-identical");
+    const auto reparsed = byzantine::parse_save(written);
+    require(reparsed.scene_index == save.scene_index &&
+                reparsed.objects.size() == save.objects.size() &&
+                reparsed.media.size() == save.media.size() &&
+                reparsed.sounds.size() == save.sounds.size() &&
+                reparsed.nodes.size() == save.nodes.size() &&
+                reparsed.dialogue_chains.size() == save.dialogue_chains.size(),
+            tag + ": write_save/parse_save round-trip lost a table");
     require(save.thumbnail.size() == byzantine::kSaveThumbnailBytes,
             tag + ": thumbnail block size");
     require(save.node_values.size() == byzantine::kSaveNodeValueCount,

@@ -13,25 +13,38 @@ TERCİHLER).
 
 Implemented: the real bar with hover/pressed frames and the hotsmall cursor;
 all four screens from their shipped art (`setup00.jpg`, `preffs.jpg`,
-`s_note00/01/02.jpg`) with the 0x45f548 control rectangles and the
+`s_note00/01/02.jpg`, `hints.jpg`) with the 0x45f548 control rectangles and the
 `FUN_0041fe46`/`0x42044d` enable sets; `fonts/setup.sfn` (slot 2) list text;
 save list from `autosave.btb` + `btb.sav`; OYUN YÜKLE loads the selected
-`.btb` through the save-aware travel path (real pool/inventory/media; entry at
-instruction 0), YENİ OYUN loads `new.can`, OYUN İPTAL deletes with the real
-MESSAGE 11/EVET-HAYIR confirmation, OYUNA DEVAM closes, OYUNDAN ÇIK confirms
-with MESSAGE 9; preferences flip and write `savegame/gamepref_000` (0x41f7be);
-KEŞİF replays credits (`CREDBK.JPG`), the four simulation scenes (following
-`vtdisc → vt` and the wrapper's 0x73 chain) and intro/epilogue through the
-existing clip pipeline. OYUN KAYIT explicitly reports that the writer
-`0x424dc0` is not reconstructed; no partial save is written.
+`.btb` and restores it **without replaying the entry head** (`0x432464`/
+`0x426935`): block 16/16′ restores the CB background or CO panorama, and the
+static 0x72 rectangles are filtered by the saved object table. YENİ OYUN loads
+`new.can`, OYUN İPTAL deletes with MESSAGE 11/EVET-HAYIR, OYUNA DEVAM closes,
+OYUNDAN ÇIK confirms with MESSAGE 9; preferences flip and write
+`savegame/gamepref_000` (0x41f7be); KEŞİF replays the 0x422500 credits scroll
+(`text/CREDITS.TXT`), the four simulation scenes (following `vtdisc → vt` and
+the wrapper's 0x73 chain) and intro/epilogue through the existing clip pipeline;
+TEMAS LİSTESİ shows the notebook.000 contacts and the notebook spread shows its
+scene/dialog/line log; ROLL/YELLOW hover art is drawn; a cross-disc load prepares
+and switches the matching `disc-media/cdN-*` animation overlay.
+
+OYUN KAYIT now writes a full `FUN_00424dc0` image (`write_save` +
+`build_save_from_state`): pool, inventory, nodes, objects, sounds, media,
+chains, block 16/16′, notebook tail and the preserved unmodelled blocks; a new
+name box uses MESSAGE 0x3c and CP1254 input, overwrite uses MESSAGE 12, and a
+new slot appends to `btb.sav` (0x41f1ac, duplicate-safe). The writer is
+byte-identical to `parse_save` on all 51 extracted CD1 saves; a real MR save and
+its reload were verified (`menu_save … bytes=95606 scene=MR` →
+`load scene=MR … background=MRDoorOp hotspots=2`).
 
 Verification: `make -C port -j2 all test` passes (new `menu-test`),
 `verify_ea_layer.py`, `verify_ea_photo.py`, `verify_ea_single_execution.py` and
 `verify_mr_arrival.py` still pass. Headless `--menu/--menu-click-at/--menu-shot`
-runs and a real Xephyr window (slot selected → OYUN YÜKLE → MR to VH, 6
-hotspots) are in `port/output/top-menu/`. Remaining: save writer, saved script
-pointer, cross-disc anims overlay on load, credits scroll, TEMAS/notebook text,
-ROLL/YELLOW hover art, İPUCU, and full-length intro replay. Report:
+runs and a real Xephyr window (slot selected → OYUN YÜKLE → VH with the CD6
+overlay) are in `port/output/top-menu/`. Remaining: the 0x41e002 Hints1
+conversation runner and its `0x41db33` line lookup (the İPUCU screen shows
+HINTS.JPG + the notebook log), the unmodelled save blocks (kept from the base
+save), one-entry node-extra lists, and full-length intro replay. Report:
 `analysis/rea/TOP_MENU.md`.
 
 ## Site video revisit investigation (27 October 2026)

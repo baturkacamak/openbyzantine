@@ -1,5 +1,10 @@
 # `savegame/NN.BTB` save format
 
+> 27 October 2026: the writer `FUN_00424dc0` is now implemented
+> (`byzantine::write_save`) and is byte-identical to `parse_save` on all 51
+> extracted CD1 saves. The menu's save path, the live-state builder and the
+> resume rules are in `analysis/rea/TOP_MENU.md` §5.
+
 Bounded step of 25 October 2026. Scope: **read and document** the save image.
 Restoring state, `0xcc`, `0x70` (CONVERSE) and the carried variable pool are
 deliberately *not* part of this step.

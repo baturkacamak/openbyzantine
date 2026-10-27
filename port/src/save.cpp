@@ -107,9 +107,14 @@ bool slot_present(Reader& reader, const char* table) {
 
 // FUN_0042658f: one signed count byte, then count * (value, code) pairs. The
 // original compares the count as a signed char, so 0x80..0xfe consume nothing.
-std::vector<SaveLinkEntry> read_link_list(Reader& reader) {
+// `raw_count` keeps the byte as written: an empty list is stored as 0xff in
+// the shipped images (the writer copies the signed in-memory count), and a
+// byte-identical writer must not normalise it to 0.
+std::vector<SaveLinkEntry> read_link_list(Reader& reader, std::uint8_t* raw_count) {
     std::vector<SaveLinkEntry> entries;
-    const auto count = static_cast<std::int8_t>(reader.u8());
+    const auto raw = reader.u8();
+    if (raw_count != nullptr) *raw_count = raw;
+    const auto count = static_cast<std::int8_t>(raw);
     for (int index = 0; index < count; ++index) {
         SaveLinkEntry entry;
         entry.value = reader.u8();
@@ -158,7 +163,7 @@ std::vector<SaveSceneChainEntry> read_scene_chain(Reader& reader) {
 }
 
 // FUN_00426261: one per-scene record, in the same order FUN_00425218 writes it.
-SaveSceneRecord read_scene_record(Reader& reader, std::uint8_t slot) {
+SaveSceneRecord read_scene_record(Reader& reader, std::uint16_t slot) {
     SaveSceneRecord record;
     record.slot = slot;
     record.name = reader.cstring("scene record name", 256);
@@ -167,8 +172,12 @@ SaveSceneRecord read_scene_record(Reader& reader, std::uint8_t slot) {
     record.bytes0f = reader.fixed<0x32>();
     record.bytes41 = reader.fixed<0x32>();
     record.bytes73 = reader.fixed<0x32>();
-    for (auto& list : record.list4c4) list = read_link_list(reader);
-    for (auto& list : record.list58c) list = read_link_list(reader);
+    for (std::size_t index = 0; index < record.list4c4.size(); ++index) {
+        record.list4c4[index] = read_link_list(reader, &record.list4c4_count[index]);
+    }
+    for (std::size_t index = 0; index < record.list58c.size(); ++index) {
+        record.list58c[index] = read_link_list(reader, &record.list58c_count[index]);
+    }
     for (auto& pointer : record.pointersA8) pointer = read_scene_pointer(reader);
     for (auto& pointer : record.pointers170) pointer = read_scene_pointer(reader);
     for (auto& pointer : record.pointers238) pointer = read_scene_pointer(reader);
@@ -179,7 +188,7 @@ SaveSceneRecord read_scene_record(Reader& reader, std::uint8_t slot) {
 }
 
 // FUN_00426b9d: fixed node record, two frame indices, then the extra list.
-SaveNodeSlot read_node(Reader& reader, std::uint8_t marker, std::uint8_t slot) {
+SaveNodeSlot read_node(Reader& reader, std::uint8_t marker, std::uint16_t slot) {
     SaveNodeSlot node;
     node.present = true;
     node.slot = slot;
@@ -222,6 +231,40 @@ void validate_notebook(const std::vector<std::uint8_t>& tail) {
     }
 }
 
+class Writer {
+public:
+    void u8(std::uint8_t value) { bytes_.push_back(value); }
+    void u16(std::uint16_t value) {
+        bytes_.push_back(static_cast<std::uint8_t>(value & 0xff));
+        bytes_.push_back(static_cast<std::uint8_t>((value >> 8) & 0xff));
+    }
+    void u32(std::uint32_t value) {
+        for (int shift = 0; shift < 32; shift += 8) {
+            bytes_.push_back(static_cast<std::uint8_t>((value >> shift) & 0xff));
+        }
+    }
+    void i32(std::int32_t value) { u32(static_cast<std::uint32_t>(value)); }
+    void bytes(const std::uint8_t* data, std::size_t size) {
+        bytes_.insert(bytes_.end(), data, data + size);
+    }
+    template <std::size_t N>
+    void fixed(const std::array<std::uint8_t, N>& value) {
+        bytes(value.data(), value.size());
+    }
+    void cstring(const std::string& text, const char* what) {
+        if (text.find('\0') != std::string::npos || text.size() > 256) {
+            throw std::runtime_error(std::string("save writer: invalid ") + what);
+        }
+        bytes_.insert(bytes_.end(), text.begin(), text.end());
+        u8(0);
+    }
+    std::vector<std::uint8_t> take() { return std::move(bytes_); }
+
+private:
+    std::vector<std::uint8_t> bytes_;
+};
+
+
 }  // namespace
 
 SaveGame parse_save(const std::vector<std::uint8_t>& bytes) {
@@ -240,7 +283,7 @@ SaveGame parse_save(const std::vector<std::uint8_t>& bytes) {
 
     for (std::size_t slot = 0; slot < kSaveSlotCount; ++slot) {
         if (!slot_present(reader, "scene record")) continue;
-        save.scene_records.push_back(read_scene_record(reader, static_cast<std::uint8_t>(slot)));
+        save.scene_records.push_back(read_scene_record(reader, static_cast<std::uint16_t>(slot)));
     }
 
     save.node_values.resize(kSaveNodeValueCount);
@@ -285,13 +328,13 @@ SaveGame parse_save(const std::vector<std::uint8_t>& bytes) {
     for (std::size_t slot = 0; slot < kSaveSlotCount; ++slot) {
         const auto marker = reader.u8();
         if (marker == 0xff) continue;
-        save.nodes.push_back(read_node(reader, marker, static_cast<std::uint8_t>(slot)));
+        save.nodes.push_back(read_node(reader, marker, static_cast<std::uint16_t>(slot)));
     }
 
     for (std::size_t slot = 0; slot < kSaveSlotCount; ++slot) {
         if (!slot_present(reader, "object")) continue;
         SaveObjectRecord object;
-        object.slot = static_cast<std::uint8_t>(slot);
+        object.slot = static_cast<std::uint16_t>(slot);
         object.raw = reader.fixed<0x18>();
         object.x = static_cast<std::int16_t>(object.raw[0] | (object.raw[1] << 8));
         object.y = static_cast<std::int16_t>(object.raw[2] | (object.raw[3] << 8));
@@ -321,7 +364,7 @@ SaveGame parse_save(const std::vector<std::uint8_t>& bytes) {
     for (std::size_t slot = 0; slot < kSaveSlotCount; ++slot) {
         if (!slot_present(reader, "sound")) continue;
         SaveSoundRecord sound;
-        sound.slot = static_cast<std::uint8_t>(slot);
+        sound.slot = static_cast<std::uint16_t>(slot);
         sound.raw = reader.fixed<0x3c>();
         save.sounds.push_back(sound);
     }
@@ -332,7 +375,7 @@ SaveGame parse_save(const std::vector<std::uint8_t>& bytes) {
     for (std::size_t slot = 0; slot < kSaveSlotCount; ++slot) {
         if (!slot_present(reader, "media")) continue;
         SaveMediaRecord media;
-        media.slot = static_cast<std::uint8_t>(slot);
+        media.slot = static_cast<std::uint16_t>(slot);
         media.raw = reader.fixed<0x14>();
         media.value = static_cast<std::uint16_t>(media.raw[0] | (media.raw[1] << 8));
         media.frame = static_cast<std::uint32_t>(media.raw[4]) |
@@ -357,7 +400,7 @@ SaveGame parse_save(const std::vector<std::uint8_t>& bytes) {
     for (std::size_t slot = 0; slot < kSaveSlotCount; ++slot) {
         if (reader.u8() == 0xff) continue;
         SaveDialogueChain chain;
-        chain.slot = static_cast<std::uint8_t>(slot);
+        chain.slot = static_cast<std::uint16_t>(slot);
         chain.raw = reader.fixed<0x68>();
         save.dialogue_chains.push_back(chain);
     }
@@ -366,6 +409,276 @@ SaveGame parse_save(const std::vector<std::uint8_t>& bytes) {
     validate_notebook(tail);
     save.notebook.assign(tail.begin(), tail.end());
     return save;
+}
+
+std::vector<std::uint8_t> write_save(const SaveGame& save) {
+    // FUN_00424dc0 writes the same blocks in the same order as FUN_00425ab4
+    // reads them; every variable-length table is marshalled in slot order and
+    // uses the writer's own marker convention. The function refuses values the
+    // original cannot write (wrong table sizes, an absent marker in a fixed
+    // table, a key outside the 0x15e slots) instead of emitting a broken image.
+    Writer writer;
+    writer.u32(save.cd_number);
+    writer.cstring(save.chapter, "chapter name");
+    writer.cstring(save.description, "save description");
+    if (save.thumbnail.size() != kSaveThumbnailBytes) {
+        throw std::runtime_error("save writer: thumbnail is not 0xdc80 bytes");
+    }
+    writer.bytes(save.thumbnail.data(), save.thumbnail.size());
+    writer.u16(save.scene_index);
+
+    std::array<const SaveSceneRecord*, kSaveSlotCount> scene_records{};
+    for (const auto& record : save.scene_records) {
+        if (record.slot >= kSaveSlotCount) {
+            throw std::runtime_error("save writer: scene record slot outside 0x15e");
+        }
+        if (scene_records[record.slot] != nullptr) {
+            throw std::runtime_error("save writer: duplicate scene record slot");
+        }
+        scene_records[record.slot] = &record;
+    }
+    for (std::size_t slot = 0; slot < kSaveSlotCount; ++slot) {
+        const auto* record = scene_records[slot];
+        if (record == nullptr) {
+            writer.u8(0xff);
+            continue;
+        }
+        writer.u8(0x00);
+        writer.cstring(record->name, "scene record name");
+        writer.u16(record->word08);
+        writer.fixed(record->bytes0a);
+        writer.fixed(record->bytes0f);
+        writer.fixed(record->bytes41);
+        writer.fixed(record->bytes73);
+        // FUN_0042658f's count is signed: 0x80..0xff mean "no entries". Keep
+        // the parsed byte when it still describes the entries, so an absent
+        // list stays 0xff exactly as the writer copied it.
+        for (const auto* lists :
+             {&record->list4c4, &record->list58c}) {
+            for (std::size_t index = 0; index < lists->size(); ++index) {
+                const auto& entries = (*lists)[index];
+                const auto raw = (lists == &record->list4c4)
+                                     ? record->list4c4_count[index]
+                                     : record->list58c_count[index];
+                const bool consistent =
+                    (raw < 0x80 && raw == entries.size()) ||
+                    (raw >= 0x80 && entries.empty());
+                if (!consistent && entries.size() > 0x7f) {
+                    throw std::runtime_error(
+                        "save writer: link list exceeds 127 entries");
+                }
+                writer.u8(consistent ? raw
+                                     : static_cast<std::uint8_t>(entries.size()));
+                for (const auto& entry : entries) {
+                    writer.u8(entry.value);
+                    writer.u8(entry.code);
+                }
+            }
+        }
+        for (const auto* pointers : {&record->pointersA8, &record->pointers170,
+                                     &record->pointers238}) {
+            for (const auto& pointer : *pointers) {
+                if (!pointer.present) {
+                    writer.u8(0xff);
+                    continue;
+                }
+                writer.u8(pointer.script_id);
+                writer.u8(pointer.source_list);
+                writer.u8(pointer.position);
+            }
+        }
+        for (const auto& pair : record->slots3c8) {
+            writer.u8(pair.present ? pair.first : 0xff);
+            writer.u8(pair.second);
+        }
+        writer.fixed(record->bytes490);
+        for (const auto& chain : record->chains654) {
+            if (chain.size() > 0xff) {
+                throw std::runtime_error("save writer: scene chain exceeds 255 entries");
+            }
+            writer.u8(static_cast<std::uint8_t>(chain.size()));
+            for (const auto& entry : chain) {
+                writer.u8(entry.name);
+                writer.u8(entry.table_index);
+            }
+        }
+    }
+
+    if (save.node_values.size() != kSaveNodeValueCount) {
+        throw std::runtime_error("save writer: variable pool is not the 3000-word table");
+    }
+    for (const auto value : save.node_values) writer.u16(value);
+
+    writer.u32(save.field_45d1c0);
+    writer.u32(save.field_45d1c4);
+    writer.u32(save.field_45d1bc);
+    for (const auto depth : save.dialogue_depths) {
+        if (depth > kSaveDialogueStackDepth) {
+            throw std::runtime_error("save writer: inventory depth outside 350");
+        }
+        writer.u32(depth);
+    }
+    for (const auto id : save.dialogue_stacks) writer.u32(id);
+    writer.i32(save.dialogue_index);
+    if (save.dialogue_marks.size() > kSaveSlotCount) {
+        throw std::runtime_error("save writer: dialogue marks exceed 0x15e");
+    }
+    for (const auto& [flag, value] : save.dialogue_marks) {
+        writer.u8(flag);
+        writer.u8(value);
+    }
+    writer.u8(0xff);
+
+    writer.u32(save.field_45f210);
+    writer.u32(save.field_460668);
+    writer.u32(save.field_46066c);
+    if (save.field_45f214.empty()) {
+        writer.u8(0);
+    } else {
+        writer.cstring(save.field_45f214, "0x45f214 string");
+    }
+    writer.u32(save.field_45c060);
+    if (save.field_45c060 == 0) {
+        writer.u16(save.field_48253e);
+    } else {
+        writer.u32(save.field_480330);
+        writer.u32(save.field_45c064);
+    }
+
+    std::array<const SaveNodeSlot*, kSaveSlotCount> nodes{};
+    for (const auto& node : save.nodes) {
+        if (node.slot >= kSaveSlotCount) {
+            throw std::runtime_error("save writer: node slot outside 0x15e");
+        }
+        if (nodes[node.slot] != nullptr) {
+            throw std::runtime_error("save writer: duplicate node slot");
+        }
+        nodes[node.slot] = &node;
+    }
+    for (std::size_t slot = 0; slot < kSaveSlotCount; ++slot) {
+        const auto* node = nodes[slot];
+        if (node == nullptr) {
+            writer.u8(0xff);
+            continue;
+        }
+        // 0x4269ec writes 1 when the CA asset type is 0/1, 0 otherwise.
+        writer.u8(node->marker == 0 ? 0 : 1);
+        writer.fixed(node->raw);
+        writer.u32(node->frame_index_1c);
+        writer.u32(node->frame_index_20);
+        writer.u32(node->field_2c);
+        writer.u32(node->field_30);
+        // FUN_004269ec writes a count byte, then count * (u32, u32). 0x426b9d
+        // reads the byte as a per-entry control value, so only 0 or 1
+        // round-trips; the shipped data is always 0.
+        if (node->extra.size() > 1) {
+            throw std::runtime_error(
+                "save writer: node extra list with more than one entry cannot be "
+                "read back by 0x426b9d");
+        }
+        writer.u8(static_cast<std::uint8_t>(node->extra.size()));
+        for (const auto& entry : node->extra) {
+            writer.u32(entry.first);
+            writer.u32(entry.second);
+        }
+    }
+
+    std::array<const SaveObjectRecord*, kSaveSlotCount> objects{};
+    for (const auto& object : save.objects) {
+        if (object.slot >= kSaveSlotCount) {
+            throw std::runtime_error("save writer: object slot outside 0x15e");
+        }
+        if (objects[object.slot] != nullptr) {
+            throw std::runtime_error("save writer: duplicate object slot");
+        }
+        objects[object.slot] = &object;
+    }
+    for (std::size_t slot = 0; slot < kSaveSlotCount; ++slot) {
+        const auto* object = objects[slot];
+        if (object == nullptr) {
+            writer.u8(0xff);
+            continue;
+        }
+        writer.u8(0x00);
+        writer.fixed(object->raw);
+    }
+
+    writer.u32(save.field_45fd2c);
+    std::array<const SaveSoundRecord*, kSaveSlotCount> sounds{};
+    for (const auto& sound : save.sounds) {
+        if (sound.slot >= kSaveSlotCount) {
+            throw std::runtime_error("save writer: sound slot outside 0x15e");
+        }
+        if (sounds[sound.slot] != nullptr) {
+            throw std::runtime_error("save writer: duplicate sound slot");
+        }
+        sounds[sound.slot] = &sound;
+    }
+    for (std::size_t slot = 0; slot < kSaveSlotCount; ++slot) {
+        const auto* sound = sounds[slot];
+        if (sound == nullptr) {
+            writer.u8(0xff);
+            continue;
+        }
+        writer.u8(0x00);
+        writer.fixed(sound->raw);
+    }
+    // 0x427135 writes 0x00 before each chain record and 0xff after the last.
+    for (const auto& entry : save.sound_chain) {
+        writer.u8(0x00);
+        writer.bytes(entry.data(), entry.size());
+    }
+    writer.u8(0xff);
+
+    std::array<const SaveMediaRecord*, kSaveSlotCount> media{};
+    for (const auto& record : save.media) {
+        if (record.slot >= kSaveSlotCount) {
+            throw std::runtime_error("save writer: media slot outside 0x15e");
+        }
+        if (media[record.slot] != nullptr) {
+            throw std::runtime_error("save writer: duplicate media slot");
+        }
+        media[record.slot] = &record;
+    }
+    for (std::size_t slot = 0; slot < kSaveSlotCount; ++slot) {
+        const auto* record = media[slot];
+        if (record == nullptr) {
+            writer.u8(0xff);
+            continue;
+        }
+        writer.u8(0x00);
+        writer.fixed(record->raw);
+    }
+
+    writer.u32(save.current_scene);
+
+    std::array<const SaveDialogueChain*, kSaveSlotCount> chains{};
+    for (const auto& chain : save.dialogue_chains) {
+        if (chain.slot >= kSaveSlotCount) {
+            throw std::runtime_error("save writer: dialogue chain slot outside 0x15e");
+        }
+        if (chains[chain.slot] != nullptr) {
+            throw std::runtime_error("save writer: duplicate dialogue chain slot");
+        }
+        chains[chain.slot] = &chain;
+    }
+    for (std::size_t slot = 0; slot < kSaveSlotCount; ++slot) {
+        const auto* chain = chains[slot];
+        if (chain == nullptr) {
+            writer.u8(0xff);
+            continue;
+        }
+        writer.u8(0x00);
+        writer.fixed(chain->raw);
+    }
+
+    // 0x42118c copies savegame/notebook.000 line by line; the parser's
+    // validation is the same one the reader applies.
+    const std::vector<std::uint8_t> notebook(save.notebook.begin(),
+                                             save.notebook.end());
+    validate_notebook(notebook);
+    writer.bytes(notebook.data(), notebook.size());
+    return writer.take();
 }
 
 std::vector<std::string> parse_chapter_scene_list(const std::vector<std::uint8_t>& bytes) {
