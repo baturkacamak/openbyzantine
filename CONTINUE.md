@@ -20,7 +20,28 @@ game ISOs/archives, `analysis/rea/BETRAYAL.EXE`, `tools/rea`, `upscale_ornek` an
 needs `port/output/`: recreate it from your own copy with `port/byzantine-all`
 (and `port/scene.sh` for the extracted media) before running the suites.
 
-## Latest step — record animation playback (`0x43bb77` + the head-walk redraw)
+## Latest fix — examined items must not remain held (27 October 2026)
+
+User reported every item's examine-specific action stopped working. Reproduced
+on EA `26.btb`, label 602, ICAMERA (17): EXAMINE slot 91/action 288 was rejected
+as kind 0x0e because `inventory_examine` retained `current_dialogue_record=17`.
+The saved, hash-verified `0x408076` sets DAT_0045d1cc/state 4 then calls
+`0x407b9c(0)`, clearing DAT_0045d1c8. The shared helper now does exactly that:
+the examined identity stays, the held selection clears. The ordinary item-use
+gate is unchanged; no scene-specific bypass was added.
+
+`make -C port -j2 all test` passes all 14 suites. Regression tests cover both
+kind 0x0d/0x0e controls and continued rejection of a genuinely held item.
+`python3 analysis/rea/verify_examine_controls.py /tmp/byz-conv` passes the real
+camera action -> note -> camera -> action -> EA return chain. Window/XTEST
+events exercised the same chain (not a manual physical-mouse claim).
+Report: `analysis/rea/EXAMINE_ACTION_REGRESSION.md`.
+
+Boundary: camera action 288 now executes its script, including a `0xbd exCam`
+request; generic CF videos are still request-only in this player. This fix does
+not claim that clip plays. Conversation AVI playback is a separate existing path.
+
+## Previous step — record animation playback (`0x43bb77` + the head-walk redraw)
 
 Records now step their frame list after every drawn frame and draw the whole
 animation (head frame plus its delta frames), so a saved frame index that points

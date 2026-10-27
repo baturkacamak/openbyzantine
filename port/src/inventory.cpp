@@ -82,9 +82,13 @@ bool inventory_examine(SceneState& state, std::uint16_t id) {
             previous->second.state = 1;
         }
     }
-    state.current_dialogue_record = id;
     state.current_use_item = id;
     state.dialogue_records[id].state = 4;
+    // 0x408076 keeps DAT_0045d1cc (the examined item), then calls
+    // 0x407b9c(0), clearing DAT_0045d1c8 (the item held by the cursor).
+    // Keeping the item selected makes the close-up's kind 0x0d/0x0e
+    // controls fail the ordinary item-on-object compatibility check.
+    state.current_dialogue_record.reset();
     return true;
 }
 

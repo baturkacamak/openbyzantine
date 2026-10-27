@@ -67,23 +67,21 @@ int main() {
                 switch_state.dialogue_records[id] = SceneDialogueRecord{1, false};
             }
             require(inventory_examine(switch_state, 72), "close-up examine rejected 72");
-            require(switch_state.current_dialogue_record &&
-                        *switch_state.current_dialogue_record == 72 &&
+            require(!switch_state.current_dialogue_record &&
                         switch_state.current_use_item &&
                         *switch_state.current_use_item == 72 &&
                         switch_state.dialogue_records[72].state == 4,
-                    "close-up examine did not set one item for selection/use/state");
+                    "close-up examine did not clear held item and retain examined identity");
             require(examine_image_stem(inventory_name(switch_state,
                                                       *switch_state.current_use_item)) ==
                         "ecrwbar",
                     "close-up image stem does not follow the examined item");
             require(inventory_examine(switch_state, 66), "close-up switch rejected 66");
-            require(switch_state.current_dialogue_record &&
-                        *switch_state.current_dialogue_record == 66 &&
+            require(!switch_state.current_dialogue_record &&
                         switch_state.current_use_item &&
                         *switch_state.current_use_item == 66 &&
                         switch_state.dialogue_records[66].state == 4,
-                    "close-up switch left selection/use/state disagreeing");
+                    "close-up switch retained a held item or lost examined identity");
             require(switch_state.dialogue_records[72].state == 1,
                     "previous examined record did not return to state 1");
             require(examine_image_stem(inventory_name(switch_state,
@@ -92,6 +90,26 @@ int main() {
                     "close-up image stem did not move to the switched item");
             require(!inventory_examine(switch_state, 5),
                     "close-up examine accepted an off-page item");
+
+            // Real EXAMINE camera control 91: kind 0x0e, no item name.
+            // A selected item must still be rejected in normal play, but
+            // inspecting that item must release the cursor so its own action
+            // (and kind 0x0d controls on other items) can run.
+            SceneObjectState control;
+            control.name_id = 0xffffffffu;
+            for (const auto kind : {0x0d, 0x0e}) {
+                control.kind = kind;
+                inventory_select(switch_state, 66);
+                require(!item_use_compatible(switch_state, control,
+                                            switch_state.current_dialogue_record),
+                        "held item unexpectedly accepted by ordinary control");
+                require(inventory_examine(switch_state, 66), "repeat examine failed");
+                require(item_use_compatible(switch_state, control,
+                                           switch_state.current_dialogue_record),
+                        "examined item's own control blocked by held-item gate");
+                require(switch_state.current_use_item == 66,
+                        "releasing held item lost close-up identity");
+            }
         }
 
         require(examine_scene_for("AM") == "examine", "AM should use EXAMINE");

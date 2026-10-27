@@ -2135,7 +2135,7 @@ bool handle_bar_click(Session& session, int x, int y, bool verbose) {
                     return true;
                 }
                 std::cout << "closeup_item slot=" << index << " id=" << id
-                          << " name=" << name << " selected=yes examined=yes\n";
+                          << " name=" << name << " selected=no examined=yes\n";
                 enter_examine(session, verbose);
                 return true;
             }
