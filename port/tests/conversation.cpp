@@ -431,6 +431,97 @@ void test_conditions() {
           "0x42 re-enabled the answer when the variable matched");
 }
 
+void test_conditional_toggle() {
+    for (const auto opcode : {0x4c, 0x4d}) {
+        for (const auto value : {0, 2}) {
+            Writer writer;
+            write_header(writer);
+            write_groups(writer, {group({entry(1, {
+                Instr{static_cast<std::uint8_t>(opcode == 0x4c ? 0x4b : 0x4a), {{8, 1}}},
+                Instr{static_cast<std::uint8_t>(opcode), {{2, 7}, {64, 2}, {8, 1}}},
+                Instr{0x32, {{1, 1}}}})}), group({entry(2, {})})});
+            write_groups(writer, {group({}), group({entry(3, {Instr{0x39, {}}}),
+                                                    entry(4, {Instr{0x39, {}}})})});
+            const auto text = lines({"null", "a", "b", "c", "d"});
+            auto program = byzantine::parse_conversation_program(writer.bytes, text, text, "toggle");
+            auto state = zero_state();
+            state.variables[7] = value;
+            byzantine::ConversationSession session(program, state);
+            session.start();
+            (void)session.next(); session.line_shown();
+            (void)session.next(); session.line_shown();
+            const auto event = session.next();
+            const bool enabled = (opcode == 0x4d) == (value == 2);
+            check(event.kind == byzantine::ConversationEventKind::answers &&
+                  event.answers.size() == (enabled ? 2u : 1u),
+                  "conditional TOFF/TON must change only the matching answer");
+        }
+    }
+}
+
+void test_inline_voice() {
+    for (const auto opcode : {0x7c, 0x92, 0x93, 0x94}) {
+        Writer writer;
+        write_header(writer);
+        write_groups(writer, {group({entry(1, {
+            Instr{static_cast<std::uint8_t>(opcode), {{2, 0}, {2, 0}, {64, 2}}},
+            Instr{0x67, {{64, 3}, {2, 5}}},
+            Instr{static_cast<std::uint8_t>(opcode), {{2, 0}, {2, 0}, {64, 3}}},
+            Instr{0x67, {{64, 7}, {2, 5}}}, Instr{0x39, {}}})})});
+        write_groups(writer, {});
+        const auto clips = lines({"null", "abcmeh00", "abcmeh01", "abcmeh02"});
+        const auto texts = lines({"null", "first", "inline one", "inline two"});
+        auto program = byzantine::parse_conversation_program(writer.bytes, clips, texts, "voice");
+        auto state = zero_state();
+        byzantine::ConversationSession session(program, state);
+        session.start();
+        auto event = session.next();
+        check(event.kind == byzantine::ConversationEventKind::line && event.line.index == 1,
+              "VOICE preserves the group's first line");
+        session.line_shown(); event = session.next();
+        check(event.kind == byzantine::ConversationEventKind::line && event.line.index == 2 &&
+              event.line.media_allowed && state.variables[5] == 0,
+              "VOICE yields to playback before executing the next write");
+        session.line_shown(); event = session.next();
+        check(event.kind == byzantine::ConversationEventKind::line && event.line.index == 3 &&
+              state.variables[5] == 3, "VOICE resumes exactly after the previous inline command");
+        session.line_shown(); event = session.next();
+        check(event.kind == byzantine::ConversationEventKind::finished && state.variables[5] == 7 &&
+              state.variable_writes.size() == 2, "VOICE finishes without repeating writes");
+    }
+}
+
+void test_inline_voice_prelude_and_answer() {
+    Writer writer;
+    write_list(writer, {Instr{0x7c, {{2, 0}, {2, 0}, {64, 2}}},
+                        Instr{0x67, {{64, 1}, {2, 6}}}});
+    write_list(writer, {});
+    write_groups(writer, {group({entry(1, {Instr{0x33, {{1, 0}}}})})});
+    write_groups(writer, {group({entry(3, {
+        Instr{0x92, {{2, 0}, {2, 0}, {64, 2}}},
+        Instr{0x67, {{64, 4}, {2, 7}}}, Instr{0x39, {}}})})});
+    const auto text = lines({"null", "first", "inline", "answer"});
+    auto program = byzantine::parse_conversation_program(writer.bytes, text, text, "voice-locations");
+    auto state = zero_state();
+    byzantine::ConversationSession session(program, state);
+    session.start();
+    auto event = session.next();
+    check(event.kind == byzantine::ConversationEventKind::line && event.line.index == 2 &&
+          state.variables[6] == 0, "prelude VOICE blocks before group display");
+    session.line_shown(); event = session.next();
+    check(event.kind == byzantine::ConversationEventKind::line && event.line.index == 1 &&
+          state.variables[6] == 1, "prelude continues then displays its group");
+    session.line_shown(); event = session.next();
+    check(event.kind == byzantine::ConversationEventKind::answers && event.answers.size() == 1,
+          "answer list follows the group");
+    session.choose(0); event = session.next();
+    check(event.kind == byzantine::ConversationEventKind::line && event.line.index == 2 &&
+          state.variables[7] == 0, "answer VOICE blocks following writes and completion");
+    session.line_shown(); event = session.next();
+    check(event.kind == byzantine::ConversationEventKind::finished && state.variables[7] == 4,
+          "answer VOICE resumes and completes");
+}
+
 void test_unsupported_and_rejections() {
     {
         Writer writer;
@@ -547,6 +638,9 @@ int main(int argc, char** argv) {
         test_slot_opcodes();
         test_memory_reentry();
         test_conditions();
+        test_conditional_toggle();
+        test_inline_voice();
+        test_inline_voice_prelude_and_answer();
         test_unsupported_and_rejections();
         test_real_byz(argc > 1 ? argv[1] : "");
     } catch (const std::exception& error) {

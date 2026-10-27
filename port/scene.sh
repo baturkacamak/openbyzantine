@@ -21,6 +21,12 @@ set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Capture extraction/startup failures as well as the player. The marker only
+# prevents recursion; run_logged.py gives every external launch a unique file.
+if [ "${BYZ_LOG_ACTIVE:-0}" != 1 ]; then
+    exec python3 "$here/run_logged.py" -- bash "$here/scene.sh" "$@"
+fi
+
 usage() {
     echo "usage: $0 <game-dir> [scene] [label] [save]" >&2
     echo "  scene defaults to MAP, label to 87, save to tempsave.btb" >&2
@@ -73,6 +79,15 @@ extract_ui_assets() {
         cp -r "$tmp/copy2hd/setupart/." "$data/setupart/"
     fi
     rm -rf "$tmp"
+    # The game's own pointer art: copy2hd/cursors/<name>.tga and the klio set
+    # under copy2hd/cursors/klio (0x40dae5). Only CD1 ships them; flatten the
+    # tree so the player's <backgrounds>/cursors lookup finds it.
+    7z x -y "$iso" "copy2hd/cursors/*" -o"$tmp" >/dev/null 2>&1 || true
+    if [ -d "$tmp/copy2hd/cursors" ]; then
+        mkdir -p "$data/cursors"
+        cp -r "$tmp/copy2hd/cursors/." "$data/cursors/"
+    fi
+    rm -rf "$tmp"
     7z x -y "$iso" "inventor/*" "inventor/examine/*" "inventor/hotitems/*" \
         -o"$data" >/dev/null 2>&1 || true
     # A few sounds (endgame/Emre2/Pxstart) live under copy2hd/sounds, not under
@@ -104,6 +119,7 @@ if [ ! -f "$data/.prepared" ]; then
     done
     touch "$data/.media_v2"
     touch "$data/.ui_v1"
+    touch "$data/.cursors_v1"
     # 0x407254 decides the inventory media from the shipped TGA names (they are
     # spread over the CDs, so the listing is the union).
     listing=""
@@ -166,6 +182,12 @@ if [ ! -f "$data/.ui_v1" ]; then
     touch "$data/.ui_v1"
 fi
 
+# ... or the cursor art (0x40dae5), which also lives under CD1's copy2hd.
+if [ ! -f "$data/.cursors_v1" ]; then
+    extract_ui_assets "$iso1"
+    touch "$data/.cursors_v1"
+fi
+
 # A data dir prepared before the text step has neither the fonts nor the split
 # CE records; fetch just those instead of re-extracting everything.
 if [ ! -d "$data/copy2hd/fonts" ] || [ ! -d "$data/ce" ]; then
@@ -210,11 +232,30 @@ fi
 save_path="$data/copy2hd/savegame/$save"
 [ -f "$save_path" ] || { echo "no savegame '$save' in $data/copy2hd/savegame" >&2; exit 1; }
 
+# The same animation name can contain DIFFERENT art on different CDs. The
+# union extracted above is only a fallback, never the authority for collisions.
+saved_disc="$("$here/byzantine-cc" --save-dump "$save_path" \
+    --lcc "$data/copy2hd/engine/SHOW.LCC" | sed -n 's/^cd=\([1-6]\) .*/\1/p')"
+[ -n "$saved_disc" ] || { echo "cannot determine saved media disc" >&2; exit 1; }
+disc_iso="$(find_iso "$saved_disc")" || { echo "missing saved disc $saved_disc" >&2; exit 1; }
+anims_overlay="$(python3 "$here/prepare_disc_anims.py" "$data" "$disc_iso" "$saved_disc")"
+
 text_args=()
+[ -d "$data/cursors" ] && text_args+=(--cursors "$data/cursors")
 [ -n "$ce" ] && text_args+=(--ce "$ce")
 [ -n "$fonts" ] && text_args+=(--fonts "$fonts")
 messages="$data/copy2hd/setupart/MESSAGES.TXT"
 [ -f "$messages" ] && text_args+=(--messages "$messages")
+
+# A later 0x73 can reach a conversation outside the starting scene. Let the
+# player extract just that missing AVI into this analysis copy on demand.
+media_isos="$data/media_isos.txt"
+: >"$media_isos"
+for index in 1 2 3 4 5 6; do
+    iso="$(find_iso "$index")" || continue
+    iso_dir="$(cd "$(dirname "$iso")" && pwd)"
+    printf '%s/%s\n' "$iso_dir" "$(basename "$iso")" >>"$media_isos"
+done
 
 exec "$here/byzantine-play" "$cc" "$cb" "$label" \
     --save "$save_path" \
@@ -234,7 +275,9 @@ exec "$here/byzantine-play" "$cc" "$cb" "$label" \
     --byz "$data/byz" \
     --dialog "$data/dialog" \
     --dialog-cache "$data/dialog_cache" \
+    --media-isos "$media_isos" \
     --anims "$data" \
+    --anims-overlay "$anims_overlay" \
     --sounds "$data" \
     --backgrounds "$data" \
     --gameprefs "$data/copy2hd/goldsave/GAMEPREF.000" \

@@ -846,6 +846,15 @@ SceneCompose compose_scene(SceneState& state, Rgb16Surface& target);
 // untouched; the shipped assets and saves decide whether a record animates.
 void advance_record_animation(SceneRecordState& record);
 
+// The original loop is uncapped: 0x43b216 (draw + 0x43bb77) runs as often as
+// the machine allows between two host frames. The host renders at its own
+// cadence, so it steps the records the last compose drew by the extra passes
+// that elapsed. `ids` are the normal-pass records of that compose; a record
+// that was not drawn must not advance. Returns the number of records found.
+std::size_t advance_record_passes(SceneState& state,
+                                  const std::vector<std::uint16_t>& ids,
+                                  std::size_t passes);
+
 // 0x426b9d marker 1: after the saved 0x40-byte record is copied, 0x40fe70
 // loads the CA asset's animation payload. For an already-allocated record
 // 0x410078 takes its "existing record" branch: frame list, +0x14 count and
@@ -865,6 +874,18 @@ std::vector<SceneHotspot> static_hotspots(const std::vector<CcInstruction>& scri
 
 // Joins constant opcode 0x69 scene IDs with the matching CB.ALL record.
 std::vector<SceneBackground> static_backgrounds(
+    const std::vector<CcInstruction>& script,
+    const std::vector<BackgroundEntry>& entries);
+
+// The 0x69 background a frame shows. A committed trace only carries the loads
+// that action executed; the original keeps the loaded background until another
+// 0x69 replaces it, so a trace without a background keeps the layer the
+// previously committed trace established (`committed`). Only a scene that never
+// loaded one falls back to its first static 0x69 entry, which is the startup
+// case and not a per-action default (an arbitrary entry there is a wrong scene).
+std::string resolve_frame_background(
+    const SceneTrace& trace,
+    const std::string& committed,
     const std::vector<CcInstruction>& script,
     const std::vector<BackgroundEntry>& entries);
 

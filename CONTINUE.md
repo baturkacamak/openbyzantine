@@ -1,5 +1,37 @@
 # Compact handoff — 26 October 2026
 
+## Latest step — the game's own mouse cursors (27 October 2026)
+
+The player now installs the shipped pointer art and the engine's cursor rules
+instead of a host arrow. `0x40dd7f`/`0x40dae5` load two 32-entry tables —
+`cursors/<name>*.tga` and `cursors/klio/<name>*.tga` (alternate mode, `0x68` ->
+`DAT_00464878`) — whose names/hotspots are static data at `0x45dbe8` and
+`0x45e090`. Selection: `0x40c329` uses the hovered object's kind byte (+0x09) as
+the cursor id; `0x407bd7` gives the held item's `inventor/<name>.tga` and, over
+kind `0x12/0x13/0x14`, its `inventor/hotitems/<h-name>.tga`; `0x4083d4` does the
+inventory band (slots, arrows, examine button, channel area); `0x40de7b` maps
+`0`/`0x17` -> `0x1d` ("map") and `0x1c` -> `0x1e` ("hotsmall") in the normal set
+outside a panorama. Real SDL colour cursors keep screenshots pixel-identical.
+
+New: `port/{include/byzantine,src}/cursors.*` (tables + rules + wildcard file
+lookup), `port/tests/cursors.cpp` (`cursor-test`, in `make test`), `--cursors`
+and `--cursor-at <x>,<y>` diagnostics, and `scene.sh` extraction of
+`copy2hd/cursors/*` with a `.cursors_v1` backfill. `make -C port -j2 all test`
+passes. Verified on `/tmp/byz-scene`: magnify over EA's hotspot, default/hotbig
+on the strip, `map`/`hotsmall` in the flat close-up, ISTAR item + `hSTAR`
+hotitem in CLOCK, klio set in CLOCK/HSTMED, and a live Xephyr pointer transition
+(not a physical-device claim). EA layer/photo/single-execution/examine
+regressions still pass. Open: `0x40ebe1`'s 250 ms multi-frame cursors,
+`0x4013ae`'s edge-band arrows/rotation, top-menu pointer, strip channel tabs.
+Report: `analysis/rea/CURSORS.md`.
+
+**Recovery note.** While editing `port/src/play_main.cpp` this step, a careless
+scripted deletion removed a ~1.7k-line region of the working file (uncommitted
+animation-pacing work included). It was restored byte-exactly from the OpenCode
+snapshot object `64d5886d…` (the pre-deletion working tree), the duplicate
+`SceneHit`/`hotspot_at` copy from the interrupted edit was removed, and the full
+suite + real-data regressions were re-run. No other file was affected.
+
 ## Current user direction — use libraries, integrate playable behavior
 
 The durable policy is in `AGENTS.md`, "Library strategy and playable milestones".
@@ -20,7 +52,242 @@ game ISOs/archives, `analysis/rea/BETRAYAL.EXE`, `tools/rea`, `upscale_ornek` an
 needs `port/output/`: recreate it from your own copy with `port/byzantine-all`
 (and `port/scene.sh` for the extracted media) before running the suites.
 
-## Latest fix — stale hitboxes after a view switch (TK, 27 October 2026)
+## Latest fix — animation pass rate (TK character too slow, 27 October 2026)
+
+Pinned user run `run-20261027T121108.021855Z-_6z7t4zt` (EA, 602, 26.btb ->
+EA02 -> MAP -> TK). In TK the woman's animation (`TKNUXB`, action 61 /
+instruction 87 `0x64(1,1,20,244,150)` -> `+0x04 = 20`, 18 ping-pong delta
+frames) ran at ~390 ms per animation frame, i.e. ~2.5 frames/s.
+
+`0x43b216`'s `0x10 < elapsed` gate is **not** a 16 ms cap: the target stores the
+elapsed *delta* back into `_DAT_0046187c` (`0x43b334 mov [0x46187c],eax`, eax =
+delta), so the uncapped `0x42d594` loop stops throttling after the first passes.
+The shipped `+0x04` values are divisors of that pass rate. The earlier 16 ms
+model (one pass per tick) read the gate wrongly: it made delay 20 ~3 frames/s
+and was still too slow on screen; the user identified the *unpaced* host loop
+(the `--compose-frames` runs, 200-345 passes/s here) as the original's speed.
+
+New model: render on the 16 ms `FramePacer` tick, but keep the record-pass clock
+separate (`byzantine::PassClock`, `--anim-pass-hz`, default 250). The passes
+owed between two host frames are applied to the records the compose drew via
+`advance_record_passes` -> `0x43bb77`; a backlog over one second (scene load,
+conversation, media) is dropped, and a scene without animation drains the
+clock. Nothing in `+0x04`/`0x43bb77`/frame lists changed. Measured live:
+`passes` grows 250/s and the TK index advances every 80 ms (was 336 ms).
+`make -C port -j2 all test` passes (new `PassClock`/`advance_record_passes`
+cases); `BYZ_ANIM_TRACE=1` prints `frame/count/delay/passes/applied` every
+100 ms. Report: `analysis/rea/ANIMATION_FRAME_PACING.md`. 250 Hz is a host
+reference, not a recovered 1997 frame rate.
+
+## Previous fix — background lost when an action loads no 0x69 (27 October 2026)
+
+Pinned user run `run-20261027T115813.469736Z-x3d7vvnq` (EA, 602, 26.btb):
+the player looked at the photo close-up `EAHKEY.JPG` (slot 68) and the frame
+switched to `EAEmShMs.jpg`, the shelf with framed photographs. Action 1442 runs
+six instructions (1810..1815: `0x6e`, `0x85`, `0x64`, `0x6e`, `0x6d`, `0x6f`)
+and contains no background load, so the original keeps the loaded picture.
+The port adopted each action's trace and `pick_background()` fell back to the
+scene's FIRST static 0x69 entry (instruction 532 = `EAEMShMs`) whenever that
+trace had no background. That is the wrong-scene jump; the same trace shape
+appears on the rug close-up (`EARugDr` -> `EAEmShMs`) in
+`run-20261027T114033.089234Z-6r6h69iv`.
+
+New `resolve_frame_background()` (`src/cc.cpp`) resolves trace 0x69 -> the name
+remembered from the last committed 0x69 -> first static entry (startup only).
+`SceneView::committed_background` is filled in `update_layer`, so scene travel,
+reload and examine return start empty and no name leaks between scenes. Layer
+selection (0x69 vs 0xb9 order) is unchanged; no state or opcode was skipped.
+`tests/scene_state.cpp` covers the three steps, and
+`analysis/rea/verify_ea_photo.py` drives the reported click chain on real data
+and asserts `EAHKEY.JPG` + record 16 (`EATexflp`) with no `EAEmShMs` compose.
+`make -C port -j2 all test` passes; EA layer/single-execution/inline-voice and
+examine verifications still pass. Report:
+`analysis/rea/BACKGROUND_RETENTION_FIX.md`; frame:
+`port/output/ea-photo-fix/after-1442.png` (dummy video, not a display check).
+The rug instance was not replayed end to end (its click depends on the run's
+camera state); only the photo chain is proven interactively.
+
+## Previous fix — TK delta frames and wrong-disc animation collisions (27 October 2026)
+
+Pinned user run `run-20261027T105116.045293Z-vk3qe1h9` reaches TK naturally
+from EA -> MAP. Two distinct visual problems were reproduced:
+
+1. TKNUXB has signature0 but later frames contain transparent unchanged pixels.
+   The player repaints the scene every frame, so drawing only the current delta
+   caused holes. compose_scene now reconstructs head..current for all signatures,
+   not only nonzero ones. Packed RLE files are cached to avoid reopening them
+   repeatedly; no new standard codec was introduced.
+2. The all-CD flattened extraction overwrote CD2 TKNUXA with the different CD3/5
+   version. CD1/2 has 16 frames,120x120; CD3/5 has 2 frames,90x107, with a visibly
+   different background baked into it. save26.btb says cd=2. scene.sh now reads
+   the save disc and prepares a separate immutable animation overlay from that
+   ISO, which takes precedence over the union. The original files and old union
+   are preserved. All scenes in that session use the selected disc overlay;
+   existing unsupported disc-change requests are not silently resolved.
+
+New helper: `port/prepare_disc_anims.py`; option `--anims-overlay` in player/CLI.
+Cache path `$BYZ_DATA/disc-media/cdN-<source-identity>/`, selected once per launch.
+The CD2 animation tree added about21MB in this environment, extracted only once.
+Default launcher now handles old prepared roots automatically.
+
+`make -C port -j2 all test` passes native14 suites plus logging checks. New tests
+cover signature-zero base/intermediate pixel preservation and backward seek,
+and preferred-root collision precedence. `verify_tk_animation.py <data-root>
+[disc-overlay]` compares four time samples against independent accumulated RLE
+pixels; legacy CD3 variant passed frames1/3/9/17 with zero bad pixels, and CD2
+was checked separately. TK travel/conversation and examine regressions pass.
+Generated visual checks: `port/output/tk-animation-fix/`. Report:
+`analysis/rea/TK_ANIMATION_VISUAL_FIX.md`. Pixel tests use dummy SDL devices.
+
+## Previous fix — inline conversation VOICE commands (27 October 2026)
+
+Pinned user run `run-20261027T104224.941655Z-_wyjx80u` shows EA rug/drawer
+slot34/action1307 -> slot81/action1316 -> slot83/action1325 -> MCaEA3b record2
+at instruction2018. It failed twice on unsupported conversation opcode0x7c
+and rolled back the click. This is distinct from the previous probe replay bug.
+
+Hash-verified saved `0x43340a` -> `0x4096f9`: runtime VOICE 0x7c/0x92/0x93/0x94
+all play literal operand2 through the usual conversation line/media path;
+operands0/1 and the selector are for original debug presentation. Implemented
+all four with resumable instruction-list work: pause at the inline line, wait
+for `line_shown`, then execute following writes/branches. Prelude, line/sub-list
+and answer continuations preserve their existing ordering; start clears pending
+work. No new codec or scene-specific branch was introduced.
+
+Real MCaEA3b check: 3 lines, no answer list, local0 becomes1, completion0xffff,
+6 conversation instructions, resume at2019 -> EALOOKIN with exit160. Actual
+Mctcar02 AVI decoded146 frames/15fps, 320x200, PCM9733ms; audio_failures=0
+on SDL dummy devices. Screen(589,349) hits160/action1611 and returns to the
+EA03 panorama with slots157/158. Acceptance uses explicit label1599 to reach
+the failing conversation, not a claim of natural end-to-end drawer traversal.
+
+`make -C port -j2 all test`: 14 native suites plus logging tests pass, with new
+inline-VOICE tests for all variants, write sequencing, prelude and answer lists.
+`verify_ea_inline_voice.py /tmp/byz-scene` covers dialogue completion and exit;
+existing TK conversation, EA desk single-execution and examine tests pass.
+Evidence and bounds: `analysis/rea/CONVERSATION_INLINE_VOICE.md`.
+
+## Previous fix — action execution reused its probe output (27 October 2026)
+
+Pinned user run: `run-20261027T102315.015177Z-m1mx8hhh` (EA 602 / 26.btb,
+normal audio/window launch). EA01 -> desk slot 28/action 1356 -> slot 41/action
+1377 left EASHOMER with zero hotspots. The probe had reached the correct branch
+and enabled exit 37; execute_plan then ran from `plan.entry` (the already-mutated
+probe result). It saw local 43 already set and skipped the exit setup.
+
+Non-conversation actions now execute from `plan.entry_before`, just as the
+conversation path already does. This is the common executor for both windowed
+and --shot actions and forced diagnostic labels; no exit hotspot was invented.
+The earlier missing-video hypothesis was incomplete: CF homer1 remains request-
+only and timer callbacks remain absent, but the demonstrated exit loss was a
+probe-state replay bug. No capability guard or scene-specific bypass was kept.
+
+`verify_ea_single_execution.py /tmp/byz-scene`: desk/local43=0 -> object/local43=1,
+local51=1, exit 37 -> slot37/action1392 -> EA01 with slots27..35. The initial
+label653 room shortcut is diagnostic. Existing EA layer, examine, TK view-switch
+and TK dialogue checks pass; all 14 native suites plus logging tests pass with
+`make -C port -j2 all test`. Interactive-path validation uses dummy devices;
+physical mouse/speaker validation is not implied.
+
+Log workflow was expanded in AGENTS.md and `analysis/rea/RUNTIME_LOGGING.md`:
+pin the user's basename before tests move LATEST, inspect action/probe/execution
+separately, and verify a real exit. Summaries now retain `last_actions` and
+`possible_stalls` independently of ordinary output tails. Focused report:
+`analysis/rea/EA_SINGLE_EXECUTION_FIX.md`.
+
+## Previous fix — EA panorama/close-up navigation (27 October 2026)
+
+User's normal EA 602 / 26.btb log `run-20261027T101756.588677Z-_4qu0xq7`
+shows slot 3/action 544 completing at 4.85 s with active slots 18/19, but all
+later clicks still mapped through the old panorama. `update_layer` ignored an
+explicit `0x69` when the current layer was already panorama. The loaded close-up
+was EAPupAll, but the player kept showing EA00 and its panorama hit mapping.
+This condition is present in HEAD b01cd37 too; logging exposed it, rather than
+introducing it. No unknown script commands were bypassed.
+
+An explicit background load now selects the flat layer even after a panorama;
+a trace without either load still preserves the current layer. Removed the
+obsolete fresh-scene parameter. This fixes both displayed image and coordinate
+mapping through their existing shared `panorama_layer` decision.
+
+Real-data regression `python3 analysis/rea/verify_ea_layer.py /tmp/byz-scene`:
+slot 3 -> EAPupAll/slots 18,19 -> screen (589,349) hits slot 18/action 551 ->
+EA00 panorama/slots 1..7. Before the fix the same point mapped to (236,527),
+missed, and left the user stuck. Interactive branch with dummy SDL devices and
+audio enabled passes the same sequence using --selftest-events. Existing real
+examine and EA -> MAP -> TK dialogue regressions still pass. All 14 native
+suites plus logging acceptance pass via `make -C port -j2 all test`.
+Report: `analysis/rea/EA_LAYER_NAVIGATION_FIX.md`. No new binary analysis.
+
+## Previous step — automatic per-launch diagnostics (27 October 2026)
+
+Every normal `port/scene.sh` launch now goes through `port/run_logged.py`,
+including preparation/extraction errors. Each launch creates three files in
+`port/output/logs/` (override with `BYZ_LOG_DIR`): timestamped stdout/stderr
+`.log`, detailed `.trace.log`, and compact `.summary.json`. `LATEST` points to
+the last STARTED run's log, not necessarily the last completed run. Start from
+its summary, then search relevant log sections; do not load whole VM traces
+into model context. If status is `running`, inspect the live log tail.
+
+The summary records command/cwd, Git HEAD/dirty file list, player SHA-256,
+selected device environment, elapsed time, actual child exit/signal status,
+counts and selected important/last lines. Native detail records every SDL event
+delivered through the scene, sound-wait, conversation-video and answer loops
+(including motion), VM steps/arguments, variable writes, conversation commands,
+and adopted state (locals, inventory, records and object rectangles). No pixel
+or every-frame dump. VM logs explicitly include probes/budgeted re-evaluations,
+NOT just committed actions. Input events do not by themselves imply acceptance.
+
+Logging leaves terminal gameplay output intact; verbose input/VM records go
+only to the detail file. Trace records flush on each line. SIGINT/SIGTERM are
+forwarded and logged; SIGKILL/power failure can leave a running summary. Old
+runs are retained. Direct commands use `python3 port/run_logged.py -- <command>`;
+unwrapped direct binaries do not automatically create run bundles.
+
+Validation: `make -C port -j2 all test` passes the 14 existing native suites plus
+`tests/logging.py` (concurrent runs, stderr/partial lines, failed spawn, nonzero
+exit and SIGTERM forwarding). Actual EA dummy launch captured 16 input events;
+an isolated Xephyr/XTEST run recorded motion/buttons/wheel/keys and normal exit.
+Real examine and EA -> MAP -> TK conversation regressions still pass. No REA or
+new binary behavior derivation. See `analysis/rea/RUNTIME_LOGGING.md` and the
+logging workflow in AGENTS.md / port/README.md.
+
+## Previous fix — TK missing character / wrong conversation (27 October 2026)
+
+The user's TK slot 3/action 77 was playing EA's `VOemphn2` because `travel_to`
+rebound the other scene tables but retained `--cd`. It now rebinds CD too:
+TK record 0 is `Inutk1a`, using `Nt1nur*` AVIs, not missing `ep2emr01`.
+The launcher provides a manifest of user-owned ISOs; a conversation reached
+outside the starting scene extracts only a missing exact-name AVI on demand
+through 7z. No fabricated WAV substitution and no new codec.
+
+**Important correction:** raw CA type 255 is NOT dead data. Hash-verified
+`0x42d52f`, called by the scene loader, normalizes it to type 0. CA parsing now
+performs that normalization (other named tables keep their raw bytes). This
+restores the real TKNUXA/TKNUXB actors. `0x90` now also implements the saved
+`0x432303` type-0/1 close and `0x432401` hide/trail cleanup, so the old view's
+small actor does not remain over the new view's large actor. TKXB draws only
+record 1, 37,500 pixels. This is shared behavior, not a TK-only patch.
+The old CONTENT_COVERAGE report has a superseded banner; its dead-data claims
+and runtime counts must not be used as current evidence. Its generator wording
+has been corrected, but the whole-game runtime census has not been rerun.
+
+The real TK dialogue exposed missing conditional TOFF/TON (`0x4c/0x4d`);
+these now apply the variable comparison and operand-2 line/answer selection.
+A real TK run completes 6 lines / 2 answer lists / 5 decoded videos, with
+`audio_failures=0` and script continuation. Audio used the SDL dummy device,
+not a human speaker check. A separate EA -> MAP -> TK regression completes
+4 lines / 1 list from that save's actual variable pool. The initial EA label
+1790 shortcut is diagnostic, not proof of a natural EA exit.
+
+`make -C port -j2 all test`: all 14 suites pass. Optional real-data checks:
+`verify_tk_media.py`, `verify_tk_hotspots.py`, `verify_examine_controls.py`
+(each under `analysis/rea/`, argument `/tmp/byz-conv`). A fresh empty dialogue
+root also verified exact `Nt1nur02` extraction from CD1. Screenshots are in
+`port/output/tk-character-fix/`. Evidence/hashes and limitations:
+`analysis/rea/TK_CHARACTER_MEDIA_FIX.md`.
+
+## Previous fix — stale hitboxes after a view switch (TK, 27 October 2026)
 
 Reproduced the user's TKXA -> TKXB trace: slot 2/action 61 stayed active and
 won the hit test repeatedly; TKXB incorrectly exposed 1/2/3/4/5. `0xb8` and

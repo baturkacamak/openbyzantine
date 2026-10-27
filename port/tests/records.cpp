@@ -49,6 +49,18 @@ int main() {
         // Empty input is an empty table, not an error.
         require(parse_named_records({}).empty(), "empty table rejected");
 
+        // Raw 0xff is NOT a dead CA slot: 0x42d52f normalizes it before
+        // the scene starts. Preserve it for CS/CI/etc., normalize CA only.
+        const auto untyped = record("tknuxb", "TK.CCG", 0xff);
+        require(parse_named_records(untyped)[0].type == 0xff,
+                "raw named record parser changed a non-CA type");
+        require(byzantine::parse_actor_records(untyped)[0].type == 0,
+                "CA loader did not normalize 0xff to on-demand type 0");
+        for (const auto type : {0, 1, 2, 3, 4}) {
+            require(byzantine::parse_actor_records(record("n", "s", type))[0].type == type,
+                    "CA loader changed an explicit type");
+        }
+
         std::vector<std::vector<std::uint8_t>> broken;
         broken.push_back(raw("name"));                                  // no terminator
         broken.push_back(raw(std::string("name\0src", 8)));              // missing source NUL

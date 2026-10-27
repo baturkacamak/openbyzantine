@@ -11,6 +11,41 @@
 - After a substantive step update `CONTINUE.md` and a focused evidence report.
 - Build and validate behavior with `make -C port -j2 all test`.
 
+## Runtime diagnostics (user request, 27 October 2026)
+
+- Normal `port/scene.sh` launches automatically retain a separate run bundle in
+  `port/output/logs/` (`BYZ_LOG_DIR` overrides the directory). Preserve the run
+  associated with a reported bug; do not overwrite it with the next attempt.
+- Start an investigation from `port/output/logs/LATEST`, then read that run's
+  `.summary.json`. Search the `.log` around the relevant action/error; only
+  read the needed slice of `.trace.log`. Do not paste entire traces into model
+  context. The summary contains paths, revision/dirty state, command, exit
+  status and selected diagnostics; it is not a game-correctness verdict.
+- Resolve and record the user's run basename BEFORE launching tests, because
+  tests also replace LATEST. If the summary is still `running`, inspect that
+  run's live log tail. Keep investigation output separate from the user's run.
+- For "stuck/cannot exit", check `last_actions` and `possible_stalls`, then
+  search the main log for the last successful action, `active_slots=0`,
+  `hit no hotspot`, `stopped:`, `unsupported`, media errors and transitions.
+  Repeated misses alone do not establish a coordinate bug. Check which image,
+  layer and active object set the action actually left behind; distinguish
+  wrong input mapping from missing runtime video/timer/continuation behavior.
+- Compare the probe's `vm_end` with the executed result. A divergent branch
+  can mean the action ran from its already-mutated probe output. Execute from
+  `entry_before`; probes must not become an action's initial game state.
+- Reproduce the minimal action chain using the same save and actual asset
+  root. Verify state before/after and a usable exit after the correction.
+  Label shortcuts and dummy-device checks must be reported as such. If a
+  capability remains missing, report that explicitly; avoiding a softlock is
+  not completion of the underlying interaction. Detailed workflow/evidence:
+  `analysis/rea/RUNTIME_LOGGING.md`.
+- VM traces include probes and budgeted re-evaluations. They are explicitly
+  evaluations, not proof an action committed. Use action results, rollback
+  diagnostics and state-adoption records to interpret them.
+- Direct player/CLI debugging can use `python3 port/run_logged.py -- <command>`.
+  SDL input logs report delivered events, including mouse motion during waits;
+  no physical-input, pixel-perfect rendering or speaker validation is implied.
+
 ## Library strategy and playable milestones (user decision, 26 October 2026)
 
 - Prioritize a playable scene and then connected scenes. Report what the player

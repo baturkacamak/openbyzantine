@@ -45,6 +45,14 @@ std::vector<NamedRecord> parse_named_records(const std::vector<std::uint8_t>& da
     return records;
 }
 
+std::vector<NamedRecord> parse_actor_records(const std::vector<std::uint8_t>& data) {
+    auto records = parse_named_records(data);
+    for (auto& record : records) {
+        if (record.type == 0xff) record.type = 0;
+    }
+    return records;
+}
+
 std::vector<std::uint16_t> parse_scene_switch_table(
     const std::vector<std::uint8_t>& data) {
     // 0x438173: __fread_lk(&count, 2); then count u16 values. DAT_00482460 holds

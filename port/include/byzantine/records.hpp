@@ -21,6 +21,10 @@ struct NamedRecord {
 // form a record are errors.
 std::vector<NamedRecord> parse_named_records(const std::vector<std::uint8_t>& data);
 
+// Scene loader 0x42d52f changes CA type 0xff to 0 (on-demand), after
+// 0x411dfc reads the raw table. Other named tables retain their raw bytes.
+std::vector<NamedRecord> parse_actor_records(const std::vector<std::uint8_t>& data);
+
 // engine/<chapter>.lcx, read by 0x438173 into DAT_00482460: a u16 count
 // (maximum 50, the array's size) followed by that many u16 scene indices.
 // 0x73 indexes this table with its raw operand and writes the result to

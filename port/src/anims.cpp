@@ -251,25 +251,29 @@ std::optional<AnimsAsset> parse_avi_anims(const std::vector<std::uint8_t>& data)
     return asset;
 }
 
-AnimsLibrary::AnimsLibrary(const std::string& root) : root_(root) {
+AnimsLibrary::AnimsLibrary(const std::string& root, const std::string& preferred_root) : root_(root) {
     namespace fs = std::filesystem;
     std::error_code error;
     // Accept either the directory that CONTAINS `anims/` (the extraction root)
     // or the `anims` directory itself; the index key stays `<two>/<name>.rle`.
-    auto base = fs::path(root_);
-    if (fs::is_directory(base / "anims", error)) {
-        base /= "anims";
-    } else if (!fs::is_directory(base, error)) {
-        return;
-    }
-    for (fs::recursive_directory_iterator it(base, error), end; it != end;
-         it.increment(error)) {
-        if (error) break;
-        if (!it->is_regular_file(error)) continue;
-        const auto relative = fs::relative(it->path(), base, error).generic_string();
-        if (error) continue;
-        entries_.emplace(lowercase(relative), it->path().string());
-    }
+    const auto index_root = [&](const std::string& location, bool override_existing) {
+        if (location.empty()) return;
+        auto base = fs::path(location);
+        if (fs::is_directory(base / "anims", error)) base /= "anims";
+        else if (!fs::is_directory(base, error)) return;
+        for (fs::recursive_directory_iterator it(base, error), end; it != end;
+             it.increment(error)) {
+            if (error) break;
+            if (!it->is_regular_file(error)) continue;
+            const auto relative = fs::relative(it->path(), base, error).generic_string();
+            if (error) continue;
+            if (override_existing) entries_[lowercase(relative)] = it->path().string();
+            else entries_.emplace(lowercase(relative), it->path().string());
+        }
+        error.clear();
+    };
+    index_root(root_, false);
+    index_root(preferred_root, true);
 }
 
 std::optional<DecodedFrame> AnimsLibrary::decode(const std::string& anim_name,
@@ -278,10 +282,14 @@ std::optional<DecodedFrame> AnimsLibrary::decode(const std::string& anim_name,
     const auto stem = std::string(1, anim_name[0]) + anim_name[1] + "/" + anim_name;
     const auto rle = entries_.find(lowercase(stem + ".rle"));
     if (rle == entries_.end()) return std::nullopt;  // AVI frames are not decoded
-    std::ifstream input(rle->second, std::ios::binary);
-    if (!input) return std::nullopt;
-    const std::vector<std::uint8_t> data{std::istreambuf_iterator<char>(input),
-                                         std::istreambuf_iterator<char>()};
+    auto cached = packed_cache_.find(rle->first);
+    if (cached == packed_cache_.end()) {
+        std::ifstream input(rle->second, std::ios::binary);
+        if (!input) return std::nullopt;
+        cached = packed_cache_.emplace(rle->first, std::vector<std::uint8_t>{
+            std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()}).first;
+    }
+    const auto& data = cached->second;
     const auto asset = parse_anims(data);
     if (frame_index >= asset.frames.size()) return std::nullopt;
     return decode_anims_frame(asset.frames[frame_index],

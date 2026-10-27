@@ -91,7 +91,7 @@ class AnimsLibrary {
 public:
     // Walks `<root>/anims/<two chars>/<file>`; a missing tree yields an empty
     // library rather than an error, so a caller can supply a partial CD set.
-    explicit AnimsLibrary(const std::string& root);
+    explicit AnimsLibrary(const std::string& root, const std::string& preferred_root = "");
 
     // Returns the parsed asset for a CA record name, or nullopt when the file
     // is absent. 0x40fe70 treats that absence as a failed record creation.
@@ -107,6 +107,9 @@ public:
 private:
     std::string root_;
     std::map<std::string, std::string> entries_;  // lowercase relative -> path
+    // Immutable extracted assets: avoid reopening the file for every node of
+    // a delta reconstruction on each rendered frame. No per-frame image cache.
+    mutable std::map<std::string, std::vector<std::uint8_t>> packed_cache_;
 };
 
 }  // namespace byzantine

@@ -1,5 +1,7 @@
 # Record animation playback: `0x43bb77` and the head-walk redraw
 
+> Updated 27 October: signature-zero assets also contain delta frames (TKNUXB). The host now reconstructs head..current for every signature when repainting. See TK_ANIMATION_VISUAL_FIX.md. Historical signature-only statements below describe the earlier implementation.
+
 Date: 26 October 2026.
 
 This step adds the per-frame animation the record pass was missing. Before it,
@@ -97,7 +99,11 @@ every node up to `record + 0x1c`. `0x43b216` passes its own `param_2` as
   `scene_animates(state)` is true (a record with a known frame list, an index,
   at least two frames, no `0x20`/`0x40`/`0x04` flag, kind 0..4 and an on-window
   origin, because an off-window record is never drawn and therefore never
-  advances). Static scenes keep the event-driven redraw.
+  advances). Static scenes keep the event-driven redraw. Since 27 October the
+  16 ms figure is only the *render* tick (`FramePacer`); the record-pass rate
+  that steps the frame lists is a separate clock (`--anim-pass-hz`, default
+  250 Hz), because the original pass loop is uncapped. See
+  `ANIMATION_FRAME_PACING.md`.
 * `--compose-frames <n>` draws `n` extra frames before `--shot`, so the frame
   walk is observable headlessly and in tests.
 
@@ -138,13 +144,17 @@ animates the man at the desk without eroding the patch. Headless
 experiment lost it).
 
 Performance: HSTMED 43.btb (42 records, 10 drawn) composes 201 frames in ~2.9 s
-wall time (~14 ms per frame including the 640x400 background JPEG blit), so the
-16 ms animation cadence is met for the shipped entry states.
+wall time (~14 ms per frame including the 640x400 background JPEG blit). With
+the wall-clock pacer the loop then runs at the 16 ms tick (~3-4 ms compose in
+TKXB); the earlier fixed 16 ms sleep produced `compose + 16 ms` per frame.
 
 ## Not claimed
 
 * No original execution; the frame rate is derived (`+0x04` drawn frames per
-  step at the renderer's cadence), not measured against the game.
+  step at the renderer's cadence), not measured against the game. The original
+  `0x43b216` gate is not a 16 ms cap: it stores the elapsed *delta* in its
+  "last time" variable, so the uncapped loop passes almost every iteration
+  (`ANIMATION_FRAME_PACING.md`).
 * The `+0x29`/`DAT_00482acd` "redraw again" loop (`0x43c466`) and the `+0x3c`
   trail draw are still not modelled.
 * Per-record patch caching is not implemented: a high frame index replays every

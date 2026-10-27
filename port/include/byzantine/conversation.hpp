@@ -5,6 +5,8 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <deque>
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
@@ -169,6 +171,8 @@ private:
     ConversationEvent fail(std::string message);
     ConversationEvent finish(std::uint16_t result);
     void run_instruction_list(const std::vector<ConversationInstruction>& list);
+    void execute_instruction(const ConversationInstruction& instruction);
+    void run_pending_work();
     void run_entry_list(const ConversationEntry& entry);
     ConversationArgument argument(const ConversationInstruction& instruction,
                                   std::size_t index) const;
@@ -229,6 +233,14 @@ private:
     std::vector<std::optional<ConversationEntryKey>> line_override_keys_ =
         std::vector<std::optional<ConversationEntryKey>>(50);
     const ConversationEntry* pending_line_ = nullptr;
+    // Inline VOICE commands block their instruction list until playback ends.
+    struct Work {
+        const std::vector<ConversationInstruction>* list = nullptr;
+        std::size_t cursor = 0;
+        std::function<void()> after;
+    };
+    std::deque<Work> work_;
+    std::optional<ConversationLine> inline_line_;
     ConversationMemory* memory_ = nullptr;
 };
 

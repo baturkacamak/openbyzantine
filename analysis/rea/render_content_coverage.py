@@ -50,8 +50,8 @@ emit("  save for that scene when one exists (`-` = engine tables with the origin
 emit("  zero pool, `0x42c8a0`). It is a reachable state, not necessarily the")
 emit("  player's first state.")
 emit("- `CA sprites` are the `engine/<scene>ca` animation assets. `type 255` is")
-emit("  the original's NULL: `0x431b0f` skips every record command for it, so it")
-emit("  is dead data, not a missing file. Type 0/1 are created on demand; 2/3 are")
+emit("  normalized to type 0 by scene-load helper `0x42d52f`. It is usable")
+emit("  on demand, not dead data. Type 0/1 are created on demand; 2/3 are")
 emit("  preloaded by `0x40fd7b`.")
 emit("- `object declarations` are the constant `0x72` hotspot definitions. `active`")
 emit("  is the live `DAT_00464300[slot]+0x08` after the entry; `not at arrival`")
@@ -71,8 +71,7 @@ emit(f"- At arrival the player draws **{drawn}** records in total, reports "
      f"**{noframe}** without a decodable frame, **{snap}** with the `+0x09 & 0x20` "
      f"flag (kind pass skips them; the implemented snap pass has no `+0x20` "
      f"frame in this data) and **{hidden}** with `flags & 0x40`.")
-emit("- Type 255 is not a missing file: `0x431b0f` leaves the record slot NULL, "
-     "so every record command for it is skipped (`skipped_node_commands`).")
+emit("- Raw type 255 is normalized to 0 at scene load; record commands can load it.")
 emit("- `skipped_snap` means the record carries `+0x09 & 0x20`; the original "
      "draws such a record only through `0x43b216` phase 1, which needs a non-NULL "
      "`+0x20` frame. Every shipped save record with the flag has `+0x20 = 0xffff` "
@@ -165,8 +164,8 @@ conv_scenes = [s for s, d in data.items() if d["conversations"]]
 item_scenes = [s for s, d in data.items() if d["items"]]
 emit("## Key findings")
 emit("")
-emit(f"- Only **{sum(1 for d in data.values() for x in d['static']['ca'] if x['type'] in (0,1,2,3))}"
-     f"/{total_ca}** CA entries can ever create a record; the rest are type 255.")
+emit(f"- **{sum(1 for d in data.values() for x in d['static']['ca'] if x['type'] in (0,1,2,3,255))}"
+     f"/{total_ca}** CA entries have supported effective types (raw 255 becomes 0).")
 emit(f"- At arrival only **{len(scene_draw)} scenes** draw any record "
      f"({', '.join(scene_draw)}); that is the actual sprite/character content, "
      "not the background.")
@@ -217,11 +216,11 @@ for s, d in data.items():
         emit(f"- skipped: no_frame={sum(c['skipped_no_frame'] for c in comp)}, "
              f"snap={sum(c['skipped_snap'] for c in comp)}, "
              f"hidden={sum(c['skipped_hidden'] for c in comp)}.")
-    ca_usable = [x for x in st["ca"] if x["type"] in (0, 1, 2, 3)]
+    ca_usable = [x for x in st["ca"] if x["type"] in (0, 1, 2, 3, 255)]
     ca_dead = [x for x in st["ca"] if x["type"] == 255]
     emit(f"- CA sprites: {len(st['ca'])} entries, {len(ca_usable)} usable "
          f"(type 0/1 lazy, 2/3 preloaded), {len(ca_dead)} type-255 "
-         f"(never created).")
+         f"(normalized to 0).")
     if ca_usable:
         emit("  - usable sprites: " + ", ".join(
             f"`{x['name']}`(t{x['type']}{'' if x['anim'] else ', NO ANIM'})"
@@ -229,8 +228,7 @@ for s, d in data.items():
             (f" ... +{len(ca_usable)-10}" if len(ca_usable) > 10 else ""))
     if ca_dead:
         emit(f"  - type-255 sprites: {len(ca_dead)} (record commands for these "
-             "slots are guard-skipped by `0x431b0f`; the original never draws "
-             "them either): " +
+             "slots become type 0 at scene load and are available on demand): " +
              ", ".join(f"`{x['name']}`" for x in ca_dead[:8]) +
              (" ..." if len(ca_dead) > 8 else ""))
     if st["record_ops"]:
@@ -240,7 +238,7 @@ for s, d in data.items():
         emit(f"  - record commands: {len(st['record_ops'])}; type-255 slots "
              f"requested: {len(required_dead)}"
              + (" (" + ", ".join(map(str, required_dead[:12])) + ")" if required_dead else "")
-             + " -> skipped, not missing art.")
+             + " -> loadable on demand, not inherently missing art.")
     conv = d["conversations"]
     if conv:
         emit(f"- conversation/character records: {len(conv)}; " + ", ".join(

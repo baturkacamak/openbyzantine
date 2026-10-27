@@ -22,6 +22,9 @@
 #include "byzantine/cc.hpp"
 #include "byzantine/compose.hpp"
 #include "byzantine/conversation.hpp"
+#include "byzantine/cursors.hpp"
+#include "byzantine/diagnostics.hpp"
+#include "byzantine/frame_pacing.hpp"
 #include "byzantine/inventory.hpp"
 #include "byzantine/jpeg.hpp"
 #include "byzantine/panorama.hpp"
@@ -115,6 +118,7 @@ struct Options {
     std::string label;
     std::map<std::string, std::string> scene;  // passthrough for load_scene_setup
     std::filesystem::path backgrounds;         // backs/ root or the extracted root
+    std::filesystem::path cursors;             // cursors/ root (default <backgrounds>/cursors)
     std::filesystem::path sounds;              // sounds/ root
     std::filesystem::path fonts;               // the DIALOG/klio font files
     std::filesystem::path ccb;                 // split CCB.ALL (engine/<name>.ccb)
@@ -123,6 +127,7 @@ struct Options {
     std::filesystem::path messages;            // copy2hd/setupart/MESSAGES.TXT
     std::filesystem::path dialog;              // dialog/<conversation>/<clip>.avi root
     std::filesystem::path dialog_cache;        // decoded clip cache (created on demand)
+    std::filesystem::path media_isos;          // launcher manifest for lazy cross-scene AVI extraction
     std::string shot;                          // --shot <file.ppm>
     std::string conversation_shot;             // --conversation-shot <file.ppm>
     std::string conversation_video_shot;       // first decoded media frame
@@ -130,6 +135,9 @@ struct Options {
     std::optional<int> run_label;              // --run-label <n>: after --entry
     std::optional<int> click;                  // --click <slot>
     std::vector<std::pair<int, int>> click_ats;  // --click-at <x>,<y>, repeatable
+    // --cursor-at <x>,<y>: install the pointer 0x40c329/0x4083d4 selects for
+    // that logical screen point and print it (headless cursor diagnostic).
+    std::vector<std::pair<int, int>> cursor_ats;
     std::optional<int> staged_x;               // --staged-x <0..2495>
     std::optional<int> bar_select;             // --bar-select <item id>
     bool bar_use = false;                      // --bar-use: examine selected item
@@ -146,6 +154,11 @@ struct Options {
     // --compose-frames N: draw N extra record frames before the shot, so the
     // 0x43bb77 frame walk is observable without a window.
     std::size_t compose_frames = 0;
+    // --anim-pass-hz <hz>: reference rate of the original's uncapped record
+    // pass (0x43b216 draw + 0x43bb77 step). The shipped +0x04 delays divide
+    // this rate, so it sets the animation speed. Default 250 (see
+    // analysis/rea/ANIMATION_FRAME_PACING.md).
+    unsigned anim_pass_hz = 250;
 
     // --conversation-choices 1,0,...: deterministic answers for --shot/tests.
     // The interactive player never uses this: an answer is a real mouse click.
@@ -161,13 +174,13 @@ struct Options {
 
 const std::set<std::string> kValued = {
     "--save", "--engine", "--lcx", "--lci", "--ci", "--lcy", "--cy", "--co", "--cf",
-    "--ca", "--anims", "--gameprefs", "--inventor", "--hotitems", "--cs", "--ce",
-    "--backgrounds", "--sounds", "--shot", "--click", "--click-at", "--staged-x",
+    "--ca", "--anims", "--anims-overlay", "--gameprefs", "--inventor", "--hotitems", "--cs", "--ce",
+    "--backgrounds", "--cursors", "--sounds", "--shot", "--click", "--click-at", "--staged-x",
     "--fonts", "--cd", "--ccb", "--ccf", "--byz", "--messages", "--dialog",
     "--dialog-cache",
     "--run-label", "--conversation-choices", "--conversation-shot",
     "--conversation-object", "--conversation-video-shot", "--conversation-cancel",
-    "--bar-select"};
+    "--bar-select", "--media-isos", "--anim-pass-hz", "--cursor-at"};
 
 Options parse_options(int argc, char** argv) {
     Options options;
@@ -236,6 +249,7 @@ Options parse_options(int argc, char** argv) {
             if (index + 1 >= argc) throw std::runtime_error(token + " needs a value");
             const std::string value(argv[++index]);
             if (token == "--backgrounds") options.backgrounds = value;
+            else if (token == "--cursors") options.cursors = value;
             else if (token == "--sounds") options.sounds = value;
             else if (token == "--fonts") options.fonts = value;
             else if (token == "--ccb") options.ccb = value;
@@ -244,9 +258,16 @@ Options parse_options(int argc, char** argv) {
             else if (token == "--messages") options.messages = value;
             else if (token == "--dialog") options.dialog = value;
             else if (token == "--dialog-cache") options.dialog_cache = value;
+            else if (token == "--media-isos") options.media_isos = value;
             else if (token == "--run-label") options.run_label = std::stoi(value);
             else if (token == "--bar-select") options.bar_select = std::stoi(value);
-            else if (token == "--conversation-choices") {
+            else if (token == "--anim-pass-hz") {
+                const auto hz = static_cast<unsigned>(std::stoul(value));
+                if (hz == 0 || hz > 2000) {
+                    throw std::runtime_error("--anim-pass-hz must be 1..2000");
+                }
+                options.anim_pass_hz = hz;
+            } else if (token == "--conversation-choices") {
                 std::size_t at = 0;
                 while (at < value.size()) {
                     const auto comma = value.find(',', at);
@@ -278,6 +299,13 @@ Options parse_options(int argc, char** argv) {
                 }
                 options.click_ats.emplace_back(std::stoi(value.substr(0, comma)),
                                                std::stoi(value.substr(comma + 1)));
+            } else if (token == "--cursor-at") {
+                const auto comma = value.find(',');
+                if (comma == std::string::npos) {
+                    throw std::runtime_error("--cursor-at expects <x>,<y>");
+                }
+                options.cursor_ats.emplace_back(std::stoi(value.substr(0, comma)),
+                                                std::stoi(value.substr(comma + 1)));
             } else options.scene[token] = value;
             continue;
         }
@@ -287,9 +315,11 @@ Options parse_options(int argc, char** argv) {
     if (positional.size() != 3 && !(options.entry && positional.size() == 2)) {
         throw std::runtime_error(
             "usage: byzantine-play <scene.cc> <scene.cb> <label> "
-            "[--save <btb>] [--engine <dir>] [--backgrounds <dir>] [--sounds <dir>] "
+            "[--save <btb>] [--engine <dir>] [--backgrounds <dir>] [--cursors <dir>] "
+            "[--sounds <dir>] "
             "[--lcx --lci --ci --lcy --cy --co --cf --ca --anims --gameprefs "
             "--inventor --hotitems --cs <file>] [--shot <file.ppm>] [--click <slot>] "
+            "[--cursor-at <x>,<y> ...] "
             "[--entry] [--click-at <x>,<y> ...] [--staged-x <0..2495>] "
             "[--cd <file> --ccb --ccf --byz --messages <file> --dialog --dialog-cache <dir>] "
             "[--run-label <n>] [--conversation-choices <i,...>] "
@@ -299,7 +329,7 @@ Options parse_options(int argc, char** argv) {
             "[--bar-next] [--bar-prev] [--no-video] "
             "[--no-hotspots] [--no-audio] [--print-audio] [--print-hotspots] "
             "[--print-objects] [--print-variables] [--print-records] "
-            "[--compose-frames <n>] [--selftest-events]");
+            "[--compose-frames <n>] [--selftest-events] [--anim-pass-hz <hz>]");
     }
     options.cc_path = positional[0];
     options.cb_path = positional[1];
@@ -335,6 +365,11 @@ struct SceneView {
     byzantine::SceneState state;        // after the current trace
     byzantine::SceneTrace trace;
     std::string background_name;
+    // The 0x69 background the last committed trace actually loaded. An action
+    // that loads none keeps showing it (DAT_00464880 in the original); without
+    // this the frame falls back to the scene's first static entry, which is a
+    // different picture.
+    std::string committed_background;
     std::filesystem::path background_file;
     // DAT_00464880: the panorama renderer state. 0x401256 fixes the expected
     // node size at startup from nodes/sm/sm00.jpg and 0x401d29 refuses a node of
@@ -568,7 +603,12 @@ std::optional<std::filesystem::path> sound_path(const std::filesystem::path& roo
 // simply does not repaint the surface). A scene ENTRY adopts the layer its own
 // trace selects, because the new scene really repaints (a node carried over in
 // DAT_00464880 must not hide the new background).
-void update_layer(SceneView& view, bool fresh_scene) {
+void update_layer(SceneView& view) {
+    // A committed 0x69 replaces DAT_00464880 and stays until the next one; the
+    // trace only reports the loads this action ran, so remember the picture.
+    if (view.trace.background) {
+        view.committed_background = view.trace.background->entry.name;
+    }
     std::optional<std::size_t> last_load;
     for (const auto& load : view.trace.panorama_loads) last_load = load.instruction;
     if (last_load) {
@@ -579,23 +619,97 @@ void update_layer(SceneView& view, bool fresh_scene) {
         return;
     }
     if (!view.trace.background) return;
-    if (fresh_scene || view.layer == SceneLayer::none) {
-        view.layer = SceneLayer::background;
-    }
+    // An explicit 0x69 also leaves an existing panorama. Keeping its layer
+    // would show the old node and map flat close-up clicks into source space.
+    view.layer = SceneLayer::background;
 }
 
 void set_trace(SceneView& view, byzantine::SceneTrace trace) {
     view.trace = std::move(trace);
-    update_layer(view, false);
+    update_layer(view);
+    byzantine::diagnostics::write("state_adopted", [&](auto& out) {
+        out << "scene=" << view.name << " steps=" << view.trace.steps
+            << " stopped_at=" << view.trace.stopped_at
+            << " blocker=" << byzantine::trace_blocker(view.trace) << " active_slots=";
+        for (const auto& hotspot : view.trace.active_hotspots) out << hotspot.slot << ',';
+        out << " records=";
+        for (const auto& entry : view.state.records)
+            out << entry.first << ':' << entry.second.x << ':' << entry.second.y
+                << ':' << unsigned(entry.second.flags) << ',';
+        out << " held=";
+        if (view.state.current_dialogue_record) out << *view.state.current_dialogue_record;
+        else out << "none";
+        out << " examined=";
+        if (view.state.current_use_item) out << *view.state.current_use_item;
+        else out << "none";
+        out << " locals=";
+        for (const auto& entry : view.state.variables) out << entry.first << ':' << entry.second << ',';
+        out << " inventory=";
+        for (const auto& entry : view.state.dialogue_records)
+            out << entry.first << ':' << unsigned(entry.second.state) << ',';
+        out << " objects=";
+        for (const auto& entry : view.state.objects) {
+            const auto& object = entry.second;
+            out << entry.first << ':' << object.x << ':' << object.y << ':' << object.width
+                << ':' << object.height << ':' << unsigned(object.active) << ':' << object.label << ',';
+        }
+    });
 }
 
 bool panorama_layer(const SceneView& view) { return view.layer == SceneLayer::panorama; }
 
+// 0x40c02c: the point that 0x401ca6 produced is compared with every active
+// DAT_00464300 object rect, ids ascending, first hit wins. For a panorama the
+// point is the SOURCE coordinate 0x4240ae's inverse map returns with the 0x14
+// playfield bias added back; otherwise it is the screen point. Both the click
+// path and 0x40c329's hover pointer use this one test.
+struct SceneHit {
+    std::optional<int> slot;
+    int test_x = 0;
+    int test_y = 0;
+    bool panorama_mapped = false;
+};
+
+SceneHit hotspot_at(const SceneView& view, int screen_x, int screen_y) {
+    SceneHit hit;
+    hit.test_x = screen_x;
+    hit.test_y = screen_y + kPlayfieldTop;
+    if (panorama_layer(view)) {
+        // 0x401ca6 subtracts the playfield bias, 0x4240ae maps the point and
+        // 0x401ca6 adds the bias back to the result.
+        const auto point = view.panorama->canvas_point(screen_x, screen_y);
+        if (point.mapped) {
+            hit.test_x = point.source_x;
+            hit.test_y = point.source_y + kPlayfieldTop;
+            hit.panorama_mapped = true;
+        }
+    }
+    const byzantine::SceneHotspot* best = nullptr;
+    for (const auto& hotspot : view.trace.active_hotspots) {
+        // 0x40c02c uses inclusive bounds on both edges.
+        if (hit.test_x < hotspot.x || hit.test_x > hotspot.x + hotspot.width) continue;
+        if (hit.test_y < hotspot.y || hit.test_y > hotspot.y + hotspot.height) continue;
+        if (best == nullptr || hotspot.slot < best->slot) best = &hotspot;
+    }
+    if (best != nullptr) hit.slot = best->slot;
+    return hit;
+}
+
+// The object 0x40c329 reads for the point under the mouse. 0x40c02c iterates
+// DAT_00464300, so the hover state and the pointer art come from the same
+// object record, not from the hotspot mirror alone.
+const byzantine::SceneObjectState* hovered_object(const SceneView& view,
+                                                  const SceneHit& hit) {
+    if (!hit.slot) return nullptr;
+    const auto found = view.state.objects.find(
+        static_cast<std::uint16_t>(*hit.slot));
+    if (found == view.state.objects.end()) return nullptr;
+    return &found->second;
+}
+
 std::string pick_background(const SceneView& view) {
-    if (view.trace.background) return view.trace.background->entry.name;
-    const auto static_entries = byzantine::static_backgrounds(view.script, view.entries);
-    if (!static_entries.empty()) return static_entries.front().entry.name;
-    return {};
+    return byzantine::resolve_frame_background(view.trace, view.committed_background,
+                                               view.script, view.entries);
 }
 
 void refresh_background(const Options& options, SceneView& view) {
@@ -744,6 +858,11 @@ struct EntryPoint {
 byzantine::SceneTrace trace_point(SceneView& view, EntryPoint point,
                                   const byzantine::SceneState& entry,
                                   std::size_t step_budget) {
+    byzantine::diagnostics::write("vm_context", [&](auto& out) {
+        out << "scene=" << view.name << " label=" << point.label
+            << " entry=" << point.at_entry << " budget=" << step_budget;
+        if (point.at_instruction) out << " instruction=" << *point.at_instruction;
+    });
     view.state = entry;
     if (point.at_entry) {
         return byzantine::trace_scene_entry(view.script, view.entries, view.state,
@@ -918,15 +1037,22 @@ struct Display {
     const Options* ui_options = nullptr;
     std::optional<UiImage> bottom_bar;
     std::map<std::string, UiImage> item_icons;
+    // 0x40dae5's cursor art and 0x407254's item art are decoded once and kept.
+    // cursor_key_ is the id of the pointer currently installed on the window.
     std::string cursor_key_;
-    SDL_Cursor* cursor_ = nullptr;
+    std::map<std::string, SDL_Cursor*> cursors_;
     SDL_Cursor* default_cursor_ = nullptr;
     std::set<std::string> missing_ui;
     int logical_width = kScreenWidth;
     int logical_height = kScreenHeight;
+    // Records the last compose drew and stepped through 0x43b216's normal pass.
+    std::vector<std::uint16_t> drawn_record_ids;
 
     ~Display() {
-        if (cursor_ != nullptr) SDL_FreeCursor(cursor_);
+        for (auto& entry : cursors_) {
+            if (entry.second != nullptr) SDL_FreeCursor(entry.second);
+        }
+        cursors_.clear();
         if (default_cursor_ != nullptr) SDL_FreeCursor(default_cursor_);
     }
 
@@ -1019,6 +1145,14 @@ struct Display {
             }
         }
         const auto drawn = byzantine::compose_scene(view.state, surface);
+        // Records this pass drew and stepped (0x43b216's normal pass). The
+        // animation clock applies any further passes the original's uncapped
+        // loop would have run between two host frames to exactly these.
+        drawn_record_ids.clear();
+        for (const auto& entry : drawn.records) {
+            if (entry.snap || !entry.visible || !entry.blit.drawn) continue;
+            drawn_record_ids.push_back(entry.id);
+        }
         draw_text_windows(view, verbose);
         if (!verbose) return;
         if (show_panorama) {
@@ -1104,17 +1238,23 @@ struct Display {
         }
     }
 
-    const UiImage* item_icon(const std::string& name) {
-        const auto key = lower_ascii(name);
+    // 0x407254: inventor/<name>.tga for the ordinary pointer and
+    // inventor/hotitems/<h-name>.tga for 0x407bd7(1)'s hotitem variant. Both
+    // are decoded once; a missing file is reported, never invented.
+    const UiImage* inventory_image(const std::string& name, bool hotitem) {
+        const auto stem = hotitem ? byzantine::hotitem_media_name(name) : name;
+        const auto key = (hotitem ? "h:" : "i:") + lower_ascii(stem);
         const auto cached = item_icons.find(key);
         if (cached != item_icons.end()) return &cached->second;
         if (ui_options == nullptr || ui_options->backgrounds.empty()) return nullptr;
         auto root = ui_options->backgrounds;
         if (std::filesystem::is_directory(root / "inventor")) root /= "inventor";
-        const auto found = find_child(root, name);
+        if (hotitem) root /= "hotitems";
+        const auto found = find_child(root, stem);
         if (!found) {
             if (missing_ui.insert(key).second) {
-                std::cout << "ui_asset_missing name=inventor/" << name
+                std::cout << "ui_asset_missing name=inventor/"
+                          << (hotitem ? "hotitems/" : "") << stem
                           << ".tga root=" << ui_options->backgrounds << '\n';
             }
             return nullptr;
@@ -1125,6 +1265,56 @@ struct Display {
                 std::cout << "ui_asset_decode_failed file=" << found->string() << '\n';
             }
             return nullptr;
+        }
+        const auto inserted = item_icons.emplace(key, std::move(*decoded));
+        return &inserted.first->second;
+    }
+
+    const UiImage* item_icon(const std::string& name) { return inventory_image(name, false); }
+
+    // 0x40dae5 formats "cursors/%s*.tga" (or "cursors/klio/%s*.tga") and lets
+    // 0x40e89f resolve the wildcard to up to four animation frames. The port
+    // shows the exact-name file, or the first file whose stem starts with the
+    // name (klio's forward0/1/2, back1..4, INFO1..4). Multi-frame animation is
+    // not played; the count is reported once.
+    std::filesystem::path cursors_root() const {
+        if (ui_options == nullptr) return {};
+        if (!ui_options->cursors.empty()) return ui_options->cursors;
+        if (ui_options->backgrounds.empty()) return {};
+        auto root = ui_options->backgrounds;
+        std::error_code error;
+        if (std::filesystem::is_directory(root / "cursors", error)) return root / "cursors";
+        return {};
+    }
+
+    const UiImage* cursor_image(byzantine::CursorTheme theme, const std::string& name) {
+        const bool klio = theme == byzantine::CursorTheme::klio;
+        const auto key = std::string(klio ? "kc:" : "c:") + lower_ascii(name);
+        const auto cached = item_icons.find(key);
+        if (cached != item_icons.end()) return &cached->second;
+        auto root = cursors_root();
+        if (root.empty()) return nullptr;
+        if (klio) root /= "klio";
+        const auto match = byzantine::find_cursor_file(root, name);
+        if (!match) {
+            if (missing_ui.insert(key).second) {
+                std::cout << "cursor_missing theme=" << (klio ? "klio" : "normal")
+                          << " name=" << name << " root=" << root.string() << '\n';
+            }
+            return nullptr;
+        }
+        auto decoded = decode_ui_image(match->path, true, false);
+        if (!decoded) {
+            if (missing_ui.insert(key).second) {
+                std::cout << "cursor_decode_failed file=" << match->path.string() << '\n';
+            }
+            return nullptr;
+        }
+        if (match->frames > 1) {
+            std::cout << "cursor_frames theme=" << (klio ? "klio" : "normal")
+                      << " name=" << name << " files=" << match->frames
+                      << " shown=" << match->path.filename().string()
+                      << " (0x40ebe1's 250 ms cycling is not modelled)\n";
         }
         const auto inserted = item_icons.emplace(key, std::move(*decoded));
         return &inserted.first->second;
@@ -1233,67 +1423,153 @@ struct Display {
         SDL_RenderPresent(renderer);
     }
 
-    // 0x40df05's item cursor: while an inventory record is selected
-    // (DAT_0045d1c8), the item's inventor/<name>.tga is the pointer image
-    // (0x407bd7 returns record+4; 0x40df05 resolves that to +0x10's TGA). The
-    // original swaps to the hotitem variant when the hovered object accepts the
-    // item; that hover variant is not claimed here. A real SDL colour cursor is
-    // used so the "item in hand" state is visible without a redraw.
-    void update_item_cursor(const SceneView& view) {
-        std::string wanted;
-        if (view.state.current_dialogue_record) {
-            wanted = lower_ascii(
-                byzantine::inventory_name(view.state, *view.state.current_dialogue_record));
-        }
-        if (wanted == cursor_key_) return;
-        cursor_key_ = wanted;
-        if (cursor_ != nullptr) {
-            SDL_FreeCursor(cursor_);
-            cursor_ = nullptr;
-        }
-        if (default_cursor_ == nullptr) {
-            default_cursor_ = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW);
-        }
-        const UiImage* icon = wanted.empty() ? nullptr : item_icon(wanted);
-        if (icon != nullptr && icon->width > 0 && icon->height > 0) {
-            SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormat(
-                0, icon->width, icon->height, 32, SDL_PIXELFORMAT_ARGB8888);
-            if (surface != nullptr) {
-                for (int row = 0; row < icon->height; ++row) {
-                    for (int column = 0; column < icon->width; ++column) {
-                        const auto index = static_cast<std::size_t>(row) * icon->width + column;
-                        const auto pixel = icon->pixels[index];
-                        const auto r = static_cast<std::uint32_t>((pixel >> 11) & 0x1f);
-                        const auto g = static_cast<std::uint32_t>((pixel >> 5) & 0x3f);
-                        const auto b = static_cast<std::uint32_t>(pixel & 0x1f);
-                        const auto argb =
-                            (static_cast<std::uint32_t>(icon->alpha[index]) << 24) |
-                            (((r << 3) | (r >> 2)) << 16) |
-                            (((g << 2) | (g >> 4)) << 8) | ((b << 3) | (b >> 2));
-                        auto* row_pixels = reinterpret_cast<std::uint32_t*>(
-                            static_cast<std::uint8_t*>(surface->pixels) +
-                            static_cast<std::ptrdiff_t>(row) * surface->pitch);
-                        row_pixels[column] = argb;
-                    }
-                }
-                cursor_ = SDL_CreateColorCursor(surface, icon->width / 2, icon->height / 2);
-                SDL_FreeSurface(surface);
+    // 0x40df05 installs an SDL colour cursor from the game's own art. A table
+    // entry carries its hotspot (+0x04/+0x08); an inventory item pointer is
+    // centred, exactly like 0x40df05's `mouse - (width >> 1)`.
+    SDL_Cursor* cursor_from_image(const UiImage& image, int hot_x, int hot_y) {
+        if (image.width <= 0 || image.height <= 0) return nullptr;
+        SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormat(
+            0, image.width, image.height, 32, SDL_PIXELFORMAT_ARGB8888);
+        if (surface == nullptr) return nullptr;
+        for (int row = 0; row < image.height; ++row) {
+            for (int column = 0; column < image.width; ++column) {
+                const auto index = static_cast<std::size_t>(row) * image.width + column;
+                const auto pixel = image.pixels[index];
+                const auto r = static_cast<std::uint32_t>((pixel >> 11) & 0x1f);
+                const auto g = static_cast<std::uint32_t>((pixel >> 5) & 0x3f);
+                const auto b = static_cast<std::uint32_t>(pixel & 0x1f);
+                const auto argb =
+                    (static_cast<std::uint32_t>(image.alpha[index]) << 24) |
+                    (((r << 3) | (r >> 2)) << 16) |
+                    (((g << 2) | (g >> 4)) << 8) | ((b << 3) | (b >> 2));
+                auto* row_pixels = reinterpret_cast<std::uint32_t*>(
+                    static_cast<std::uint8_t*>(surface->pixels) +
+                    static_cast<std::ptrdiff_t>(row) * surface->pitch);
+                row_pixels[column] = argb;
             }
         }
-        SDL_SetCursor(cursor_ != nullptr ? cursor_ : default_cursor_);
-        if (!wanted.empty()) {
-            std::cout << "item_cursor name=" << wanted
-                      << (icon != nullptr ? " size=" + std::to_string(icon->width) + "x" +
-                                                std::to_string(icon->height)
-                                          : " missing")
-                      << '\n';
-        } else {
-            std::cout << "item_cursor cleared\n";
+        hot_x = std::clamp(hot_x, 0, image.width - 1);
+        hot_y = std::clamp(hot_y, 0, image.height - 1);
+        auto* cursor = SDL_CreateColorCursor(surface, hot_x, hot_y);
+        SDL_FreeSurface(surface);
+        return cursor;
+    }
+
+    // 0x40df05: resolve the choice to art, then install it. `choice.kind ==
+    // item` is 0x407bd7's inventory pointer (inventor/<name>.tga) and its
+    // hotitem variant; anything else is an entry of one of the two cursor
+    // tables, passed through 0x40de7b's small-variant remap.
+    void set_cursor(const SceneView& view, const byzantine::CursorChoice& choice) {
+        const UiImage* image = nullptr;
+        std::string key;
+        std::string label;
+        std::string missing_item;
+        int hot_x = 0;
+        int hot_y = 0;
+        if (choice.kind == byzantine::CursorChoice::Kind::item) {
+            const auto name = byzantine::inventory_name(view.state, choice.id);
+            const auto stem = name.empty() || !choice.hotitem
+                                  ? name
+                                  : byzantine::hotitem_media_name(name);
+            if (!name.empty()) {
+                image = inventory_image(name, choice.hotitem);
+                if (image != nullptr) {
+                    key = (choice.hotitem ? "h:" : "i:") + lower_ascii(stem);
+                    label = std::string("item name=") + stem +
+                            " variant=" + (choice.hotitem ? "hotitem" : "normal");
+                    hot_x = image->width / 2;
+                    hot_y = image->height / 2;
+                } else {
+                    // A missing item TGA must not degrade to a host arrow: fall
+                    // back to the game's table pointer below, and say why.
+                    missing_item = std::string(" item name=") + stem + " variant=" +
+                                   (choice.hotitem ? "hotitem" : "normal") +
+                                   " (inventor art missing)";
+                }
+            }
         }
+        if (key.empty()) {
+            // An item without art (or without a name) falls back to the
+            // default table pointer. Its inventory id must never be read as a
+            // cursor id: the engine keeps them apart by encoding item ids as
+            // 0x20 + 2*record (+1 = hotitem) before 0x40df05 sees them.
+            const auto table_id = static_cast<std::uint8_t>(
+                choice.kind == byzantine::CursorChoice::Kind::item ? 0 : choice.id);
+            auto theme = byzantine::cursor_theme(view.state.alternate_mode);
+            auto id = byzantine::cursor_slot(theme, panorama_layer(view), table_id);
+            auto asset = byzantine::cursor_asset(theme, id);
+            if (asset.name == nullptr && theme == byzantine::CursorTheme::klio) {
+                // The klio table leaves talk/video empty on the shipped CD; the
+                // original would dereference a NULL frame pointer.
+                theme = byzantine::CursorTheme::normal;
+                asset = byzantine::cursor_asset(theme, id);
+            }
+            if (asset.name == nullptr && id != 0) {
+                id = 0;
+                asset = byzantine::cursor_asset(byzantine::CursorTheme::normal, id);
+            }
+            key = "t:" + std::to_string(static_cast<int>(theme)) + ':' + std::to_string(id);
+            label = std::string("table id=") + std::to_string(id) +
+                    " name=" + (asset.name != nullptr ? asset.name : "default") +
+                    " theme=" + (theme == byzantine::CursorTheme::klio ? "klio" : "normal");
+            image = asset.name != nullptr ? cursor_image(theme, asset.name) : nullptr;
+            hot_x = asset.hotspot_x;
+            hot_y = asset.hotspot_y;
+            if (image != nullptr) {
+                label += " size=" + std::to_string(image->width) + "x" +
+                         std::to_string(image->height) + " hot=" +
+                         std::to_string(hot_x) + "," + std::to_string(hot_y);
+            } else {
+                label += " missing (system arrow)";
+            }
+            label += missing_item;
+        }
+        if (key == cursor_key_) return;
+        cursor_key_ = key;
+        SDL_Cursor* cursor = nullptr;
+        const auto cached = cursors_.find(key);
+        if (cached != cursors_.end()) {
+            cursor = cached->second;
+        } else {
+            if (image != nullptr) cursor = cursor_from_image(*image, hot_x, hot_y);
+            cursors_.emplace(key, cursor);  // a missing asset is remembered too
+        }
+        if (cursor == nullptr) {
+            if (default_cursor_ == nullptr) {
+                default_cursor_ = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW);
+            }
+            SDL_SetCursor(default_cursor_);
+        } else {
+            SDL_SetCursor(cursor);
+        }
+        std::cout << "cursor " << label << '\n';
+    }
+
+    // 0x40c329/0x4083d4 for the point under the mouse. Rows 0x14..0x1a3 are
+    // the playfield (hovered object), 0x1a4.. the inventory band; the top
+    // 0x14-row menu is not modelled and keeps the default pointer.
+    void update_cursor_at(const SceneView& view, int x, int y) {
+        byzantine::CursorChoice choice;
+        if (y < kScreenPlayfieldTop) {
+            choice.id = 0;
+        } else if (y < kScreenBandTop) {
+            const auto hit = hotspot_at(view, x, y - kScreenPlayfieldTop);
+            choice = byzantine::hover_cursor(view.state, hovered_object(view, hit));
+        } else {
+            choice = byzantine::strip_cursor(view.state, x, y);
+        }
+        set_cursor(view, choice);
+    }
+
+    void update_cursor(const SceneView& view) {
+        float logical_x = 0;
+        float logical_y = 0;
+        mouse_logical(&logical_x, &logical_y);
+        update_cursor_at(view, static_cast<int>(logical_x), static_cast<int>(logical_y));
     }
 
     void present(const SceneView& view, bool overlay) {
-        update_item_cursor(view);
+        update_cursor(view);
         build_screen(view);
         present_image(screen, view, overlay, kScreenPlayfieldTop);
     }
@@ -1420,9 +1696,39 @@ struct Session {
 
 // Processed while a sound plays: the script is waiting, so a click must not
 // start another label, but the window still redraws and H/Esc keep working.
+int poll_logged_event(SDL_Event* event, const char* phase, const Session& session) {
+    const int found = SDL_PollEvent(event);
+    if (!found) return found;
+    byzantine::diagnostics::write("input", [&](auto& out) {
+        out << "phase=" << phase << " scene=" << session.view.name
+            << " type=" << event->type << " sdl_ms=" << event->common.timestamp;
+        switch (event->type) {
+        case SDL_MOUSEMOTION:
+            out << " motion x=" << event->motion.x << " y=" << event->motion.y
+                << " dx=" << event->motion.xrel << " dy=" << event->motion.yrel
+                << " buttons=" << event->motion.state; break;
+        case SDL_MOUSEBUTTONDOWN: case SDL_MOUSEBUTTONUP:
+            out << " button=" << unsigned(event->button.button)
+                << " x=" << event->button.x << " y=" << event->button.y
+                << " clicks=" << unsigned(event->button.clicks); break;
+        case SDL_MOUSEWHEEL:
+            out << " wheel_x=" << event->wheel.x << " wheel_y=" << event->wheel.y; break;
+        case SDL_KEYDOWN: case SDL_KEYUP:
+            out << " key=" << SDL_GetKeyName(event->key.keysym.sym)
+                << " code=" << event->key.keysym.sym << " modifiers=" << event->key.keysym.mod
+                << " repeat=" << unsigned(event->key.repeat); break;
+        case SDL_WINDOWEVENT:
+            out << " window_event=" << unsigned(event->window.event)
+                << " data=" << event->window.data1 << ',' << event->window.data2; break;
+        default: break;
+        }
+    });
+    return found;
+}
+
 void pump_window(Session& session) {
     SDL_Event event;
-    while (SDL_PollEvent(&event)) {
+    while (poll_logged_event(&event, "sound_wait", session)) {
         ++session.wait.events;
         if (event.type == SDL_QUIT) {
             session.running = false;
@@ -1443,6 +1749,9 @@ void pump_window(Session& session) {
         }
         if (event.type == SDL_MOUSEBUTTONDOWN) {
             ++session.wait.clicks_ignored;
+            byzantine::diagnostics::write("input_ignored", [&](auto& out) {
+                out << "reason=sound_wait scene=" << session.view.name;
+            });
         }
     }
     if (session.conversation_frame != nullptr) {
@@ -1884,7 +2193,7 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose) {
     auto next = options.scene;
     next.erase("--save");
     std::string missing;
-    for (const char* key : {"--ci", "--cy", "--cf", "--cs", "--ca", "--co", "--ce"}) {
+    for (const char* key : {"--ci", "--cy", "--cf", "--cs", "--ca", "--co", "--ce", "--cd"}) {
         const auto found = next.find(key);
         if (found == next.end()) continue;
         const auto file = sibling_scene_file(found->second, target);
@@ -1985,7 +2294,7 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose) {
                               session.view.entry_state, 0));
     }
     // The entry's own trace selects the layer for this scene (see update_layer).
-    update_layer(session.view, true);
+    update_layer(session.view);
     show_message_text(session, verbose);
     apply_panorama_events(session.view, options, verbose);
     resume_ambient(session, verbose);
@@ -2264,42 +2573,6 @@ struct ClickPlan {
     byzantine::SceneTrace probe;
 };
 
-// 0x40c02c: the point that 0x401ca6 produced is compared with every active
-// DAT_00464300 object rect, ids ascending, first hit wins. For a panorama the
-// point is the SOURCE coordinate 0x4240ae's inverse map returns with the 0x14
-// playfield bias added back; otherwise it is the screen point.
-struct SceneHit {
-    std::optional<int> slot;
-    int test_x = 0;
-    int test_y = 0;
-    bool panorama_mapped = false;
-};
-
-SceneHit hotspot_at(const SceneView& view, int screen_x, int screen_y) {
-    SceneHit hit;
-    hit.test_x = screen_x;
-    hit.test_y = screen_y + kPlayfieldTop;
-    if (panorama_layer(view)) {
-        // 0x401ca6 subtracts the playfield bias, 0x4240ae maps the point and
-        // 0x401ca6 adds the bias back to the result.
-        const auto point = view.panorama->canvas_point(screen_x, screen_y);
-        if (point.mapped) {
-            hit.test_x = point.source_x;
-            hit.test_y = point.source_y + kPlayfieldTop;
-            hit.panorama_mapped = true;
-        }
-    }
-    const byzantine::SceneHotspot* best = nullptr;
-    for (const auto& hotspot : view.trace.active_hotspots) {
-        // 0x40c02c uses inclusive bounds on both edges.
-        if (hit.test_x < hotspot.x || hit.test_x > hotspot.x + hotspot.width) continue;
-        if (hit.test_y < hotspot.y || hit.test_y > hotspot.y + hotspot.height) continue;
-        if (best == nullptr || hotspot.slot < best->slot) best = &hotspot;
-    }
-    if (best != nullptr) hit.slot = best->slot;
-    return hit;
-}
-
 // Diagnostic: the logical playfield rectangle that actually hits each active
 // hotspot under the current camera. This is the same hotspot_at path the mouse
 // uses, so the printed centre is a valid real click coordinate.
@@ -2453,6 +2726,10 @@ void log_entry_summary(const Session& session) {
 // DAT_00482428 and ends the script, so the port commits the action's state and
 // then performs the scene reload the engine's outer loop would.
 ClickPlan plan_hotspot(const SceneView& view, int slot) {
+    byzantine::diagnostics::write("click_plan", [&](auto& out) {
+        out << "scene=" << view.name << " slot=" << slot << " active_slots=";
+        for (const auto& hotspot : view.trace.active_hotspots) out << hotspot.slot << ',';
+    });
     ClickPlan plan;
     const auto found = std::find_if(view.trace.active_hotspots.begin(),
                                     view.trace.active_hotspots.end(),
@@ -2651,6 +2928,54 @@ std::string strip_ccd(std::string file) {
         file.resize(file.size() - 4);
     }
     return file;
+}
+
+// Scene travel changes CD records, but scene.sh initially extracts only the
+// starting scene's dialogue. Fetch a missing clip from the user's ISO copies,
+// without unpacking all videos or replacing a missing clip with another sound.
+std::optional<std::filesystem::path> conversation_clip_file(
+    const Options& options, const std::string& conversation, const std::string& clip) {
+    const auto lookup = [&]() -> std::optional<std::filesystem::path> {
+        const auto directory = find_directory_child(options.dialog, conversation);
+        if (directory) {
+            const auto file = find_filename(*directory, clip + ".avi");
+            if (file) return file;
+        }
+        return find_filename(options.dialog.parent_path() / "avi", clip + ".avi");
+    };
+    if (const auto file = lookup()) return file;
+    if (options.media_isos.empty() || options.dialog.empty()) return std::nullopt;
+    // Archive patterns must be leaf names, not paths or wildcards.
+    const auto safe_leaf = [](const std::string& name) {
+        return !name.empty() && std::all_of(name.begin(), name.end(), [](unsigned char ch) {
+            return std::isalnum(ch) || ch == '_' || ch == '-';
+        });
+    };
+    if (!safe_leaf(conversation) || !safe_leaf(clip)) return std::nullopt;
+    std::ifstream sources(options.media_isos);
+    if (!sources) {
+        std::cout << "conversation_media manifest_unreadable=" << options.media_isos << '\n';
+        return std::nullopt;
+    }
+    std::string iso;
+    while (std::getline(sources, iso)) {
+        if (iso.empty() || !std::filesystem::is_regular_file(iso)) continue;
+        const auto command = "7z x -y -ssc- " + shell_quote(iso) + " " +
+            shell_quote("dialog/" + conversation + "/" + clip + ".avi") + " " +
+            shell_quote("avi/" + clip + ".avi") + " " +
+            shell_quote("-o" + options.dialog.parent_path().string()) +
+            " >/dev/null 2>&1";
+        const auto result = std::system(command.c_str());
+        if (const auto file = lookup()) {
+            std::cout << "conversation_media extracted=" << file->string()
+                      << " source=" << std::filesystem::path(iso).filename().string() << '\n';
+            return file;
+        }
+        if (result != 0) {
+            std::cout << "conversation_media extract_failed=" << iso << " status=" << result << '\n';
+        }
+    }
+    return std::nullopt;
 }
 
 // Word wrap with 0x40701f's rule: break at the last space that fits the width.
@@ -3208,16 +3533,7 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                 std::cout << "conversation_media clip=" << event.line.clip
                           << " not configured (--dialog); text stays\n";
             } else if (event.line.media_allowed) {
-                const auto conversation_dir =
-                    find_directory_child(options.dialog, record.name);
-                std::optional<std::filesystem::path> avi;
-                if (conversation_dir) {
-                    avi = find_child(*conversation_dir, event.line.clip);
-                }
-                if (!avi) {
-                    const auto avi_root = options.dialog.parent_path() / "avi";
-                    avi = find_child(avi_root, event.line.clip);
-                }
+                const auto avi = conversation_clip_file(options, record.name, event.line.clip);
                 if (!avi) {
                     std::cout << "conversation_media clip=" << event.line.clip
                               << " missing (0x40d2a1 logs and returns 0; text stays)\n";
@@ -3333,7 +3649,7 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                                 next_frame = now;
                             }
                             SDL_Event event_poll;
-                            while (SDL_PollEvent(&event_poll)) {
+                            while (poll_logged_event(&event_poll, "conversation_video", session)) {
                                 ++session.wait.events;
                                 if (event_poll.type == SDL_QUIT) session.running = false;
                                 // 0x413bdd's video loop has no ESC branch; ESC
@@ -3554,7 +3870,7 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                     SDL_PushEvent(&injected);
                 }
                 SDL_Event event_poll;
-                while (SDL_PollEvent(&event_poll)) {
+                while (poll_logged_event(&event_poll, "conversation_answers", session)) {
                     ++session.wait.events;
                     if (event_poll.type == SDL_QUIT) {
                         session.running = false;
@@ -3736,7 +4052,9 @@ bool execute_plan(Session& session, const ClickPlan& plan,
                                            const byzantine::SceneTrace&)>& run,
                   bool verbose, bool* session_ended = nullptr) {
     if (!plan.conversation) {
-        return run(plan.point, plan.entry, plan.probe);
+        // plan.entry is the already-mutated probe result. Re-executing from it
+        // applies writes twice and can choose a different branch on the replay.
+        return run(plan.point, plan.entry_before, plan.probe);
     }
     const auto request = *plan.probe.conversation_request;
     if (!run(plan.point, plan.entry_before, plan.probe)) return false;
@@ -3894,6 +4212,9 @@ bool execute_plan(Session& session, const ClickPlan& plan,
 }  // namespace
 
 int main(int argc, char** argv) {
+    // The launcher captures a pipe; keep the final diagnostics visible even
+    // when the process crashes or is killed before the normal stream flush.
+    if (std::getenv("BYZ_LOG_ACTIVE")) std::cout << std::unitbuf;
     try {
         Session session;
         session.options = parse_options(argc, argv);
@@ -4292,9 +4613,19 @@ int main(int argc, char** argv) {
             bool dragged = false;
             int drag_x = 0;
             int drag_y = 0;
+            // 0x43b216 draws once per frame and 0x43bb77 steps the frame list
+            // after every visible record. The original's loop is uncapped, so
+            // its pass rate (not the host's compose cost) decides how fast an
+            // animation plays. The host renders on a 16 ms tick but keeps the
+            // record-pass clock separate (`--anim-pass-hz`): every pass the
+            // clock owes beyond the one the compose already did is applied to
+            // the records that compose drew.
+            byzantine::FramePacer pacer(SDL_GetTicks64());
+            byzantine::PassClock pass_clock(SDL_GetTicks64(), options.anim_pass_hz);
+            const auto stall_passes = static_cast<std::uint64_t>(options.anim_pass_hz);
             while (session.running) {
                 SDL_Event event;
-                while (SDL_PollEvent(&event)) {
+                while (poll_logged_event(&event, "scene", session)) {
                     if (event.type == SDL_QUIT ||
                         (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE)) {
                         session.running = false;
@@ -4355,7 +4686,13 @@ int main(int argc, char** argv) {
                             handle_click(static_cast<int>(logical_x),
                                          static_cast<int>(logical_y) - kScreenPlayfieldTop);
                         }
-                    } else if (event.type == SDL_MOUSEMOTION && dragging) {
+                    } else if (event.type == SDL_MOUSEMOTION) {
+                        // 0x40c329/0x4083d4 select the game's own pointer for
+                        // whatever is under the mouse. Coordinates are already
+                        // logical (SDL_RendererEventWatch rewrites them).
+                        session.display.update_cursor_at(
+                            session.view, event.motion.x, event.motion.y);
+                        if (!dragging) continue;
                         const float logical_x = static_cast<float>(event.motion.x);
                         const float logical_y = static_cast<float>(event.motion.y);
                         const int delta = static_cast<int>(logical_x) - drag_x;
@@ -4389,15 +4726,55 @@ int main(int argc, char** argv) {
                     }
                 }
                 // 0x43b216 draws once per frame and 0x43bb77 steps the frame
-                // list after every visible record; a scene with an animated
-                // record therefore has to compose at the same cadence instead of
-                // only when an event arrives. Static scenes keep the event-driven
-                // redraw so they do not burn CPU.
-                if (session.display.scene_animates(session.view.state)) {
-                    session.display.compose(session.view, false);
-                    session.display.present(session.view, options.overlay);
+                // list after every visible record. The host composes on its
+                // 16 ms render tick; the record-pass clock decides how many
+                // passes the original would have run in that time. A scene with
+                // no animated record keeps the event-driven redraw.
+                const auto now_ms = SDL_GetTicks64();
+                if (std::getenv("BYZ_ANIM_TRACE") != nullptr) {
+                    static std::uint64_t last_anim_trace = 0;
+                    if (now_ms - last_anim_trace >= 100) {
+                        last_anim_trace = now_ms;
+                        for (const auto& [id, record] : session.view.state.records) {
+                            if (!record.frames_known || !record.current_frame) continue;
+                            std::cout << "anim_trace ms=" << now_ms << " id=" << id
+                                      << " frame=" << *record.current_frame
+                                      << " count=" << record.field06
+                                      << " delay=" << record.field04
+                                      << " passes=" << pass_clock.owed(now_ms)
+                                      << " applied=" << pass_clock.applied_total()
+                                      << std::endl;
+                        }
+                    }
                 }
-                SDL_Delay(16);
+                const bool animates = session.display.scene_animates(session.view.state);
+                if (!animates) {
+                    // Nothing steps the frame lists: drop the outstanding passes
+                    // so a later animation does not start with a backlog.
+                    pass_clock.skip_to(now_ms);
+                }
+                if (pacer.due(now_ms) != 0) {
+                    if (animates) {
+                        session.display.compose(session.view, false);  // one pass
+                        pass_clock.applied(1);
+                        const auto owed = pass_clock.remaining(now_ms);
+                        if (owed > stall_passes) {
+                            // A scene load, conversation or media clip is not
+                            // animation debt; do not replay it pass by pass.
+                            pass_clock.skip_to(now_ms);
+                        } else if (owed != 0) {
+                            byzantine::advance_record_passes(
+                                session.view.state, session.display.drawn_record_ids,
+                                static_cast<std::size_t>(owed));
+                            pass_clock.applied(owed);
+                        }
+                        session.display.present(session.view, options.overlay);
+                    }
+                    pacer.consumed(now_ms, 1);
+                }
+                if (const auto wait = pacer.wait_ms(SDL_GetTicks64()); wait != 0) {
+                    SDL_Delay(static_cast<Uint32>(wait));
+                }
             }
             if (options.selftest_events) {
                 std::cout << "wait_selftest frames=" << session.wait.frames
@@ -4557,6 +4934,11 @@ int main(int argc, char** argv) {
             session.display.present(session.view, false);
         }
         session.display.present(session.view, options.overlay);
+        // --cursor-at: the same 0x40c329/0x4083d4 selection the mouse uses, for
+        // a deterministic headless check of the installed pointer.
+        for (const auto& point : options.cursor_ats) {
+            session.display.update_cursor_at(session.view, point.first, point.second);
+        }
         if (options.print_hotspots) print_hotspot_screens(session.view);
         if (options.print_objects) print_objects(session.view);
         if (options.print_variables) print_variables(session);

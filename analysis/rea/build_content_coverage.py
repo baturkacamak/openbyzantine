@@ -13,7 +13,7 @@ Usage:
 The report deliberately distinguishes:
   * required assets that ARE shipped and load;
   * required assets that are MISSING from the six CDs;
-  * declared sprite records that can never be created (CA type 0xff);
+  * raw CA types (0xff becomes type 0 at scene load, 0x42d52f);
   * objects the shipped script itself keeps disabled (legitimate hidden);
   * records the port loads but does not draw, with the port's skip reason.
 A background that opens with no object/character content is reported as such.

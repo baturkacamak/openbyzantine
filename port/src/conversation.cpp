@@ -1,4 +1,5 @@
 #include "byzantine/conversation.hpp"
+#include "byzantine/diagnostics.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -355,6 +356,8 @@ void ConversationSession::save_memory(bool mark_done) {
 }
 
 void ConversationSession::start() {
+    work_.clear();
+    inline_line_.reset();
     apply_memory();
     phase_ = Phase::prelude;
     group_ = 0;
@@ -514,12 +517,24 @@ void ConversationSession::apply_skips(std::uint8_t byte_slot, std::uint32_t poin
     if (!group_has_answers(group_)) group_ = skip_c_[group_];
 }
 
-void ConversationSession::run_instruction_list(
-    const std::vector<ConversationInstruction>& list) {
-    for (const auto& instruction : list) {
-        if (branch_ || failed_) break;
+void ConversationSession::execute_instruction(const ConversationInstruction& instruction) {
         ++executed_;
+        diagnostics::write("conversation_step", [&](auto& out) {
+            out << "step=" << executed_ << " group=" << unsigned(group_)
+                << " mode=" << mode_ << " opcode=" << unsigned(instruction.opcode);
+            for (const auto& arg : instruction.arguments)
+                out << " arg=" << unsigned(arg.type) << ':' << arg.value << ':' << arg.high;
+        });
         switch (instruction.opcode) {
+        case 0x7c:
+        case 0x92:
+        case 0x93:
+        case 0x94:
+            // 0x43340a -> 0x4096f9: in normal runtime all four VOICE
+            // forms play literal operand 2 through the ordinary line player.
+            // Operands 0/1 and the selector only affect the original debug UI.
+            inline_line_ = make_line(literal(instruction, 2));
+            break;
         case 0x3a:  // 0x43340a has no case: the list1 header is a no-op.
         case 0x3e:  // debug-only 0x40a7e5 call when DAT_00485c6c != 0
             break;
@@ -663,8 +678,19 @@ void ConversationSession::run_instruction_list(
         case 0x4a:    // enable/disable an answer entry and add its redraw record
         case 0x4b: {
             const auto index = argument(instruction, 0);
-            entry_at(program_.answers, index.value, index.high, "IFTO")->enabled =
+            auto& groups = (index.type & 0x10) ? program_.lines : program_.answers;
+            entry_at(groups, index.value, index.high, "IFTO")->enabled =
                 instruction.opcode == 0x4b;
+            break;
+        }
+        case 0x4c:    // conditional TOFF/TON; 0x4367eb resolves operand 2
+        case 0x4d: {
+            if (resolved(instruction, 0) == literal(instruction, 1)) {
+                const auto index = argument(instruction, 2);
+                auto& groups = (index.type & 0x10) ? program_.lines : program_.answers;
+                entry_at(groups, index.value, index.high, "IFTO")->enabled =
+                    instruction.opcode == 0x4d;
+            }
             break;
         }
         case 0x4f: {  // SPEAK: hide this answer even when enabled
@@ -724,15 +750,37 @@ void ConversationSession::run_instruction_list(
         // When an instruction sets (or clears) an answer's visibility the
         // affected group is the one in its operand, not necessarily 0x43340a's
         // `param_2` current group: 0x43340a only dispatches the command.
+}
+
+void ConversationSession::run_instruction_list(
+    const std::vector<ConversationInstruction>& list) {
+    work_.push_back(Work{&list, 0, {}});
+}
+
+void ConversationSession::run_pending_work() {
+    while (!work_.empty() && !inline_line_ && !failed_) {
+        auto& task = work_.front();
+        if (task.list) {
+            if (branch_ || task.cursor >= task.list->size()) {
+                work_.pop_front();
+                continue;
+            }
+            const auto& instruction = task.list->at(task.cursor++);
+            execute_instruction(instruction);
+        } else {
+            auto after = std::move(task.after);
+            work_.pop_front();
+            after();
+        }
     }
 }
 
 void ConversationSession::run_entry_list(const ConversationEntry& entry) {
     for (const auto& sub : entry.subs) {
-        branch_ = false;
+        work_.push_back(Work{nullptr, 0, [this] { branch_ = false; }});
         run_instruction_list(sub.instructions);
     }
-    branch_ = false;
+    work_.push_back(Work{nullptr, 0, [this] { branch_ = false; }});
     run_instruction_list(entry.instructions);
 }
 
@@ -787,12 +835,16 @@ std::vector<ConversationAnswer> ConversationSession::collect_answers(std::size_t
 
 void ConversationSession::advance_to_event() {
     for (;;) {
+        run_pending_work();
+        if (inline_line_) return;
         switch (phase_) {
         case Phase::prelude: {
             // 0x432d6e runs list1 and list2 before the line/answer loop.
             run_instruction_list(program_.lists[0]);
-            if (!branch_) run_instruction_list(program_.lists[1]);
-            branch_ = false;
+            work_.push_back(Work{nullptr, 0, [this] {
+                if (!branch_) run_instruction_list(program_.lists[1]);
+                work_.push_back(Work{nullptr, 0, [this] { branch_ = false; }});
+            }});
             phase_ = Phase::display;
             break;
         }
@@ -832,12 +884,10 @@ void ConversationSession::advance_to_event() {
             }
             mode_ = true;
             run_entry_list(*pending_line_);
-            pending_line_ = nullptr;
-            if (done_) {
-                phase_ = Phase::finished;
-            } else {
-                phase_ = mode_ ? Phase::answers : Phase::display;
-            }
+            work_.push_back(Work{nullptr, 0, [this] {
+                pending_line_ = nullptr;
+                phase_ = done_ ? Phase::finished : (mode_ ? Phase::answers : Phase::display);
+            }});
             break;
         }
         case Phase::answers: {
@@ -883,6 +933,13 @@ ConversationEvent ConversationSession::next() {
             return event;
         }
         advance_to_event();
+        if (inline_line_) {
+            ConversationEvent event;
+            event.kind = ConversationEventKind::line;
+            event.line = *inline_line_;
+            event.group = group_;
+            return event;
+        }
         if (phase_ == Phase::line_done) {
             ConversationEvent event;
             event.kind = ConversationEventKind::line;
@@ -904,6 +961,10 @@ ConversationEvent ConversationSession::next() {
 }
 
 void ConversationSession::line_shown() {
+    if (inline_line_) {
+        inline_line_.reset();
+        return;
+    }
     if (phase_ != Phase::line_done) {
         throw std::runtime_error("conversation line completion without a displayed line");
     }
@@ -928,12 +989,15 @@ void ConversationSession::choose(std::size_t choice) {
     chosen_[group_] = selected;
     branch_ = false;
     run_instruction_list(selected->instructions);
-    if (done_) {
-        phase_ = Phase::finished;
-        return;
-    }
-    if (!branch_) group_ = static_cast<std::uint16_t>(group_ + 1);
-    phase_ = mode_ ? Phase::answers : Phase::display;
+    work_.push_back(Work{nullptr, 0, [this] {
+        if (done_) {
+            phase_ = Phase::finished;
+            return;
+        }
+        if (!branch_) group_ = static_cast<std::uint16_t>(group_ + 1);
+        phase_ = mode_ ? Phase::answers : Phase::display;
+    }});
+    run_pending_work();
 }
 
 void ConversationSession::click_object(std::uint16_t object_id) {

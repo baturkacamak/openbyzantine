@@ -48,7 +48,7 @@ const std::set<std::string> kModes = {
     "--save-dump"};
 const std::set<std::string> kValued = {
     "--ci", "--lci", "--cy", "--lcy", "--inventor", "--hotitems", "--cf", "--co",
-    "--ca", "--anims", "--gameprefs", "--lcc", "--cc", "--save", "--engine", "--lcx",
+    "--ca", "--anims", "--anims-overlay", "--gameprefs", "--lcc", "--cc", "--save", "--engine", "--lcx",
     "--compose-out", "--surface", "--background", "--panorama", "--panorama-x",
     "--cs", "--cd"};
 

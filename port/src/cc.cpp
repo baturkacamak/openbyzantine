@@ -1,5 +1,6 @@
 #include "byzantine/cc.hpp"
 #include "byzantine/variables.hpp"
+#include "byzantine/diagnostics.hpp"
 
 #include <algorithm>
 #include <array>
@@ -102,6 +103,13 @@ std::optional<std::uint16_t> scene_value(
 // local is also appended to `variable_writes`, because export_variable_pool must
 // replay the writes in order when two locals of the scene share a global.
 void write_variable(SceneState& state, std::uint16_t local, std::uint16_t value) {
+    diagnostics::write("variable_write", [&](auto& out) {
+        const auto previous = state.variables.find(local);
+        out << "local=" << local << " before=";
+        if (previous == state.variables.end()) out << "unset";
+        else out << previous->second;
+        out << " after=" << value << " semantics=evaluation_not_commit";
+    });
     state.variables[local] = value;
     state.variable_writes.push_back(local);
 }
@@ -432,6 +440,17 @@ std::vector<SceneBackground> static_backgrounds(
     return backgrounds;
 }
 
+std::string resolve_frame_background(
+    const SceneTrace& trace,
+    const std::string& committed,
+    const std::vector<CcInstruction>& script,
+    const std::vector<BackgroundEntry>& entries) {
+    if (trace.background) return trace.background->entry.name;
+    if (!committed.empty()) return committed;
+    const auto statics = static_backgrounds(script, entries);
+    return statics.empty() ? std::string{} : statics.front().entry.name;
+}
+
 std::vector<ScenePanorama> static_panoramas(
     const std::vector<CcInstruction>& script,
     const std::vector<BackgroundEntry>& entries) {
@@ -588,21 +607,34 @@ void advance_record_animation(SceneRecordState& record) {
     }
 }
 
+std::size_t advance_record_passes(SceneState& state,
+                                  const std::vector<std::uint16_t>& ids,
+                                  std::size_t passes) {
+    if (passes == 0) return 0;
+    std::size_t advanced = 0;
+    for (const auto id : ids) {
+        const auto found = state.records.find(id);
+        if (found == state.records.end()) continue;
+        for (std::size_t pass = 0; pass < passes; ++pass) {
+            // Each pass is one 0x43b216 -> 0x43bb77 step: the countdown, the
+            // circular/ping-pong walk and the freeze/stop flags all apply.
+            advance_record_animation(found->second);
+        }
+        ++advanced;
+    }
+    return advanced;
+}
+
 SceneCompose compose_scene(SceneState& state, Rgb16Surface& target) {
     SceneCompose result;
     // 0x43c114 + 0x40241c + 0x42b679 for a record at one position. `screen_y`
     // is the record's +0x02/+0x26 value (it carries the +0x14 surface bias).
     //
-    // 0x43b130's frame node loop: it starts at `record + 0x18` (the list head)
-    // instead of `record + 0x1c` (the current node) when `param_7 == 1` and the
-    // animation signature at +0x28 is non-zero, then walks `node + 4` forward
-    // drawing every node until it reaches the current one. That matters because
-    // 0x40bbfd's command 3 leaves the destination alone: every animation frame
-    // after the full head frame is a delta, so drawing only the current frame
-    // on a freshly repainted layer would show fragments. The port repaints the
-    // layer every frame (the original keeps one surface between frames) and
-    // therefore uses the head walk, which is the original's own complete-draw
-    // branch. `pixels`/`drawn` describe what the surface received.
+    // The original normal pass updates a persistent surface: command-3 gaps
+    // preserve previously painted pixels. The host rebuilds its scene surface,
+    // so reconstruct the animation from the head through the current frame.
+    // 0x43b130 has a similar explicit head-walk for nonzero signatures, but
+    // real signature-zero assets (TKNUXB) also require their previous pixels.
     const auto draw_frame = [&](std::uint16_t id, const SceneRecordState& record,
                                 const std::optional<std::uint16_t>& frame,
                                 std::int32_t screen_x, std::int32_t screen_y,
@@ -639,7 +671,10 @@ SceneCompose compose_scene(SceneState& state, Rgb16Surface& target) {
             result.records.push_back(entry);
             return false;
         }
-        const std::uint16_t first = record.anims_signature != 0 ? 0 : current;
+        // The host repaints its whole scene every frame, unlike the original
+        // persistent surface. Signature-zero assets can contain deltas too
+        // (e.g. TKNUXB); reconstruct their prior pixels as well.
+        const std::uint16_t first = 0;
         std::size_t written_total = 0;
         for (std::uint16_t node = first; node <= current; ++node) {
             const auto decoded = node == current
@@ -727,6 +762,12 @@ static SceneTrace trace_scene_from(const std::vector<CcInstruction>& script,
                                    const std::vector<BackgroundEntry>& entries,
                                    SceneState& state, std::size_t start_pc,
                                    std::size_t step_budget) {
+    const auto evaluation = diagnostics::evaluation_id();
+    diagnostics::write("vm_begin", [&](auto& out) {
+        out << "evaluation=" << evaluation << " start=" << start_pc
+            << " budget=" << step_budget << " instructions=" << script.size()
+            << " semantics=evaluation_not_commit";
+    });
     const auto flow = resolve_control_flow(script);
     std::map<std::uint16_t, SceneHotspot> hotspots;
     for (const auto& hotspot : static_hotspots(script)) {
@@ -790,6 +831,14 @@ static SceneTrace trace_scene_from(const std::vector<CcInstruction>& script,
     while (pc < script.size() && trace.steps < limit) {
         const auto& instruction = script[pc];
         const auto current = pc;
+        diagnostics::write("vm_step", [&](auto& out) {
+            out << "evaluation=" << evaluation << " step=" << trace.steps + 1
+                << " instruction=" << current << " opcode=" << unsigned(instruction.opcode);
+            for (const auto& argument : instruction.arguments) {
+                out << " arg=" << unsigned(argument.type) << ':';
+                for (const auto byte : argument.encoded_value) out << unsigned(byte) << ',';
+            }
+        });
         ++trace.steps;
         ++pc;
         switch (instruction.opcode) {
@@ -2177,10 +2226,23 @@ static SceneTrace trace_scene_from(const std::vector<CcInstruction>& script,
             // FUN_0042db22 reads its literal selector, conditionally closes
             // active entries (FUN_00432303), then reconciles every loaded
             // resource (FUN_00432401) and raises the engine refresh flag.
-            // A renderer/resource manager has not been reconstructed yet, but
-            // this intent is enough for a static scene trace to continue.
             if (constant_word(instruction.arguments.at(0)) == 0) {
                 trace.close_existing_resources = true;
+                // 0x432303 -> 0x4102f7 frees loaded type-0/1 actors. Keeping
+                // them would draw the previous view's character over this one.
+                for (auto it = state.records.begin(); it != state.records.end();) {
+                    const auto id = it->first;
+                    if (id < state.actor_assets.size() && state.actor_assets[id].type <= 1)
+                        it = state.records.erase(it);
+                    else
+                        ++it;
+                }
+            }
+            // 0x432401 / 0x432602 hide remaining records in the normal pass
+            // and discard their trail. A later 0x64 explicitly activates them.
+            for (auto& entry : state.records) {
+                entry.second.flags |= 0x20;
+                entry.second.trail.clear();
             }
             ++trace.resource_refresh_requests;
             break;
@@ -2349,6 +2411,12 @@ static SceneTrace trace_scene_from(const std::vector<CcInstruction>& script,
         }
         if (active) trace.active_hotspots.push_back(hotspot);
     }
+    diagnostics::write("vm_end", [&](auto& out) {
+        out << "evaluation=" << evaluation << " steps=" << trace.steps
+            << " stopped_at=" << trace.stopped_at << " blocker=" << trace_blocker(trace)
+            << " active_slots=";
+        for (const auto& hotspot : trace.active_hotspots) out << hotspot.slot << ',';
+    });
     return trace;
 }
 

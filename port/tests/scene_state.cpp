@@ -1,4 +1,5 @@
 #include "byzantine/cc.hpp"
+#include "byzantine/frame_pacing.hpp"
 
 #include <algorithm>
 #include <array>
@@ -36,6 +37,27 @@ byzantine::SceneState with_assets(std::size_t count, std::uint8_t type) {
 int main(int argc, char** argv) {
     try {
         using byzantine::CcInstruction;
+        // A view refresh closes lazy actors, preserves preloads, and hides
+        // every remaining record until its view's script activates it.
+        {
+            auto state = with_assets(4, 0);
+            for (unsigned i = 0; i < 4; ++i) {
+                state.actor_assets[i].type = i;
+                state.records[i].flags = 4;
+                state.records[i].trail.emplace_back(10, 20);
+            }
+            const std::vector<CcInstruction> keep{
+                {0xe1, {word(2, 10)}}, {0x90, {word(2, 1)}}, {0x6f, {}}};
+            byzantine::trace_scene_label(keep, {}, state, 10);
+            require(state.records.size() == 4 && state.records[0].flags == 0x24 &&
+                    state.records[0].trail.empty(), "0x90 refresh did not hide/clear actors");
+            const std::vector<CcInstruction> close{
+                {0xe1, {word(2, 10)}}, {0x90, {word(2, 0)}}, {0x6f, {}}};
+            byzantine::trace_scene_label(close, {}, state, 10);
+            require(state.records.size() == 2 && !state.records.count(0) &&
+                    !state.records.count(1) && state.records.count(2) && state.records.count(3),
+                    "0x90 close did not free exactly the type-0/1 actors");
+        }
         // 0x68 writes DAT_00464878 (0x42dad9): 0 only when operand 1 is a
         // type-2 zero, -1 for every other shape. 0x7a is a dispatcher no-op.
         const std::vector<CcInstruction> alternate{
@@ -203,6 +225,42 @@ int main(int argc, char** argv) {
             require(missing.missing_examine_item &&
                         byzantine::trace_blocker(missing) == "missing_examine_item",
                     "0x69 transition 4 without DAT_0045d1cc was accepted");
+        }
+        // The rendered background is the last committed 0x69, so an action that
+        // loads none keeps the previous picture. Falling back to the scene's
+        // first static entry there shows an unrelated background: EA's photo
+        // close-up (action 1442) jumped to EAEMShMs this way.
+        {
+            const std::vector<CcInstruction> photo_script{
+                {0x69, {word(2, 0)}},
+                {0xe1, {word(2, 10)}},
+                {0x69, {word(2, 1)}},
+                {0x6f, {}},
+                {0xe1, {word(2, 20)}},
+                {0x6f, {}}
+            };
+            const std::vector<byzantine::BackgroundEntry> photo_entries{
+                {"FirstStatic", "EA.CCG"}, {"Desk", "EA.CCG"}};
+            const auto statics = byzantine::static_backgrounds(photo_script, photo_entries);
+            require(statics.size() == 2 && statics.front().entry.name == "FirstStatic",
+                    "static background order changed");
+            byzantine::SceneState photo_state;
+            const auto loaded =
+                byzantine::trace_scene_label(photo_script, photo_entries, photo_state, 10);
+            require(loaded.background && loaded.background->entry.name == "Desk",
+                    "0x69 did not select its CB background");
+            const auto committed = byzantine::resolve_frame_background(
+                loaded, {}, photo_script, photo_entries);
+            require(committed == "Desk", "a 0x69 trace did not win over its memory");
+            const auto quiet =
+                byzantine::trace_scene_label(photo_script, photo_entries, photo_state, 20);
+            require(!quiet.background, "the hotspot label loaded a background");
+            require(byzantine::resolve_frame_background(
+                        quiet, committed, photo_script, photo_entries) == "Desk",
+                    "an action without 0x69 dropped the loaded background");
+            require(byzantine::resolve_frame_background(
+                        quiet, {}, photo_script, photo_entries) == "FirstStatic",
+                    "a scene that never loaded a background lost its startup entry");
         }
         // A trace that stopped on missing data/settings is not a success. Every
         // such field must be classified, including the two the player used to
@@ -917,6 +975,40 @@ int main(int argc, char** argv) {
             out.write(reinterpret_cast<const char*>(frame_header.data()),
                       static_cast<std::streamsize>(frame_header.size()));
         }
+        // Signature 0 does not imply independent frames. A clean host surface
+        // must retain the full base plus every delta, including after seeking.
+        {
+            const auto path = root / "anims" / "ab" / "ABDELTA.RLE";
+            std::ofstream out(path, std::ios::binary);
+            const auto u16 = [&](std::uint16_t n) { out.put(n & 255); out.put(n >> 8); };
+            u16(0); u16(0); u16(0); u16(0); u16(3);
+            for (const auto& words : std::vector<std::vector<std::uint16_t>>{
+                    {0x4000, 0x8004, 0x001f, 0x4000},
+                    {0x4001, 1, 0x03e0, 0xc002, 0x4000},
+                    {0x4002, 1, 0x7c00, 0xc001, 0x4000}}) {
+                u16(0); u16(4); u16(1); u16(0); u16(0);
+                for (int i = 0; i < 6; ++i) u16(0);
+                u16(static_cast<std::uint16_t>(words.size())); u16(0);
+                for (const auto n : words) u16(n);
+            }
+        }
+        {
+            auto delta = with_assets(1, 0);
+            delta.actor_assets[0].name = "abdelta";
+            delta.anims_library = std::make_shared<byzantine::AnimsLibrary>(root.string());
+            auto& record = delta.records[0];
+            record.flags = 4;
+            record.current_frame = 2;
+            auto target = byzantine::make_surface(4, 1, 0x7777);
+            byzantine::compose_scene(delta, target);
+            require(target.pixels == std::vector<std::uint16_t>{0x001f, 0x07c0, 0xf800, 0x001f},
+                    "signature-zero deltas lost base or intermediate pixels");
+            record.current_frame = 1;
+            target = byzantine::make_surface(4, 1, 0x5555);
+            byzantine::compose_scene(delta, target);
+            require(target.pixels == std::vector<std::uint16_t>{0x001f, 0x07c0, 0x001f, 0x001f},
+                    "delta reconstruction leaked a future frame after seeking backwards");
+        }
         auto anim_state = with_assets(4, 2);
         anim_state.actor_assets[1] = byzantine::NamedRecord{"abanim", "T.CCG", 2};
         anim_state.anims_library =
@@ -1086,6 +1178,78 @@ int main(int argc, char** argv) {
             byzantine::advance_record_animation(rec);
             require(rec.current_frame == 3 && (rec.flags & 0x04) != 0,
                     "0x43bb77 stop-at-last mismatch");
+        }
+
+        // The interactive loop must spend one 16 ms tick per record pass. The
+        // pacer keeps the frame-list walk on the wall clock instead of the old
+        // `compose + 16 ms` period, and drops animation debt after a stall.
+        {
+            using byzantine::FramePacer;
+            FramePacer pacer(1000);
+            require(pacer.due(1000) == 1, "pacer: first tick is not due");
+            require(pacer.wait_ms(1000) == 0, "pacer: waited before the first tick");
+            pacer.consumed(1000, 1);
+            require(pacer.next_tick_ms() == 1000 + FramePacer::tick_ms,
+                    "pacer: one pass did not consume one tick");
+            require(pacer.due(1015) == 0, "pacer: a tick was due early");
+            require(pacer.wait_ms(1015) == 1, "pacer: remainder wait mismatch");
+            require(pacer.due(1016) == 1, "pacer: tick not due on the boundary");
+            require(pacer.due(1032) == 2, "pacer: two missed ticks not caught up");
+            require(pacer.due(1200) == FramePacer::max_catch_up,
+                    "pacer: catch-up is not capped");
+            pacer.consumed(1030, 2);
+            require(pacer.next_tick_ms() == 1048,
+                    "pacer: a short overrun did not keep the deadline");
+            pacer.consumed(1500, FramePacer::max_catch_up);
+            require(pacer.next_tick_ms() == 1500,
+                    "pacer: a long stall was replayed instead of dropped");
+            require(pacer.wait_ms(1500) == 0 && pacer.due(1500) == 1,
+                    "pacer: deadline did not restart after a stall");
+        }
+
+        // The record-pass clock is separate from the 16 ms render tick: the
+        // original's pass rate divides the shipped +0x04 delays.
+        {
+            using byzantine::PassClock;
+            PassClock clock(1000, 250);
+            require(clock.owed(1000) == 0 && clock.remaining(1000) == 0,
+                    "pass clock: passes before the start");
+            require(clock.owed(1080) == 20, "pass clock: 80 ms at 250 Hz");
+            require(clock.remaining(1080) == 20, "pass clock: owed passes not reported");
+            clock.applied(20);
+            require(clock.remaining(1080) == 0, "pass clock: applied passes still owed");
+            require(clock.remaining(1100) == 5, "pass clock: 20 ms at 250 Hz");
+            clock.skip_to(1200);
+            require(clock.remaining(1200) == 0, "pass clock: stall debt not dropped");
+            require(clock.owed(1200) == 50, "pass clock: skipped passes not covered");
+            PassClock guarded(0, 0);
+            require(guarded.owed(1000) == 1, "pass clock: zero rate not guarded");
+        }
+
+        // Extra passes step only the records the compose drew.
+        {
+            byzantine::SceneState state;
+            auto& drawn = state.records[0];
+            drawn.frames_known = true;
+            drawn.frame_count = 4;
+            drawn.current_frame = 0;
+            drawn.field04 = 2;
+            auto& untouched = state.records[1];
+            untouched.frames_known = true;
+            untouched.frame_count = 4;
+            untouched.current_frame = 0;
+            untouched.field04 = 1;
+            require(byzantine::advance_record_passes(state, {}, 3) == 0,
+                    "extra passes: empty id list advanced something");
+            require(byzantine::advance_record_passes(state, {0}, 5) == 1,
+                    "extra passes: drawn record not advanced");
+            require(state.records[0].current_frame == 2 &&
+                        state.records[0].field06 == 1,
+                    "extra passes: five passes of delay 2 mismatch");
+            require(state.records[1].current_frame == 0,
+                    "extra passes: advanced a record the pass did not draw");
+            require(byzantine::advance_record_passes(state, {0}, 0) == 0,
+                    "extra passes: zero passes reported work");
         }
 
         // 0x79 ends the script and only raises the exit reason from 0 to 1.

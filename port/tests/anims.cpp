@@ -211,6 +211,18 @@ int main(int argc, char** argv) {
         require(library.load("VBMEdts").has_value(), "mixed-case asset lookup failed");
         require(!library.load("nope").has_value(), "invented a missing animation asset");
         require(!library.load("v").has_value(), "accepted a one-character asset name");
+        {
+            const auto preferred = root / "disc2";
+            std::filesystem::create_directories(preferred / "anims" / "vb");
+            const auto data = make_asset(0, {{12, 10, 1, 2}, {12, 10, 0, 0}}, 2);
+            std::ofstream out(preferred / "anims" / "vb" / "vbmedts.rle", std::ios::binary);
+            out.write(reinterpret_cast<const char*>(data.data()), data.size());
+            out.close();
+            const byzantine::AnimsLibrary selected(root.string(), preferred.string());
+            require(selected.load("VBMEDTS")->frames.size() == 2 &&
+                    library.load("VBMEDTS")->frames.size() == 1,
+                    "preferred-disc animation did not override the flattened collision");
+        }
 
         // 0x40fe70's AVI fallback (0x41cb13): the .rle is absent, so the suffix
         // becomes ".avi" and the frame count/dimensions come from the RIFF

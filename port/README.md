@@ -1,6 +1,45 @@
 # Byzantine taşınabilir kaynak kodu: ilk parça
 
 Güncel kısa devam kaydı: [`../CONTINUE.md`](../CONTINUE.md).
+
+## Disklere göre animasyon seçimi
+
+Launcher kayıt dosyasındaki disk numarasını okur ve o diskin animasyonlarını
+ayrı bir `disc-media/` önbelleğinde tutar. Aynı adlı dosyaların farklı disklerde
+farklı içerikleri olabilir; seçilen diskin dosyaları ortak çıkarılmış klasöre
+önceliklidir. İlk açılışta bir kez ek çıkarma yapılır. Doğrudan CLI kullanırken
+`--anims-overlay <disk-klasoru>` aynı önceliği sağlar. Oturum içindeki disk
+isteme komutları henüz otomatik disk değiştirme uygulamaz.
+
+## Her açılış için otomatik log
+
+Normal `./port/scene.sh ...` komutu, hazırlık aşaması dahil her denemeyi
+`port/output/logs/` altında ayrı dosyalara kaydeder. Terminalde dosya yolları
+basılır; oynama komutunu değiştirmen gerekmez.
+
+- `run-....log`: zaman damgalı standart çıktılar, hatalar ve çıkış durumu.
+- `run-....trace.log`: sıralı SDL fare/tuş/pencere olayları, betik komutları,
+  değişken yazımları, konuşma komutları ve durum görüntüleri. Fare hareketleri
+  konsolu doldurmaz; bu dosyaya gider.
+- `run-....summary.json`: başlatma komutu, Git sürümü/değişmiş dosyalar,
+  çalıştırılan oyuncunun SHA-256 değeri, cihaz ortamı, süre, çıkış durumu,
+  olay sayıları ve son önemli satırlar.
+- `LATEST`: son başlatılan denemenin `.log` dosyasının yolu. Önce bununla
+  eşleşen `.summary.json` okunmalı; ardından gereken log bölümü aranmalı.
+
+`BYZ_LOG_DIR=/istenen/klasor ./port/scene.sh ...` farklı klasör seçer. Eski
+loglar otomatik silinmez. Aynı anda açılan denemelerin dosyaları ayrıdır.
+Doğrudan ikiliyi çalıştırırken aynı kayıt için
+`python3 port/run_logged.py -- ./port/byzantine-play ...` kullanılabilir.
+
+Betik izleri deneme hesaplamalarını ve ses kapıları için tekrar yürütmeleri de
+kapsar: `semantics=evaluation_not_commit`. İşlemin uygulanıp uygulanmadığını
+`click_result`, hata/geri alma satırları ve `state_adopted` ile birlikte değerlendir.
+Bu kayıtlar oyun kaydı veya otomatik tekrar oynatma dosyası değildir. Her çizim
+karesinin piksel verisini, kaçırılmış fiziksel girişleri veya hoparlör çıkışını
+kaydetmez. Normal çıkış ve yönlendirilen SIGTERM/SIGINT özete yazılır; kayıt
+süreci SIGKILL ile öldürülürse özet `running` kalabilir, yazılmış log korunur.
+
 Panorama kamera tüketimi ve 16 bit kenar sarma tamponu, bağımsız C++17
 yardımcıları olarak `src/panorama.cpp` içine eklendi ve `panorama-test` ile
 sınandı. Devam adımında açı dönüşümü, yaw piksel ofseti, pitch sınırı ve açık
@@ -89,6 +128,8 @@ etiket kümesinde bulunuyor. Kanıt ve bilinmeyen listesi:
   eşlemesiyle **kaynak** koordinatına çevrilir; bu yüzden x > 640 olan panorama
   alanları da tıklanabilir. `--staged-x 0..2495` başsız bir bakış açar,
   `--click-at <x>,<y>` ekran noktasını gerçek tıklama yolundan geçirir.
+  `--cursor-at <x>,<y>` aynı nokta için oyunun seçtiği imleci kurup yazar
+  (başsız imleç tanılaması); imleç tabloları ve sınırlar: `CURSORS.md`.
   `0xcb` dönüşü `0x402285` gibi adım adım uygulanır.
   **Sahneler arası geçiş**: bir tıklama etiketi `0x73`'e ulaşırsa `DAT_00482428`
   hedefi çözülür, per-scene tablolar (nesneler/sesler/diyalog zincirleri/medya/
@@ -109,6 +150,28 @@ etiket kümesinde bulunuyor. Kanıt ve bilinmeyen listesi:
   Kapsam dışı: mesaj paneli
   arkası, saniyede bir satır açılan kaydırma (`0x4177c7`/`0x4176d8`) ve
   `0x4069a4`'ün SFN atlas çizimi. Video (`0xbd`) ve geçiş efektleri yoktur.
+  **Animasyon hızı**: `0x43b216` (çiz + `0x43bb77` ile kare ilerlet) orijinalde
+  sınırsız döngüde çalışır; `+0x04` gecikmeleri bu pass hızının bölenleridir.
+  Port 16 ms'lik çizim tikiyle çizer ama kayıt-pass saatini ayrı tutar
+  (`--anim-pass-hz`, varsayılan 250; 20 gecikmeli bir kayıt ~80 ms'de bir kare
+  ilerler). Detay: [`ANIMATION_FRAME_PACING.md`](../analysis/rea/ANIMATION_FRAME_PACING.md).
+  **İmleçler (oyunun kendi fare imleçleri)**: `0x40dd7f`/`0x40dae5` iki ayrı
+  32'lik tabloyu `cursors/<ad>*.tga` (normal) ve `cursors/klio/<ad>*.tga`
+  (alternatif mod, `0x68` -> `DAT_00464878`) olarak yükler; adlar ve hotspot'lar
+  EXE'de sabittir (`0x45dbe8`, `0x45e090`). Hangi imlecin kurulacağını
+  `0x40c329` belirler: sahne alanında vurgulanan nesnenin `+0x09` **tür baytı**
+  imleç kimliğidir (0x0a talk, 0x0b exit, 0x0c magnify, 0x0d take, 0x0e manplte,
+  0x12–0x14 eşya kullanımı, 0x18–0x1b panorama okları, 0x1c hotbig, 0x1e
+  hotsmall ...). Elde eşya varken `0x407bd7` `inventor/<ad>.tga`'yı, kullanım
+  alanı (`0x12/0x13/0x14`) üstünde `inventor/hotitems/<h-ad>.tga`'yı seçer.
+  `0x4083d4` envanter bandını (slotlar, sayfa okları, inceleme düğmesi, kanal
+  alanı) aynı kuralla işler; `0x40de7b` normal sette ve panorama dışında
+  `0`/`0x17` -> `0x1d` ("map"), `0x1c` -> `0x1e` ("hotsmall") küçük varyantına
+  çevirir. Port bunları `SDL_CreateColorCursor` ile gerçek imleç olarak kurar
+  (`--cursors`, varsayılan `<backgrounds>/cursors`); eksik sanat `cursor_missing`
+  + sistem oku olarak bildirilir. `0x40ebe1`'in 250 ms'lik çok kareli imleç
+  animasyonu ve `0x4013ae`'nin kenar-bandı okları henüz uygulanmıyor. Ayrıntı,
+  tablolar ve doğrulama: [`CURSORS.md`](../analysis/rea/CURSORS.md).
 - **Konuşmalar (`0x70`)**: seçilen örnek MR etiketi 413, konuşma kaydı 2 =
   `IMhMR2a`. `0x70` operand 0'ı nesne değil `engine/<scene>cd` **kayıt indeksi**
   olarak okur; VM `0x70`'te durur, gerçek `.ccb` komutlarını yürütür, `.byz`
@@ -425,6 +488,9 @@ make
 # Başsız doğrulama (pencere açmadan):
 SDL_VIDEODRIVER=dummy ./scene.sh ".." MAP 87 tempsave.btb --click 34 --shot /tmp/map.ppm
 SDL_VIDEODRIVER=dummy ./scene.sh ".." VT 497 72.btb --print-audio
+# İmleç tanılaması: oyunun o nokta için seçtiği imleci kurar ve yazar.
+SDL_VIDEODRIVER=dummy ./scene.sh ".." EA 602 26.btb --cursor-at 282,319 \
+    --cursor-at 170,430 --shot /tmp/ea.ppm
 ```
 
 ### İki sahne arasında gidip gelme (MAP ↔ MR)

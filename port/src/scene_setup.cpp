@@ -116,13 +116,15 @@ void apply_dialogue_inputs(SceneState& state,
     if (anims != options.end()) {
         // 0x40fe70 resolves "anims\<name[0]><name[1]>\<name>.rle"; the library
         // indexes the extracted tree case-insensitively.
-        state.anims_library = std::make_shared<AnimsLibrary>(anims->second);
+        const auto preferred = options.find("--anims-overlay");
+        state.anims_library = std::make_shared<AnimsLibrary>(anims->second,
+            preferred == options.end() ? "" : preferred->second);
     }
     const auto assets = options.find("--ca");
     if (assets != options.end()) {
         // engine/<scene>ca (DAT_0047dd70): the animation asset table whose +0x08
         // type byte decides whether a DAT_004649e8 record can exist.
-        state.actor_assets = parse_named_records(read_metadata_file(assets->second));
+        state.actor_assets = parse_actor_records(read_metadata_file(assets->second));
         state.actor_assets_known = true;
     }
     const auto preferences = options.find("--gameprefs");
