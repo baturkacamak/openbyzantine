@@ -109,6 +109,9 @@ if [ ! -f "$data/.prepared" ]; then
     # CD1: the engine tables, game preferences and the savegames.
     7z x -y "$iso1" "copy2hd/engine/*.ALL" "copy2hd/engine/SHOW.L*" \
         "copy2hd/goldsave/GAMEPREF.000" "copy2hd/savegame/*.btb" \
+        "copy2hd/savegame/BTB.SAV" "copy2hd/savegame/STATUS.000" \
+        "copy2hd/savegame/NEW.CAN" "copy2hd/savegame/notebook.000" \
+        "copy2hd/savegame/GAMEPREF.000" \
         "copy2hd/fonts/*" "copy2hd/setupart/MESSAGES.TXT" -o"$data" >/dev/null
     # Every CD: backgrounds, panorama nodes, animation assets, sounds.
     for index in 1 2 3 4 5 6; do
@@ -144,6 +147,17 @@ if [ ! -f "$data/.prepared" ]; then
     mkdir -p "$data/byz"
     "$here/byzantine-all" "$data/copy2hd/engine/Byz.all" "$data/byz" >/dev/null
     touch "$data/.prepared"
+fi
+
+# The top-bar screens need the shipped slot list and the movie/status files
+# (0x41f065 reads autosave.btb + btb.sav, 0x4273f4 reads status.000, and YENİ
+# OYUN loads new.can). Extract them once into an existing prepared dir.
+if [ ! -f "$data/.menu_v1" ]; then
+    7z x -y "$iso1" "copy2hd/savegame/BTB.SAV" "copy2hd/savegame/STATUS.000" \
+        "copy2hd/savegame/NEW.CAN" "copy2hd/savegame/notebook.000" \
+        "copy2hd/savegame/GAMEPREF.000" \
+        -o"$data" >/dev/null 2>&1 || true
+    touch "$data/.menu_v1"
 fi
 
 # A data dir prepared by an older revision has no conversation archives; fetch
@@ -269,6 +283,12 @@ for index in 1 2 3 4 5 6; do
     add_media_iso "$index"
 done
 
+# 0x41f753(0) reads savegame/gamepref_000 (written by 0x41f7be when the
+# preferences screen changes a value); the CD's GAMEPREF.000 is the default.
+gamepref="$data/copy2hd/savegame/gamepref_000"
+[ -f "$gamepref" ] || gamepref="$data/copy2hd/savegame/GAMEPREF.000"
+[ -f "$gamepref" ] || gamepref="$data/copy2hd/goldsave/GAMEPREF.000"
+
 exec "$here/byzantine-play" "$cc" "$cb" "$label" \
     --save "$save_path" \
     --engine "$data/copy2hd/engine" \
@@ -292,7 +312,7 @@ exec "$here/byzantine-play" "$cc" "$cb" "$label" \
     --anims-overlay "$anims_overlay" \
     --sounds "$data" \
     --backgrounds "$data" \
-    --gameprefs "$data/copy2hd/goldsave/GAMEPREF.000" \
+    --gameprefs "$gamepref" \
     --inventor "$data/inventor.txt" \
     --hotitems "$data/hotitems.txt" \
     "${text_args[@]}" \

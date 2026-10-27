@@ -1,0 +1,7 @@
+# Site videos on revisits — 27 October 2026
+
+Observation: preserved run `run-20261027T170234.605392Z-o3mb46kx` MAP action 410 executes instructions 479 (call 506), 596 (call 154), 168 (return), 597 (variable write), 598 and 599 (return), then 480 (`0xbd`, CF 11, mode 2), followed by travel. This executed path has no conditional branch between action start and the video. CF 11 is NBEst1. MAP has 16 corresponding site-video commands, each immediately following a call to the same 506 routine and immediately preceding the same travel sequence; this supports the same behavior for those paths, though every possible route and state was not executed.
+
+Original `0x40d031` plays mode 2 whenever `FUN_0041d440(5)` is nonzero; no visit-history check occurs in that function. The shipped `GAMEPREF.000` and `.001` set this preference to 1 (see VIDEO_AND_AUDIO.md). Therefore the observed NB map action requests the video on each activation under that setting, rather than only on the first visit. A disabled preference suppresses mode-2 site videos; the port implements that gate. This is a conclusion from scripts and saved decompilation, not a live original-engine comparison. Other routes or videos can have different script conditions.
+
+Provenance: target SHA-256 `3b6191fd1c7c590ec3e04298f23742a94366eb1805011ed4ca3add8ad5963226`, exports `0x40d031` `3c03f813d14edff74503d097495239a4513dffcabe932da14a11998dc8a68a28` and `0x42db22` `8df50fc5339a585b431bd3f8bdaea0cf93e60129fc942669de9059dd3fb130a3` match `pseudocode/decompile-index.json`. No changes to runtime behavior.

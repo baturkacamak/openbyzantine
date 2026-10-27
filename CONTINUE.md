@@ -1,3 +1,47 @@
+## Top bar and menu screens work (27 October 2026)
+
+Pinned run `run-20261027T170925.613868Z-lu9b3p1r` (MR, `30.btb`) showed the
+reported bug: pointer moves into the top 20-pixel band were swallowed
+(`ui_click top_bar … consumed (top menu is not modelled)`) and nothing was
+drawn. The original bar is a roll-over UI: `0x40c329` returns `0xfffc` for rows
+0..0x13, the first entry blits `setupart/top_bar.tga` (`0x408f32`), later moves
+run `0x408fe7` (five x boundaries `0,0xb5,0x144,0x1f4,0x280`, index 1..4) and
+`0x4090c4` draws `HOTBAR.RLE[index]`; leaving clears the band. A click flashes
+`DWNBAR.RLE[index]` for 100 ms (`0x4091e5`) and opens `0x41e289`, whose mode
+comes from `0x41de4b`: button 1/2/3/4 → mode 1/3/2/0 (save-load, NOTLAR, KEŞİF,
+TERCİHLER).
+
+Implemented: the real bar with hover/pressed frames and the hotsmall cursor;
+all four screens from their shipped art (`setup00.jpg`, `preffs.jpg`,
+`s_note00/01/02.jpg`) with the 0x45f548 control rectangles and the
+`FUN_0041fe46`/`0x42044d` enable sets; `fonts/setup.sfn` (slot 2) list text;
+save list from `autosave.btb` + `btb.sav`; OYUN YÜKLE loads the selected
+`.btb` through the save-aware travel path (real pool/inventory/media; entry at
+instruction 0), YENİ OYUN loads `new.can`, OYUN İPTAL deletes with the real
+MESSAGE 11/EVET-HAYIR confirmation, OYUNA DEVAM closes, OYUNDAN ÇIK confirms
+with MESSAGE 9; preferences flip and write `savegame/gamepref_000` (0x41f7be);
+KEŞİF replays credits (`CREDBK.JPG`), the four simulation scenes (following
+`vtdisc → vt` and the wrapper's 0x73 chain) and intro/epilogue through the
+existing clip pipeline. OYUN KAYIT explicitly reports that the writer
+`0x424dc0` is not reconstructed; no partial save is written.
+
+Verification: `make -C port -j2 all test` passes (new `menu-test`),
+`verify_ea_layer.py`, `verify_ea_photo.py`, `verify_ea_single_execution.py` and
+`verify_mr_arrival.py` still pass. Headless `--menu/--menu-click-at/--menu-shot`
+runs and a real Xephyr window (slot selected → OYUN YÜKLE → MR to VH, 6
+hotspots) are in `port/output/top-menu/`. Remaining: save writer, saved script
+pointer, cross-disc anims overlay on load, credits scroll, TEMAS/notebook text,
+ROLL/YELLOW hover art, İPUCU, and full-length intro replay. Report:
+`analysis/rea/TOP_MENU.md`.
+
+## Site video revisit investigation (27 October 2026)
+
+MAP action 410 calls 506 then plays NBEst1 mode 2 before travel, without a first-visit condition on the observed executed path. All 16 MAP site-video commands have the same call/video/travel shape. Original `0x40d031` gates mode 2 on game preference 5, enabled in both shipped preference files; it has no visit-history check. Thus repeated MAP entry videos are consistent with original script behavior with that preference enabled. This is static/script evidence, not a live original-engine comparison; other routes may differ. Hashes verified. See `analysis/rea/SITE_VIDEO_REVISITS.md`.
+
+## Scene entry flash fix (27 October 2026)
+
+Pinned run `run-20261027T170234.605392Z-o3mb46kx`: MR → MAP → NB, `NBEst1` followed by three `NBOKEY.jpg` compositions before NB00. Gated audio replay composed the static fallback before applying the panorama load. Apply reached panorama loads before gated composition; retain the last presented frame if no layer is ready; skip the speculative initial frame on direct `--entry`. Real NB `57.btb` dummy video/audio direct entry now draws NB00 at both gates without NBOKEY. `make -C port -j2 all test` passes. Exact reported journey and physical display not replayed; transitions remain unimplemented. Details: `analysis/rea/SCENE_ENTRY_FLASH.md`.
+
 # Compact handoff — 26 October 2026
 
 ## Latest fix — panorama record patches are warped and the animation clock is global (27 October 2026)

@@ -2,6 +2,29 @@
 
 Güncel kısa devam kaydı: [`../CONTINUE.md`](../CONTINUE.md).
 
+## Üst menü (top bar) ve ekranları
+
+Fare ekranın üst 20 pikseline girdiğinde oyunun kendi `setupart/TOP_BAR.TGA`
+çubuğu görünür; dört düğme (`HOTBAR.RLE`/`DWNBAR.RLE` kareleri) vurgulanır ve
+tıklanınca `0x41e289`'un ekranı açılır:
+
+- **YÜKLE/KAYDET** (mode 1): `autosave.btb` + `btb.sav` slot listesi; OYUN
+  YÜKLE seçilen `.btb`'yi gerçek kayıt durumuyla yükler, YENİ OYUN `new.can`'ı
+  açar, OYUN İPTAL onaylı siler. OYUN KAYIT yazıcısı (`0x424dc0`) henüz yok;
+  ekranda ve logda açıkça bildirilir.
+- **NOTLAR** (mode 3): `s_note00.jpg` sayfası; sağ sayfaya tıklamak TEMAS
+  LİSTESİ/yayılım sayfalarına geçer (metinleri henüz doldurulmuyor).
+- **KEŞİF** (mode 2): `status.000`'a göre `MESSAGES.TXT` 0x34..0x3a satırları;
+  jenerik (`CREDBK.JPG`), dört simülasyon sahnesi (`vtdisc` → `vt` zinciri
+  dahil) ve intro/epilogue filmleri (mevcut FFmpeg klip yolu).
+- **TERCİHLER** (mode 0): yedi tercih; değişiklik `savegame/gamepref_000`
+  dosyasına yazılır (`0x41f7be`).
+
+ESC ekranı kapatır, OYUNA DEVAM oyuna döner, OYUNDAN ÇIK onay ister. Masaüstü
+tanılamaları: `--menu <0..5>`, `--menu-click-at <x>,<y>` (tekrarlanabilir),
+`--menu-shot <ppm>` ve `--bar-show <0..4>`. Ayrıntı ve sınırlar:
+[`../analysis/rea/TOP_MENU.md`](../analysis/rea/TOP_MENU.md).
+
 ## Disklere göre animasyon seçimi
 
 Launcher kayıt dosyasındaki disk numarasını okur ve o diskin animasyonlarını

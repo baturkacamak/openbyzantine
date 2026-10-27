@@ -27,16 +27,19 @@
 #include "byzantine/frame_pacing.hpp"
 #include "byzantine/inventory.hpp"
 #include "byzantine/jpeg.hpp"
+#include "byzantine/menu.hpp"
 #include "byzantine/panorama.hpp"
 #include "byzantine/panorama_view.hpp"
 #include "byzantine/scene_setup.hpp"
 #include "byzantine/text.hpp"
 #include "byzantine/video.hpp"
+#include "byzantine/rle.hpp"
 
 #include <SDL.h>
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
@@ -169,6 +172,17 @@ struct Options {
     // 60 Hz tick scale; see analysis/rea/ANIMATION_RATE_GLOBAL.md).
     unsigned anim_pass_hz = 60;
 
+    // --menu <0..5>: open the top-bar screen at startup (0 preferences,
+    // 1 save/load, 2 keşif, 3 NOTLAR, 4 TEMAS LİSTESİ, 5 spread). It is a
+    // diagnostic input, like --click-at: the normal path is a real top-bar click.
+    std::optional<int> menu_mode;
+    // --menu-click-at <x>,<y>: deterministic menu clicks in order.
+    std::vector<std::pair<int, int>> menu_clicks;
+    std::string menu_shot;                     // --menu-shot <file.ppm>
+    // --bar-show <0..4>: force the top bar visible with that hovered button for
+    // a headless shot (the window path uses the real pointer).
+    std::optional<int> bar_show;
+
     // --conversation-choices 1,0,...: deterministic answers for --shot/tests.
     // The interactive player never uses this: an answer is a real mouse click.
     std::vector<std::size_t> conversation_choices;
@@ -191,7 +205,7 @@ const std::set<std::string> kValued = {
     "--conversation-object", "--conversation-video-shot", "--conversation-cancel",
     "--video-shot",
     "--bar-select", "--media-isos", "--anim-pass-hz", "--cursor-at",
-    "--panorama-yaw"};
+    "--panorama-yaw", "--menu", "--menu-click-at", "--menu-shot", "--bar-show"};
 
 Options parse_options(int argc, char** argv) {
     Options options;
@@ -304,6 +318,28 @@ Options parse_options(int argc, char** argv) {
             }
             else if (token == "--click") options.click = std::stoi(value);
             else if (token == "--staged-x") options.staged_x = std::stoi(value);
+            else if (token == "--menu") {
+                const auto mode = std::stoi(value);
+                if (mode < 0 || mode > 5) {
+                    throw std::runtime_error("--menu must be 0..5");
+                }
+                options.menu_mode = mode;
+            } else if (token == "--menu-shot") options.menu_shot = value;
+            else if (token == "--bar-show") {
+                const auto button = std::stoi(value);
+                if (button < 0 || button > 4) {
+                    throw std::runtime_error("--bar-show must be 0..4");
+                }
+                options.bar_show = button;
+            }
+            else if (token == "--menu-click-at") {
+                const auto comma = value.find(',');
+                if (comma == std::string::npos) {
+                    throw std::runtime_error("--menu-click-at expects <x>,<y>");
+                }
+                options.menu_clicks.emplace_back(std::stoi(value.substr(0, comma)),
+                                                 std::stoi(value.substr(comma + 1)));
+            }
             else if (token == "--panorama-yaw") {
                 auto degrees = value;
                 std::string scene;
@@ -357,7 +393,8 @@ Options parse_options(int argc, char** argv) {
             "[--bar-next] [--bar-prev] [--no-video] "
             "[--no-hotspots] [--no-audio] [--print-audio] [--print-hotspots] "
             "[--print-objects] [--print-variables] [--print-records] "
-            "[--compose-frames <n>] [--selftest-events] [--anim-pass-hz <hz>]");
+            "[--compose-frames <n>] [--selftest-events] [--anim-pass-hz <hz>] "
+            "[--menu <0..5>] [--menu-click-at <x>,<y> ...] [--menu-shot <ppm>]");
     }
     options.cc_path = positional[0];
     options.cb_path = positional[1];
@@ -541,6 +578,8 @@ std::filesystem::path examine_background_path(const Options& options,
 struct UiImage {
     int width = 0;
     int height = 0;
+    int x = 0;  // RLE frame origin (0 for TGA files)
+    int y = 0;
     std::vector<std::uint16_t> pixels;
     std::vector<std::uint8_t> alpha;
 };
@@ -585,6 +624,28 @@ std::optional<UiImage> decode_ui_image(const std::filesystem::path& path,
         image.pixels[index] = static_cast<std::uint16_t>(
             ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));
         if (key_magenta && r > 240 && g < 20 && b > 240) image.alpha[index] = 0;
+    }
+    return image;
+}
+
+// 0x408e3f loads setupart/TOP_BAR.TGA and the HOTBAR/DWNBAR RLE sets. The RLE
+// frames are RGBA; the UI blitter wants RGB565 plus a coverage byte, and the
+// shipped frames leave their transparent pixels at alpha 0.
+UiImage ui_image_from_rle(const byzantine::RleFrame& frame) {
+    UiImage image;
+    image.width = frame.width;
+    image.height = frame.height;
+    image.x = frame.x;
+    image.y = frame.y;
+    image.pixels.resize(static_cast<std::size_t>(frame.width) * frame.height);
+    image.alpha.assign(image.pixels.size(), 255);
+    for (std::size_t index = 0; index < image.pixels.size(); ++index) {
+        const auto r = frame.rgba[index * 4 + 0];
+        const auto g = frame.rgba[index * 4 + 1];
+        const auto b = frame.rgba[index * 4 + 2];
+        image.pixels[index] = static_cast<std::uint16_t>(
+            ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));
+        image.alpha[index] = frame.rgba[index * 4 + 3];
     }
     return image;
 }
@@ -1088,12 +1149,26 @@ struct Display {
     // Font slot 4 (fonts/CAPTIONS.SFN + CAPTIONS.TGA, fill 0x03eb). 0x424981
     // draws the conversation subtitle with this slot at (55, 420).
     std::optional<byzantine::SfnFont> caption_font;
+    // Font slot 2 (fonts/setup.sfn + setup.tga): the menu list text.
+    std::optional<byzantine::SfnFont> setup_font;
     // The original scene surface is 640x480: the playfield starts at row 0x14
     // and the inventory strip occupies rows 0x1a4..0x1df. `surface` stays the
     // 640x400 playfield and `screen` is the composed 640x480 frame.
     byzantine::Rgb16Surface screen;
     const Options* ui_options = nullptr;
     std::optional<UiImage> bottom_bar;
+    // 0x408e3f/0x408f32: setupart/TOP_BAR.TGA plus the HOTBAR/DWNBAR RLE
+    // states. The bar is a roll-over UI: it appears when the pointer enters the
+    // 0x14-row band and is cleared when it leaves (0x40c329/0x408fe7).
+    std::optional<UiImage> top_bar;
+    std::vector<UiImage> hotbar_frames;   // HOTBAR.RLE frames 1..4 are the buttons
+    std::vector<UiImage> dwnbar_frames;   // DWNBAR.RLE frames 1..4 (pressed)
+    std::vector<UiImage> marker_frames;   // on_off.rle frames 0..12
+    // on_off.rle frame i+6 is the "off" overlay of preference row i (0x41f94e is
+    // called when the stored value is 0, see FUN_0041fe46 case 0).
+    bool top_bar_visible = false;
+    int top_bar_hover = 0;   // 0x408fe7's index 1..4, 0 when none
+    int top_bar_press = 0;   // index 1..4 whose DWNBAR frame is drawn
     std::map<std::string, UiImage> item_icons;
     // 0x40dae5's cursor art and 0x407254's item art are decoded once and kept.
     // cursor_key_ is the id of the pointer currently installed on the window.
@@ -1151,6 +1226,7 @@ struct Display {
                       << options.backgrounds
                       << " (extract setupart/inventor with port/scene.sh)\n";
         }
+        load_top_bar_assets();
 
         int window_width = 0;
         int window_height = 0;
@@ -1162,6 +1238,92 @@ struct Display {
                   << " output=" << output_width << 'x' << output_height
                   << " logical=" << logical_width << 'x' << logical_height
                   << " (mouse events arrive in logical coordinates)\n";
+    }
+
+    // 0x408e3f: setupart/TOP_BAR.TGA + setupart/hotbar.rle + setupart/dwnbar.rle.
+    // The directory is `setupart` in the shipped tree; the game's own string is
+    // "setupart\\top_bar.tga" (0x45d2e8), so accept the case-insensitive child.
+    // on_off.rle supplies the row markers and the preference "off" overlays
+    // (0x41f94e/0x41f96e).
+    void load_top_bar_assets() {
+        if (ui_options == nullptr || ui_options->backgrounds.empty()) return;
+        auto root = ui_options->backgrounds;
+        std::optional<std::filesystem::path> setup_dir;
+        std::error_code error;
+        if (std::filesystem::is_directory(root / "setupart", error)) {
+            setup_dir = root / "setupart";
+        } else {
+            for (const auto& entry : std::filesystem::directory_iterator(root, error)) {
+                if (!entry.is_directory()) continue;
+                if (lower_ascii(entry.path().filename().string()) == "setupart") {
+                    setup_dir = entry.path();
+                    break;
+                }
+            }
+        }
+        if (!setup_dir) {
+            std::cout << "ui_asset_missing name=setupart root=" << root
+                      << " (the top bar stays hidden)\n";
+            return;
+        }
+        const auto load_rle_set = [&](const char* stem, std::vector<UiImage>& target) {
+            const auto file = find_child(*setup_dir, stem);
+            if (!file) {
+                std::cout << "ui_asset_missing name=setupart/" << stem
+                          << ".rle root=" << *setup_dir << '\n';
+                return;
+            }
+            try {
+                for (const auto& frame : byzantine::decode_rle(read_file(*file))) {
+                    target.push_back(ui_image_from_rle(frame));
+                }
+                std::cout << "ui_rle file=" << file->filename().string()
+                          << " frames=" << target.size() << '\n';
+            } catch (const std::exception& decode_error) {
+                std::cout << "ui_asset_decode_failed file=" << file->string()
+                          << " error=" << decode_error.what() << '\n';
+            }
+        };
+        const auto bar = find_child(*setup_dir, "top_bar");
+        if (bar) {
+            top_bar = decode_ui_image(*bar, true, true);
+            if (top_bar) {
+                std::cout << "ui_asset top_bar=" << bar->filename().string()
+                          << " size=" << top_bar->width << 'x' << top_bar->height
+                          << '\n';
+            }
+        } else {
+            std::cout << "ui_asset_missing name=setupart/top_bar.tga root="
+                      << *setup_dir << '\n';
+        }
+        load_rle_set("hotbar", hotbar_frames);
+        load_rle_set("dwnbar", dwnbar_frames);
+        load_rle_set("on_off", marker_frames);
+        // 0x4090c4 indexes the RLE set with 0x408fe7's 1..4 button number; a
+        // missing frame is reported instead of silently shifting the ids.
+        if (hotbar_frames.size() < 5 || dwnbar_frames.size() < 5) {
+            std::cout << "ui_top_bar incomplete hotbar=" << hotbar_frames.size()
+                      << " dwnbar=" << dwnbar_frames.size()
+                      << " (expected 5 frames each)\n";
+        }
+        if (marker_frames.size() < 13) {
+            std::cout << "ui_menu_markers incomplete frames=" << marker_frames.size()
+                      << " (expected 13 in on_off.rle)\n";
+        }
+    }
+
+    // 0x408f32(1) + 0x4090c4: the bar image, then the hovered/pressed button
+    // frame at the RLE frame's own x/y (each frame carries its screen origin).
+    void draw_top_bar() {
+        if (!top_bar_visible || !top_bar) return;
+        blit_ui(*top_bar, 0, 0);
+        const auto& set = top_bar_press != 0 ? dwnbar_frames : hotbar_frames;
+        const int index = top_bar_press != 0 ? top_bar_press : top_bar_hover;
+        if (index <= 0 || static_cast<std::size_t>(index) >= set.size()) return;
+        const auto& frame = set[static_cast<std::size_t>(index)];
+        // Each RLE frame carries its own screen origin (0,0 / 182,0 / 325,0 /
+        // 501,0); the shipped art depends on it.
+        blit_ui(frame, frame.x, frame.y);
     }
 
     void load_background(const std::filesystem::path& file) {
@@ -1430,7 +1592,12 @@ struct Display {
                     surface.pixels[static_cast<std::size_t>(row) * surface.width + column];
             }
         }
-        if (!view.state.dialogue_visible) return;
+        if (!view.state.dialogue_visible) {
+            // 0x408f32's bar sits at rows 0..0x13 regardless of the strip's
+            // visibility; it is a roll-over overlay, not part of the playfield.
+            draw_top_bar();
+            return;
+        }
 
         if (bottom_bar) {
             blit_ui(*bottom_bar, 0, kScreenBandTop);
@@ -1462,6 +1629,7 @@ struct Display {
                 fill_rect(x + 0x3a, 0x1a4 + 6, 2, 0x36, 0xffe0);
             }
         }
+        draw_top_bar();
     }
 
     void present_image(const byzantine::Rgb16Surface& image, const SceneView& view,
@@ -1642,12 +1810,14 @@ struct Display {
     }
 
     // 0x40c329/0x4083d4 for the point under the mouse. Rows 0x14..0x1a3 are
-    // the playfield (hovered object), 0x1a4.. the inventory band; the top
-    // 0x14-row menu is not modelled and keeps the default pointer.
+    // the playfield (hovered object), 0x1a4.. the inventory band; rows 0..0x13
+    // are the top bar and use 0x408fe7's hotsmall pointer.
     void update_cursor_at(const SceneView& view, int x, int y) {
         byzantine::CursorChoice choice;
         if (y < kScreenPlayfieldTop) {
-            choice.id = 0;
+            // 0x408fe7 hands 0x40df05 the id 0x1c; 0x40de7b maps that to 0x1e
+            // ("hotsmall") in the normal set outside a panorama.
+            choice.id = 0x1c;
         } else if (y < kScreenBandTop) {
             const auto hit = hotspot_at(view, x, y - kScreenPlayfieldTop);
             choice = byzantine::hover_cursor(view.state, hovered_object(view, hit));
@@ -2027,15 +2197,27 @@ bool run_label_gated(Session& session, EntryPoint point,
 
     std::size_t played = 0;
     std::size_t played_videos = 0;
+    std::size_t applied_panorama_loads = 0;
     for (const auto budget : budgets) {
         auto trace = trace_point(session.view, point, entry, budget);
         set_trace(session.view, std::move(trace));
         const auto all = sound_events(session.view.trace);
         const auto& videos = session.view.trace.video_requests;
         if (all.size() <= played && videos.size() <= played_videos) continue;
-        refresh_background(session.options, session.view);
-        session.display.compose(session.view, verbose);
-        session.display.present(session.view, session.options.overlay);
+        if (session.view.trace.panorama_loads.size() > applied_panorama_loads) {
+            apply_panorama_events(session.view, session.options, verbose);
+            applied_panorama_loads = session.view.trace.panorama_loads.size();
+        }
+        // A new scene has no selected image until its script actually loads one.
+        // Keep the previous presented frame while early audio events run.
+        if (session.view.layer != SceneLayer::none &&
+            (!panorama_layer(session.view) || session.view.panorama)) {
+            refresh_background(session.options, session.view);
+            session.display.compose(session.view, verbose);
+            session.display.present(session.view, session.options.overlay);
+        } else if (verbose) {
+            std::cout << "gate_frame retained (scene layer not ready)\n";
+        }
         if (all.size() > played) {
             if (verbose) {
                 std::cout << "gate stopped_after_step=" << session.view.trace.steps
@@ -2278,8 +2460,16 @@ void carry_inventory(const byzantine::SceneState& from, byzantine::SceneState& t
     to.current_use_item = from.current_use_item;
 }
 
-bool travel_to(Session& session, std::uint16_t index, bool verbose) {
+bool travel_to(Session& session, std::uint16_t index, bool verbose,
+               const std::string& save_path = {}) {
     auto& options = session.options;
+    if (!save_path.empty()) {
+        // A load starts a new session: the close-up parent snapshot and the
+        // 0x439349 restore belong to the previous scene.
+        session.return_armed = false;
+        session.return_view = SceneView{};
+        session.closeup_index.reset();
+    }
     if (session.return_armed && !session.return_view.name.empty()) {
         // 0x42db22 case 0x73: when DAT_004603d0 is non-NULL, the operand is
         // ignored and the close-up returns to its parent scene. 0x439349 then
@@ -2343,7 +2533,8 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose) {
         return false;
     }
     auto next = options.scene;
-    next.erase("--save");
+    if (save_path.empty()) next.erase("--save");
+    else next["--save"] = save_path;
     std::string missing;
     for (const char* key : {"--ci", "--cy", "--cf", "--cs", "--ca", "--co", "--ce", "--cd"}) {
         const auto found = next.find(key);
@@ -2363,20 +2554,23 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose) {
     const auto& to_layout = byzantine::scene_variable_layout(*session.metadata, target);
     const auto from = session.view.name;
     const auto from_locals = locals_digest(session.view.state);
-    const auto pool = byzantine::export_variable_pool(session.view.state, from_layout);
+    std::vector<std::uint16_t> pool;
     std::string written;
-    if (session.view.pool_on_arrival.size() == pool.size()) {
-        std::size_t changed = 0;
-        for (std::size_t at = 0; at < pool.size(); ++at) {
-            if (pool[at] == session.view.pool_on_arrival[at]) continue;
-            ++changed;
-            if (changed <= 8) {
-                written += (written.empty() ? "" : ",") + std::to_string(at);
+    if (save_path.empty()) {
+        pool = byzantine::export_variable_pool(session.view.state, from_layout);
+        if (session.view.pool_on_arrival.size() == pool.size()) {
+            std::size_t changed = 0;
+            for (std::size_t at = 0; at < pool.size(); ++at) {
+                if (pool[at] == session.view.pool_on_arrival[at]) continue;
+                ++changed;
+                if (changed <= 8) {
+                    written += (written.empty() ? "" : ",") + std::to_string(at);
+                }
             }
+            written = std::to_string(changed) + (written.empty() ? "" : " (" + written + ")");
+        } else {
+            written = "unknown";
         }
-        written = std::to_string(changed) + (written.empty() ? "" : " (" + written + ")");
-    } else {
-        written = "unknown";
     }
 
     SceneView next_view;
@@ -2386,8 +2580,16 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose) {
     next_view.entries = byzantine::parse_cb(read_file(next_view.cb_path));
     next_view.name = std::filesystem::path(next_view.cc_path).stem().string();
     auto setup = byzantine::load_scene_setup(next_view.cc_path, next);
-    byzantine::apply_variable_pool(setup.state, pool, to_layout);
-    carry_inventory(session.view.state, setup.state);
+    if (save_path.empty()) {
+        byzantine::apply_variable_pool(setup.state, pool, to_layout);
+        carry_inventory(session.view.state, setup.state);
+    } else {
+        // The save already carried its variable pool and inventory strip
+        // (0x425ab4's blocks 8..12 and the 0x424dc0 pool); do not overwrite
+        // them with the departing scene's values.
+        pool = byzantine::export_variable_pool(setup.state, to_layout);
+        written = "save";
+    }
     // 0x40fd7b: the scene load pre-loads the CA type 2/3 records before the
     // script runs (the save path is not used here, so nothing replaces them).
     const auto preload = byzantine::preload_scene_records(setup.state);
@@ -2417,6 +2619,7 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose) {
               << " from_locals_digest=0x" << std::hex << from_locals
               << " pool_digest=0x" << pool_digest(pool)
               << " locals_digest=0x" << locals_digest(setup.state) << std::dec;
+    if (!save_path.empty()) std::cout << " save=" << save_path;
     if (preload.created != 0 || preload.failed != 0) {
         std::cout << " record_preload=" << preload.created;
         if (preload.failed != 0) std::cout << " record_preload_failed=" << preload.failed;
@@ -2596,8 +2799,11 @@ bool enter_examine(Session& session, bool verbose) {
 // so it can never start a scene hotspot through the 60-pixel band.
 bool handle_bar_click(Session& session, int x, int y, bool verbose) {
     if (y < kScreenPlayfieldTop) {
+        const int button = byzantine::top_bar_button(x, y);
         std::cout << "ui_click top_bar x=" << x << " y=" << y
-                  << " consumed (top menu is not modelled)\n";
+                  << " button=" << button
+                  << " mode=" << byzantine::top_bar_menu_mode(button)
+                  << " consumed (the window path opens the screen)\n";
         return true;
     }
     if (y < kScreenBandTop) return false;
@@ -3917,6 +4123,832 @@ int answer_at(const std::vector<SDL_Rect>& rects, float x, float y) {
     return -1;
 }
 
+// ---------------------------------------------------------------------------
+// The top-bar screens (0x41e289 + 0x41f9ea)
+// ---------------------------------------------------------------------------
+// Clicking a top-bar button leaves the scene loop and enters FUN_0041e289's
+// screen loop. The screen art is the shipped JPEG (setup00/preffs/s_note*), the
+// row/text rectangles are 0x45f548, and the enable sets are FUN_0041fe46 +
+// 0x42044d. OYUNA DEVAM closes the screen; OYUNDAN ÇIK ends the session.
+//
+// The save writer (0x424dc0) is not reconstructed, so OYUN KAYIT reports that
+// instead of writing a partial save. Everything else here uses real state:
+// preferences come from --gameprefs and are written back as
+// savegame/gamepref_000 (0x41f7be), the save list is autosave.btb + btb.sav
+// (0x41f065/0x41f41c), OYUN YÜKLE loads the selected NN.BTB through the same
+// parser and travel path, KEŞİF replays the shipped movies/simulations and the
+// notebook pages show their shipped art.
+struct MenuUi {
+    enum class Confirm { none, delete_slot, quit };
+
+    bool open = false;
+    int mode = 2;
+    int hover = -1;
+    int slot = -1;
+    int page = 0;
+    int kesif_hover = -1;
+    int status_count = 0x34;
+    bool credits = false;
+    Confirm confirm = Confirm::none;
+    std::string notice;
+    std::filesystem::path savegame_dir;
+    std::vector<std::string> slot_names;
+    std::map<std::string, std::string> descriptions;
+    std::map<int, byzantine::Rgb16Surface> art_cache;
+    bool fonts_reported = false;
+
+    static const char* mode_name(int value) {
+        switch (value) {
+            case 0: return "preferences";
+            case 1: return "save_load";
+            case 2: return "kesif";
+            case 3: return "notes";
+            case 4: return "contacts";
+            case 5: return "spread";
+            default: return "?";
+        }
+    }
+
+    static std::optional<std::filesystem::path> setup_dir(const Options& options) {
+        if (options.backgrounds.empty()) return std::nullopt;
+        std::error_code error;
+        if (std::filesystem::is_directory(options.backgrounds / "setupart", error)) {
+            return options.backgrounds / "setupart";
+        }
+        for (const auto& entry :
+             std::filesystem::directory_iterator(options.backgrounds, error)) {
+            if (!entry.is_directory()) continue;
+            if (lower_ascii(entry.path().filename().string()) == "setupart") {
+                return entry.path();
+            }
+        }
+        return std::nullopt;
+    }
+
+    void init(Session& session) {
+        auto& options = session.options;
+        const auto save = options.scene.find("--save");
+        if (save != options.scene.end() && !save->second.empty()) {
+            savegame_dir = std::filesystem::path(save->second).parent_path();
+        }
+        if (savegame_dir.empty() && !options.backgrounds.empty()) {
+            savegame_dir = options.backgrounds / "copy2hd" / "savegame";
+        }
+    }
+
+    std::optional<std::filesystem::path> slot_path(int index) const {
+        if (index < 0 || index >= static_cast<int>(slot_names.size())) return std::nullopt;
+        return find_filename(savegame_dir, slot_names[static_cast<std::size_t>(index)]);
+    }
+
+    std::optional<std::filesystem::path> game_file(const std::string& name) const {
+        return find_filename(savegame_dir, name);
+    }
+
+    void refresh_slots() {
+        slot_names.clear();
+        std::error_code error;
+        if (savegame_dir.empty() || !std::filesystem::is_directory(savegame_dir, error)) {
+            return;
+        }
+        const auto add = [&](std::string name) {
+            if (name.empty()) return;
+            if (!find_filename(savegame_dir, name)) return;
+            slot_names.push_back(std::move(name));
+        };
+        // 0x41f065: autosave.btb first, then every line of btb.sav.
+        add("autosave.btb");
+        const auto list = find_filename(savegame_dir, "btb.sav");
+        if (list) {
+            try {
+                const auto bytes = read_file(*list);
+                std::string line;
+                for (const auto byte : bytes) {
+                    if (byte == '\r') continue;
+                    if (byte == '\n') {
+                        add(line);
+                        line.clear();
+                    } else {
+                        line.push_back(static_cast<char>(byte));
+                    }
+                }
+                add(line);
+            } catch (const std::exception& error_value) {
+                std::cout << "menu_slots btb.sav: " << error_value.what() << '\n';
+            }
+        } else {
+            // No slot list: the shipped CD has 00.btb..73.btb. Report the
+            // fallback instead of inventing a different ordering.
+            char name[16];
+            for (int index = 0; index < 74; ++index) {
+                std::snprintf(name, sizeof(name), "%02d.btb", index);
+                add(name);
+            }
+        }
+        std::cout << "menu_slots dir=" << savegame_dir
+                  << " count=" << slot_names.size() << '\n';
+    }
+
+    std::string slot_description(int index) {
+        const auto path = slot_path(index);
+        if (!path) return {};
+        const auto key = path->filename().string();
+        const auto cached = descriptions.find(key);
+        if (cached != descriptions.end()) return cached->second;
+        std::string text;
+        try {
+            const auto save = byzantine::parse_save(read_file(*path));
+            text = save.description;
+        } catch (const std::exception& error_value) {
+            std::cout << "menu_slot file=" << path->filename().string()
+                      << " unreadable: " << error_value.what() << '\n';
+        }
+        descriptions.emplace(key, text);
+        return text;
+    }
+
+    bool control_enabled(const int id) const {
+        bool present = false;
+        if (id >= 0x12 && id <= 0x1b) {
+            const int index = page * 10 + (id - 0x12);
+            present = index >= 0 && index < static_cast<int>(slot_names.size());
+        }
+        // 0x42044d: DAT_0046c5ec/ed are the save-list page arrows.
+        if (mode == 1 && id == 0x1c) {
+            return (page + 1) * 10 < static_cast<int>(slot_names.size());
+        }
+        if (mode == 1 && id == 0x1d) return page > 0;
+        return byzantine::menu_control_enabled(mode, id, present, slot >= 0);
+    }
+
+    int hit_control(int x, int y) const {
+        for (const auto& rect : byzantine::menu_control_rects()) {
+            if (!control_enabled(rect.id)) continue;
+            int bottom = rect.bottom;
+            if (rect.id == 0x24) {
+                bottom = 0x4b + (status_count - 0x33) * 0x28;
+            }
+            if (x > rect.left && x < rect.right && y > rect.top && y < bottom) {
+                return rect.id;
+            }
+        }
+        return -1;
+    }
+
+    void log_open() const {
+        std::cout << "menu_open mode=" << mode << " name=" << mode_name(mode)
+                  << " page=" << page << " slots=" << slot_names.size()
+                  << " save_dir=" << savegame_dir << '\n';
+    }
+
+    void open_screen(int value, Session& session) {
+        mode = value;
+        hover = -1;
+        kesif_hover = -1;
+        notice.clear();
+        credits = false;
+        confirm = Confirm::none;
+        if (mode == 1) {
+            page = 0;
+            slot = -1;
+            refresh_slots();
+        }
+        if (mode == 2) status_count = read_status_count();
+        open = true;
+        log_open();
+        present(session);
+    }
+
+    void close(Session& session, const char* reason) {
+        std::cout << "menu_close reason=" << reason << " mode=" << mode << '\n';
+        open = false;
+        credits = false;
+        confirm = Confirm::none;
+        session.display.top_bar_visible = false;
+        session.display.top_bar_hover = 0;
+        session.display.top_bar_press = 0;
+        session.display.compose(session.view, false, false);
+        session.display.present(session.view, session.options.overlay);
+    }
+
+    int read_status_count() const {
+        // 0x4273f4: savegame/status.000, one little-endian dword. A missing
+        // file leaves 0x34 (the credits row only).
+        const auto file = game_file("status.000");
+        if (!file) return 0x34;
+        try {
+            const auto bytes = read_file(*file);
+            if (bytes.size() < 4) return 0x34;
+            return static_cast<int>(static_cast<std::uint32_t>(bytes[0]) |
+                                    (static_cast<std::uint32_t>(bytes[1]) << 8) |
+                                    (static_cast<std::uint32_t>(bytes[2]) << 16) |
+                                    (static_cast<std::uint32_t>(bytes[3]) << 24));
+        } catch (const std::exception&) {
+            return 0x34;
+        }
+    }
+
+    const byzantine::Rgb16Surface* art(Session& session, int value) {
+        const auto cached = art_cache.find(value);
+        if (cached != art_cache.end()) return &cached->second;
+        const auto root = setup_dir(session.options);
+        if (!root) return nullptr;
+        const char* names[] = {"preffs", "setup00", "setup00", "s_note00",
+                               "s_note01", "s_note02", "credbk"};
+        const int index = value == 6 ? 6 : (value >= 0 && value <= 5 ? value : -1);
+        if (index < 0) return nullptr;
+        const auto file = find_child(*root, names[index]);
+        if (!file) {
+            std::cout << "menu_art_missing mode=" << value << " name=" << names[index]
+                      << " root=" << *root << '\n';
+            return nullptr;
+        }
+        try {
+            const auto image = byzantine::decode_jpeg_file(file->string());
+            byzantine::Rgb16Surface surface;
+            surface.width = image.width;
+            surface.height = image.height;
+            surface.pixels = byzantine::rgb_to_rgb565(image);
+            if (surface.width != kScreenWidth || surface.height != kScreenHeight) {
+                std::cout << "menu_art file=" << file->filename().string()
+                          << " size=" << surface.width << 'x' << surface.height
+                          << " (expected 640x480)\n";
+            }
+            const auto inserted = art_cache.emplace(value, std::move(surface));
+            return &inserted.first->second;
+        } catch (const std::exception& error_value) {
+            std::cout << "menu_art file=" << file->string()
+                      << " error=" << error_value.what() << '\n';
+            return nullptr;
+        }
+    }
+
+    void draw_art(Session& session, int value) {
+        auto& screen = session.display.screen;
+        std::fill(screen.pixels.begin(), screen.pixels.end(), 0);
+        const auto* image = art(session, value);
+        if (image == nullptr) return;
+        const int width = std::min(screen.width, image->width);
+        const int height = std::min(screen.height, image->height);
+        for (int y = 0; y < height; ++y) {
+            for (int x = 0; x < width; ++x) {
+                screen.at(x, y) = image->at(x, y);
+            }
+        }
+    }
+
+    void draw_marker(int id) {
+        auto& display = *display_;
+        if (id < 0 || id >= static_cast<int>(display.marker_frames.size())) return;
+        const auto& frame = display.marker_frames[static_cast<std::size_t>(id)];
+        display.blit_ui(frame, frame.x, frame.y);
+    }
+
+    void draw_preferences(Session& session) {
+        const auto prefs = session.view.state.gameprefs;
+        if (!prefs) {
+            if (!fonts_reported) {
+                std::cout << "menu_prefs unavailable: --gameprefs was not supplied\n";
+                fonts_reported = true;
+            }
+            return;
+        }
+        // 0x41fe46 case 0: a stored 0 draws the frame at on_off index i+6
+        // (0x41f94e is the "draw" branch in case 6..0xc).
+        for (int index = 0; index < 7; ++index) {
+            if ((*prefs)[static_cast<std::size_t>(index)] != 0) continue;
+            draw_marker(6 + index);
+        }
+    }
+
+    const byzantine::SfnFont* menu_font(const Session& session) const {
+        if (session.display.setup_font) return &*session.display.setup_font;
+        return session.display.dialog_font ? &*session.display.dialog_font : nullptr;
+    }
+
+    void draw_save_slots(Session& session) {
+        const auto* font = menu_font(session);
+        if (font == nullptr) return;
+        auto& screen = session.display.screen;
+        for (int row = 0; row < 10; ++row) {
+            const int index = page * 10 + row;
+            if (index >= static_cast<int>(slot_names.size())) break;
+            const auto description = slot_description(index);
+            const auto& text = description.empty()
+                                   ? slot_names[static_cast<std::size_t>(index)]
+                                   : description;
+            const bool selected = index == slot;
+            const int y = 0x42 + row * 0x1e;
+            if (selected) {
+                for (int row_y = y; row_y < y + 0x0e; ++row_y) {
+                    for (int x = 0x17a; x < 0x242; ++x) screen.at(x, row_y) = 0x4208;
+                }
+            }
+            byzantine::draw_text(screen, *font, text, 0x1de, y, 1, 1,
+                                 selected ? 0xffff : 0x0000);
+        }
+        std::cout.flush();
+    }
+
+    void draw_kesif(Session& session) {
+        const auto* font = menu_font(session);
+        if (font == nullptr) return;
+        auto& screen = session.display.screen;
+        for (int index = 0x34; index <= 0x3a && index <= status_count; ++index) {
+            if (index >= static_cast<int>(session.messages.size())) break;
+            const int row = index - 0x34;
+            const int y = 0x55 + row * 0x28;
+            const bool selected = index == kesif_hover;
+            if (selected) {
+                for (int row_y = y; row_y < y + 0x28; ++row_y) {
+                    for (int x = 0x172; x < 0x22e; ++x) screen.at(x, row_y) = 0x4208;
+                }
+            }
+            byzantine::draw_text(screen, *font, session.messages[index], 0x1d0, y, 1, 1,
+                                 selected ? 0xffff : 0x0000);
+        }
+    }
+
+    void draw_box(int left, int top, int right, int bottom) {
+        auto& screen = display_->screen;
+        for (int y = top; y < bottom; ++y) {
+            for (int x = left; x < right; ++x) screen.at(x, y) = 0x0000;
+        }
+        for (int x = left; x < right; ++x) {
+            screen.at(x, top) = 0xffe0;
+            screen.at(x, bottom - 1) = 0xffe0;
+        }
+        for (int y = top; y < bottom; ++y) {
+            screen.at(left, y) = 0xffe0;
+            screen.at(right - 1, y) = 0xffe0;
+        }
+    }
+
+    void draw_notice(Session& session) {
+        if (notice.empty()) return;
+        const auto* font = menu_font(session);
+        if (font == nullptr) return;
+        draw_box(50, 392, 590, 474);
+        const auto lines = wrap_dialog_text(*font, notice, 520);
+        int y = 400;
+        for (std::size_t index = 0; index < lines.size() && index < 3; ++index) {
+            byzantine::draw_text(session.display.screen, *font, lines[index], 60, y, 1, 3,
+                                 0xffff);
+            y += font->line_height;
+        }
+    }
+
+    void draw_confirm(Session& session) {
+        const auto* font = menu_font(session);
+        if (font == nullptr) return;
+        draw_box(120, 170, 520, 340);
+        int message_id = 11;  // "Kaydedilen oyun silinsin mi?"
+        if (confirm == Confirm::quit) message_id = 9;  // "Kaydetmeden oyundan çıkmak istiyor musunuz?"
+        const std::string message =
+            message_id < static_cast<int>(session.messages.size())
+                ? session.messages[static_cast<std::size_t>(message_id)]
+                : (confirm == Confirm::quit ? "Oyundan cikmak istiyor musunuz?"
+                                            : "Kaydedilen oyun silinsin mi?");
+        const auto lines = wrap_dialog_text(*font, message, 360);
+        int y = 190;
+        for (const auto& line : lines) {
+            byzantine::draw_text(session.display.screen, *font, line, 140, y, 1, 3, 0xffff);
+            y += font->line_height;
+        }
+        const auto label = [&](std::size_t index) {
+            return index < session.messages.size() ? session.messages[index]
+                                                   : (index == 76 ? "EVET" : "HAYIR");
+        };
+        const std::pair<int, int> buttons[] = {{180, 270}, {300, 270}};
+        for (int index = 0; index < 2; ++index) {
+            const int left = buttons[index].first;
+            const int top = buttons[index].second;
+            for (int row = top; row < top + 34; ++row) {
+                for (int x = left; x < left + 90; ++x) {
+                    session.display.screen.at(x, row) = 0x3186;
+                }
+            }
+            byzantine::draw_text(session.display.screen, *font, label(76 + index),
+                                 left + 45, top + 8, 1, 1, 0xffff);
+        }
+    }
+
+    void draw(Session& session) {
+        display_ = &session.display;
+        if (credits) {
+            draw_art(session, 6);
+            draw_notice(session);
+            return;
+        }
+        draw_art(session, mode);
+        // 0x41f98e: the enabled rows 0..5 get their on_off marker.
+        for (int id = 0; id <= 5; ++id) {
+            if (control_enabled(id)) draw_marker(id);
+        }
+        if (mode == 0) draw_preferences(session);
+        if (mode == 1) draw_save_slots(session);
+        if (mode == 2) draw_kesif(session);
+        if (confirm != Confirm::none) draw_confirm(session);
+        draw_notice(session);
+    }
+
+    void present(Session& session) {
+        draw(session);
+        session.display.present_image(session.display.screen, session.view, false, 0);
+        float x = 0;
+        float y = 0;
+        session.display.mouse_logical(&x, &y);
+        const bool clickable = hit_control(static_cast<int>(x), static_cast<int>(y)) >= 0;
+        byzantine::CursorChoice choice;
+        choice.id = clickable ? 0x1e : 0;
+        session.display.set_cursor(session.view, choice);
+    }
+
+    bool hover_at(Session& session, int x, int y) {
+        const int previous = hover;
+        const int previous_kesif = kesif_hover;
+        hover = hit_control(x, y);
+        if (hover == 0x24) {
+            kesif_hover = byzantine::kesif_row_at(x, y, status_count);
+        } else {
+            kesif_hover = -1;
+        }
+        if (hover == previous && kesif_hover == previous_kesif) return false;
+        if (hover >= 0) {
+            std::cout << "menu_hover control=" << hover
+                      << (kesif_hover >= 0 ? " row=" + std::to_string(kesif_hover) : "")
+                      << '\n';
+        }
+        present(session);
+        return true;
+    }
+
+    bool set_notice(Session& session, const std::string& text, const char* log) {
+        notice = text;
+        std::cout << "menu_notice reason=" << log << " text=" << text << '\n';
+        present(session);
+        return false;
+    }
+
+    bool save_preferences(Session& session) {
+        const auto& prefs = session.view.state.gameprefs;
+        if (!prefs) return false;
+        if (savegame_dir.empty()) {
+            std::cout << "menu_prefs_write skipped: no savegame directory\n";
+            return false;
+        }
+        std::error_code error;
+        std::filesystem::create_directories(savegame_dir, error);
+        const auto path = savegame_dir / "gamepref_000";
+        std::ofstream output(path, std::ios::binary | std::ios::trunc);
+        if (!output) {
+            std::cout << "menu_prefs_write failed file=" << path << '\n';
+            return false;
+        }
+        for (const auto value : *prefs) {
+            const std::uint32_t word = value;
+            const char bytes[4] = {
+                static_cast<char>(word & 0xff),
+                static_cast<char>((word >> 8) & 0xff),
+                static_cast<char>((word >> 16) & 0xff),
+                static_cast<char>((word >> 24) & 0xff)};
+            output.write(bytes, 4);
+        }
+        std::cout << "menu_prefs_write file=" << path << '\n';
+        return static_cast<bool>(output);
+    }
+
+    bool load_slot(Session& session, int index, const char* reason) {
+        const auto path = slot_path(index);
+        if (!path) return set_notice(session, "Kayit dosyasi bulunamadi.", reason);
+        byzantine::SaveGame save;
+        try {
+            save = byzantine::parse_save(read_file(*path));
+        } catch (const std::exception& error_value) {
+            return set_notice(session, std::string("Kayit okunamadi: ") + error_value.what(),
+                              reason);
+        }
+        std::cout << "menu_load slot=" << index << " file=" << path->filename().string()
+                  << " description=" << save.description
+                  << " scene_index=" << save.scene_index
+                  << " reason=" << reason << '\n';
+        // The launcher prepared --anims-overlay for the disc the *starting*
+        // save names. A load from another disc keeps that overlay (the player
+        // cannot rebuild it); say so instead of silently mixing the art.
+        const auto overlay = session.options.scene.find("--anims-overlay");
+        if (overlay != session.options.scene.end()) {
+            const auto folder =
+                std::filesystem::path(overlay->second).filename().string();
+            const auto at = folder.find("cd");
+            if (at != std::string::npos && at + 2 < folder.size() &&
+                std::isdigit(static_cast<unsigned char>(folder[at + 2])) &&
+                folder[at + 2] - '0' != static_cast<int>(save.cd_number)) {
+                std::cout << "menu_load anims_overlay_disc_mismatch overlay=" << folder
+                          << " save_cd=" << save.cd_number
+                          << " (the overlay is not recomputed on load)\n";
+            }
+        }
+        const bool was_open = open;
+        open = false;
+        const bool ok = travel_to(session, save.scene_index, true, path->string());
+        if (!ok) {
+            open = was_open;
+            return set_notice(session, "Kayit sahnesi yuklenemedi.", "load_failed");
+        }
+        follow_switches(session, true);
+        std::cout << "menu_load committed scene=" << session.view.name
+                  << " hotspots=" << session.view.trace.active_hotspots.size() << '\n';
+        return true;
+    }
+
+    bool new_game(Session& session) {
+        const auto path = game_file("new.can");
+        if (!path) return set_notice(session, "Yeni oyun dosyasi (new.can) yok.", "new_game");
+        byzantine::SaveGame save;
+        try {
+            save = byzantine::parse_save(read_file(*path));
+        } catch (const std::exception& error_value) {
+            return set_notice(session, std::string("new.can okunamadi: ") + error_value.what(),
+                              "new_game");
+        }
+        std::cout << "menu_new_game file=" << path->filename().string()
+                  << " scene_index=" << save.scene_index << '\n';
+        const bool was_open = open;
+        open = false;
+        const bool ok = travel_to(session, save.scene_index, true, path->string());
+        if (!ok) {
+            open = was_open;
+            return set_notice(session, "Yeni oyun baslatilamadi.", "new_game_failed");
+        }
+        follow_switches(session, true);
+        return true;
+    }
+
+    bool delete_slot(Session& session) {
+        (void)session;
+        const auto path = slot_path(slot);
+        if (!path) return false;
+        std::error_code error;
+        const bool removed = std::filesystem::remove(*path, error);
+        std::cout << "menu_delete slot=" << slot << " file=" << path->filename().string()
+                  << " removed=" << (removed ? "yes" : "no");
+        if (error) std::cout << " error=" << error.message();
+        std::cout << '\n';
+        descriptions.erase(path->filename().string());
+        refresh_slots();
+        slot = -1;
+        page = std::min(page, std::max(0, (static_cast<int>(slot_names.size()) - 1) / 10));
+        return removed;
+    }
+
+    bool play_movie(Session& session, const std::string& name) {
+        byzantine::SceneVideoRequest request;
+        request.mode = 1;  // video\intro
+        request.name = name;
+        request.instruction = 0;
+        request.step = 0;
+        std::string clip = name;
+        std::cout << "menu_movie name=" << name << " mode=1\n";
+        if (!session.options.video) {
+            return set_notice(session, "Video kapali (--no-video).", "movie_no_video");
+        }
+        const auto file = video_clip_file(session, request);
+        if (!file) {
+            return set_notice(session, "Film dosyasi bulunamadi: " + name, "movie_missing");
+        }
+        const auto cache_root = session.options.dialog_cache.empty()
+                                    ? session.options.backgrounds / ".cache"
+                                    : session.options.dialog_cache;
+        const auto decoded = decode_clip_cache(cache_root / "menu" / name, *file, name,
+                                               kSceneClipTags, true);
+        if (!decoded) {
+            return set_notice(session, "Film cozulemedi: " + name, "movie_decode");
+        }
+        session.display.top_bar_visible = false;
+        const auto present_clip = [&session]() {
+            auto& display = session.display;
+            std::fill(display.screen.pixels.begin(), display.screen.pixels.end(), 0);
+            for (int row = 0; row < display.surface.height; ++row) {
+                for (int column = 0; column < display.surface.width; ++column) {
+                    display.screen.at(column, row + kScreenPlayfieldTop) =
+                        display.surface.at(column, row);
+                }
+            }
+            display.present_image(display.screen, session.view, false, 0);
+        };
+        const auto playback = play_decoded_clip(
+            session, *decoded, true, 0, 0, session.options.video_shot, kSceneClipTags,
+            clip, present_clip, [](const std::string&) { return false; });
+        std::cout << "menu_movie end name=" << name << " frames=" << playback.frames
+                  << " played=" << (playback.played ? "yes" : "no") << '\n';
+        if (!playback.played) {
+            return set_notice(session, "Film gosterilemedi: " + name, "movie_not_shown");
+        }
+        // 0x41fc87 returns to the screen it was opened from; the last clip frame
+        // is still on the surface, so repaint the menu.
+        present(session);
+        return true;
+    }
+
+    bool travel_to_named(Session& session, const std::string& scene) {
+        if (!session.metadata) {
+            return set_notice(session, "SHOW.LCC yok: sahne indeksi cozulemiyor.", "scene_index");
+        }
+        for (std::size_t index = 0; index < session.metadata->scenes.size(); ++index) {
+            if (session.metadata->scenes[index].scene != scene) continue;
+            std::cout << "menu_kesif scene=" << scene << " index=" << index << '\n';
+            const bool was_open = open;
+            open = false;
+            const bool ok = travel_to(session, static_cast<std::uint16_t>(index), true);
+            if (!ok) {
+                open = was_open;
+                return set_notice(session, "Sahne yuklenemedi: " + scene, "scene_failed");
+            }
+            // The disc scenes open with a 0x73 chain (vtdisc -> vt); the
+            // original's 0x42c8a0 loop follows it, so the menu must too.
+            follow_switches(session, true);
+            return true;
+        }
+        return set_notice(session, "Sahne bulunamadi: " + scene, "scene_missing");
+    }
+
+    bool click(Session& session, int x, int y) {
+        notice.clear();
+        if (confirm != Confirm::none) {
+            for (int index = 0; index < 2; ++index) {
+                const int left = 180 + index * 120;
+                if (x >= left && x <= left + 90 && y >= 270 && y <= 304) {
+                    if (index == 1) {
+                        std::cout << "menu_confirm result=cancel\n";
+                        confirm = Confirm::none;
+                        present(session);
+                        return true;
+                    }
+                    const auto action = confirm;
+                    confirm = Confirm::none;
+                    std::cout << "menu_confirm result=yes\n";
+                    if (action == Confirm::delete_slot) {
+                        delete_slot(session);
+                    } else if (action == Confirm::quit) {
+                        std::cout << "menu_quit\n";
+                        session.running = false;
+                        return true;
+                    }
+                    present(session);
+                    return true;
+                }
+            }
+            std::cout << "menu_confirm result=none\n";
+            return false;
+        }
+        if (credits) {
+            credits = false;
+            std::cout << "menu_credits close\n";
+            present(session);
+            return true;
+        }
+        const int hit = hit_control(x, y);
+        std::cout << "menu_click x=" << x << " y=" << y << " control=" << hit
+                  << " mode=" << mode << '\n';
+        if (hit < 0) return false;
+        switch (hit) {
+            case 0x00:  // OYUN KAYIT
+                return set_notice(session,
+                                  "Kayit yazma bu portta uygulanmadi (0x424dc0).",
+                                  "save_not_reconstructed");
+            case 0x01:  // OYUN YÜKLE
+                return load_slot(session, slot, "oyun_yukle");
+            case 0x02:  // OYUN İPTAL
+                confirm = Confirm::delete_slot;
+                std::cout << "menu_confirm open action=delete_slot\n";
+                present(session);
+                return true;
+            case 0x03:  // YENİ OYUN
+                return new_game(session);
+            case 0x04:  // OYUNDAN ÇIK
+                confirm = Confirm::quit;
+                std::cout << "menu_confirm open action=quit\n";
+                present(session);
+                return true;
+            case 0x05:  // OYUNA DEVAM
+                close(session, "oyuna_devam");
+                return true;
+            case 0x06:
+            case 0x07:
+            case 0x08:
+            case 0x09:
+            case 0x0a:
+            case 0x0b:
+            case 0x0c: {
+                auto& prefs = session.view.state.gameprefs;
+                if (!prefs) {
+                    return set_notice(session, "Tercihler yuklenmedi (--gameprefs).",
+                                      "prefs_missing");
+                }
+                const int index = hit - 0x06;
+                (*prefs)[static_cast<std::size_t>(index)] =
+                    (*prefs)[static_cast<std::size_t>(index)] == 0 ? 1 : 0;
+                std::cout << "menu_pref index=" << index
+                          << " value=" << (*prefs)[static_cast<std::size_t>(index)] << '\n';
+                save_preferences(session);
+                present(session);
+                return true;
+            }
+            case 0x0e: open_screen(0, session); return true;
+            case 0x10: open_screen(2, session); return true;
+            case 0x11: open_screen(3, session); return true;
+            case 0x0f: open_screen(1, session); return true;
+            case 0x1c:  // next save page (0x42062a's param 0x1c)
+                if (mode == 1 && (page + 1) * 10 < static_cast<int>(slot_names.size())) {
+                    ++page;
+                    slot = -1;
+                    std::cout << "menu_page page=" << page << '\n';
+                    present(session);
+                }
+                return true;
+            case 0x1d:  // previous save page
+                if (mode == 1 && page > 0) {
+                    --page;
+                    slot = -1;
+                    std::cout << "menu_page page=" << page << '\n';
+                    present(session);
+                }
+                return true;
+            case 0x12:
+            case 0x13:
+            case 0x14:
+            case 0x15:
+            case 0x16:
+            case 0x17:
+            case 0x18:
+            case 0x19:
+            case 0x1a:
+            case 0x1b: {
+                const int index = page * 10 + (hit - 0x12);
+                if (slot == index) {
+                    slot = -1;
+                } else {
+                    slot = index;
+                }
+                std::cout << "menu_slot index=" << index
+                          << " file=" << slot_names[static_cast<std::size_t>(index)]
+                          << " description=" << slot_description(index)
+                          << " selected=" << (slot == index ? "yes" : "no") << '\n';
+                present(session);
+                return true;
+            }
+            case 0x1e: open_screen(1, session); return true;
+            case 0x1f: open_screen(4, session); return true;
+            case 0x20: open_screen(5, session); return true;
+            case 0x21: open_screen(1, session); return true;
+            case 0x22:
+            case 0x23: open_screen(3, session); return true;
+            case 0x24: {
+                if (kesif_hover < 0) {
+                    // A click without a preceding motion still picks the row
+                    // (0x422101's hover normally runs every loop).
+                    const int row = byzantine::kesif_row_at(x, y, status_count);
+                    if (row >= 0) kesif_hover = row;
+                }
+                if (kesif_hover < 0) return false;
+                const int index = kesif_hover;
+                std::cout << "menu_kesif_click index=" << index
+                          << " text="
+                          << (index < static_cast<int>(session.messages.size())
+                                  ? session.messages[static_cast<std::size_t>(index)]
+                                  : std::string("?"))
+                          << '\n';
+                if (index == 0x34) {
+                    credits = true;
+                    std::cout << "menu_credits image=setupart/CREDBK.JPG"
+                              << " (0x41fcf3's scroll is not modelled)\n";
+                    present(session);
+                    return true;
+                }
+                if (index == 0x35) return play_movie(session, "mintro");
+                if (index == 0x3a) return play_movie(session, "mepilog");
+                if (index >= 0x36 && index <= 0x39) {
+                    static const char* scenes[] = {"vtdisc", "vbdisc", "vcdisc", "vhdisc"};
+                    return travel_to_named(session, scenes[index - 0x36]);
+                }
+                return false;
+            }
+            case 0x25:
+            case 0x26:
+                return set_notice(session, "Defter sayfa kaydirma uygulanmadi.",
+                                  "notes_scroll");
+            case 0x27:
+                return set_notice(session, "Ipucu ekrani (0x41e002) uygulanmadi.",
+                                  "hints");
+            default:
+                return false;
+        }
+    }
+
+    Display* display_ = nullptr;
+};
+
+
 bool wait_dialog_ms(Session& session, std::uint64_t milliseconds) {
     const auto start = std::chrono::steady_clock::now();
     while (session.running) {
@@ -4812,6 +5844,27 @@ int main(int argc, char** argv) {
                           << options.fonts.string() << '\n';
             }
             const auto cap = find_filename(options.fonts, "CAPTIONS.SFN");
+            // 0x406cfe slot 2: fonts/setup.sfn + setup.tga. The menu lists
+            // (0x4202ff save slots, 0x421ffc keşif rows) draw with this slot.
+            const auto setup_sfn = find_filename(options.fonts, "setup.sfn");
+            const auto setup_tga = find_filename(options.fonts, "setup.tga");
+            if (setup_sfn && setup_tga) {
+                try {
+                    session.display.setup_font = byzantine::load_sfn_font_single_atlas(
+                        setup_sfn->string(), setup_tga->string(), 0x000f);
+                    std::cout << "fonts setup glyphs="
+                              << session.display.setup_font->glyph_count
+                              << " atlas=" << session.display.setup_font->atlas_width
+                              << 'x' << session.display.setup_font->atlas_height
+                              << " line=" << session.display.setup_font->line_height
+                              << '\n';
+                } catch (const std::exception& error) {
+                    std::cout << "setup font disabled: " << error.what() << '\n';
+                }
+            } else {
+                std::cout << "setup font disabled: setup.sfn/setup.tga not under "
+                          << options.fonts << " (menu lists use DIALOG)\n";
+            }
             const auto cap_tga = find_filename(options.fonts, "CAPTIONS.TGA");
             if (cap && cap_tga) {
                 try {
@@ -4917,9 +5970,11 @@ int main(int argc, char** argv) {
         if (options.shot.empty()) {
             // Interactive: show the scene, then run the label (gated when audio
             // is available) and keep the window alive throughout.
-            refresh_background(options, session.view);
-            session.display.compose(session.view);
-            session.display.present(session.view, options.overlay);
+            if (!options.entry) {
+                refresh_background(options, session.view);
+                session.display.compose(session.view);
+                session.display.present(session.view, options.overlay);
+            }
             const auto run = [&](EntryPoint point, const byzantine::SceneState& entry,
                                  const byzantine::SceneTrace& look) {
                 if (!audio_ready && look.video_requests.empty()) {
@@ -5014,6 +6069,15 @@ int main(int argc, char** argv) {
             refresh_background(options, session.view);
             session.display.compose(session.view);
             session.display.present(session.view, options.overlay);
+            if (options.bar_show) {
+                session.display.top_bar_visible = *options.bar_show != 0;
+                session.display.top_bar_hover = *options.bar_show;
+                session.display.top_bar_press = 0;
+                session.display.present(session.view, options.overlay);
+                std::cout << "bar_show button=" << *options.bar_show
+                          << " visible=" << (session.display.top_bar_visible ? "yes" : "no")
+                          << '\n';
+            }
             if (options.print_hotspots) print_hotspot_screens(session.view);
             if (options.print_objects) print_objects(session.view);
             if (options.print_variables) print_variables(session);
@@ -5143,6 +6207,26 @@ int main(int argc, char** argv) {
             bool dragged = false;
             int drag_x = 0;
             int drag_y = 0;
+            // 0x408f32/0x4091e5: a top-bar click draws the DWNBAR frame for
+            // 100 ms (Sleep(100)) and then FUN_0041e289's screen opens.
+            MenuUi menu;
+            menu.init(session);
+            int pending_menu_mode = -1;
+            std::uint64_t pending_menu_at = 0;
+            if (options.menu_mode) {
+                menu.open_screen(*options.menu_mode, session);
+            }
+            for (const auto& point : options.menu_clicks) {
+                if (!menu.open) break;
+                menu.click(session, point.first, point.second);
+            }
+            if (!options.menu_shot.empty() && menu.open) {
+                menu.draw(session);
+                if (byzantine::write_ppm(session.display.screen, options.menu_shot)) {
+                    std::cout << "menu_shot file=" << options.menu_shot
+                              << " mode=" << menu.mode << " (interactive)\n";
+                }
+            }
             // 0x43b216 draws once per frame and 0x43bb77 steps the frame list
             // after every visible record. The original's loop is uncapped, so
             // its pass rate (not the host's compose cost) decides how fast an
@@ -5156,6 +6240,22 @@ int main(int argc, char** argv) {
             while (session.running) {
                 SDL_Event event;
                 while (poll_logged_event(&event, "scene", session)) {
+                    if (menu.open) {
+                        // 0x41e289's screen loop owns input until it returns:
+                        // ESC closes it, clicks hit its own 0x45f548 controls.
+                        if (event.type == SDL_QUIT) {
+                            session.running = false;
+                        } else if (event.type == SDL_KEYDOWN &&
+                                   event.key.keysym.sym == SDLK_ESCAPE) {
+                            menu.close(session, "escape");
+                        } else if (event.type == SDL_MOUSEMOTION) {
+                            menu.hover_at(session, event.motion.x, event.motion.y);
+                        } else if (event.type == SDL_MOUSEBUTTONDOWN &&
+                                   event.button.button == SDL_BUTTON_LEFT) {
+                            menu.click(session, event.button.x, event.button.y);
+                        }
+                        continue;
+                    }
                     if (event.type == SDL_QUIT ||
                         (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE)) {
                         session.running = false;
@@ -5203,6 +6303,25 @@ int main(int argc, char** argv) {
                         // playfield, rows 0x1a4..0x1df the inventory strip.
                         const float logical_x = static_cast<float>(event.button.x);
                         const float logical_y = static_cast<float>(event.button.y);
+                        if (logical_y < kScreenPlayfieldTop) {
+                            const int button = byzantine::top_bar_button(
+                                static_cast<int>(logical_x), static_cast<int>(logical_y));
+                            if (button > 0) {
+                                pending_menu_mode = byzantine::top_bar_menu_mode(button);
+                                pending_menu_at = SDL_GetTicks64() + 100;
+                                session.display.top_bar_visible = true;
+                                session.display.top_bar_hover = button;
+                                session.display.top_bar_press = button;
+                                session.display.present(session.view, false);
+                                std::cout << "ui_click top_bar x="
+                                          << static_cast<int>(logical_x) << " y="
+                                          << static_cast<int>(logical_y) << " button="
+                                          << button << " mode=" << pending_menu_mode
+                                          << " pressed (0x4091e5 DWNBAR 100 ms)\n";
+                                continue;
+                            }
+                        }
+                        session.display.top_bar_press = 0;
                         if (handle_bar_click(session, static_cast<int>(logical_x),
                                              static_cast<int>(logical_y), true)) {
                             // The strip and the top band are not scene clicks.
@@ -5220,6 +6339,19 @@ int main(int argc, char** argv) {
                         // 0x40c329/0x4083d4 select the game's own pointer for
                         // whatever is under the mouse. Coordinates are already
                         // logical (SDL_RendererEventWatch rewrites them).
+                        // 0x408fe7/0x40c329: the top bar is a roll-over UI; it
+                        // is drawn on entry and cleared when the pointer leaves.
+                        const int bar_button = byzantine::top_bar_button(
+                            event.motion.x, event.motion.y);
+                        const bool bar_changed =
+                            session.display.top_bar_visible != (bar_button > 0) ||
+                            session.display.top_bar_hover != bar_button;
+                        session.display.top_bar_visible = bar_button > 0;
+                        session.display.top_bar_hover = bar_button;
+                        session.display.top_bar_press = 0;
+                        if (bar_changed) {
+                            session.display.present(session.view, options.overlay);
+                        }
                         session.display.update_cursor_at(
                             session.view, event.motion.x, event.motion.y);
                         if (!dragging) continue;
@@ -5261,6 +6393,23 @@ int main(int argc, char** argv) {
                 // passes the original would have run in that time. A scene with
                 // no animated record keeps the event-driven redraw.
                 const auto now_ms = SDL_GetTicks64();
+                if (pending_menu_mode >= 0 && now_ms >= pending_menu_at) {
+                    const int mode = pending_menu_mode;
+                    pending_menu_mode = -1;
+                    session.display.top_bar_press = 0;
+                    session.display.top_bar_visible = false;
+                    menu.open_screen(mode, session);
+                }
+                if (menu.open) {
+                    // 0x41e289 owns the screen; the scene keeps its state but
+                    // does not animate behind it.
+                    pass_clock.skip_to(now_ms);
+                    pacer.consumed(now_ms, 1);
+                    if (const auto wait = pacer.wait_ms(SDL_GetTicks64()); wait != 0) {
+                        SDL_Delay(static_cast<Uint32>(wait));
+                    }
+                    continue;
+                }
                 if (std::getenv("BYZ_ANIM_TRACE") != nullptr) {
                     static std::uint64_t last_anim_trace = 0;
                     if (now_ms - last_anim_trace >= 100) {
@@ -5466,6 +6615,16 @@ int main(int argc, char** argv) {
         }
         refresh_background(options, session.view);
         session.display.compose(session.view);
+        if (options.bar_show) {
+            // Headless counterpart of 0x408fe7's hover: set the bar state the
+            // pointer path would set, then compose the same 640x480 screen.
+            session.display.top_bar_visible = *options.bar_show != 0;
+            session.display.top_bar_hover = *options.bar_show;
+            session.display.top_bar_press = 0;
+            std::cout << "bar_show button=" << *options.bar_show
+                      << " visible=" << (session.display.top_bar_visible ? "yes" : "no")
+                      << '\n';
+        }
         // --compose-frames N: keep drawing without input, exactly like the
         // interactive loop's 0x43b216 cadence, to observe the frame walk.
         for (std::size_t frame = 0; frame < options.compose_frames; ++frame) {
@@ -5483,6 +6642,30 @@ int main(int argc, char** argv) {
         if (options.print_variables) print_variables(session);
         if (options.print_records) print_records(session.view);
         session.display.write_shot(session.view, options.shot);
+        // --menu/--menu-click-at/--menu-shot: the same MenuUi the window uses,
+        // driven without SDL input. This is the deterministic path for the
+        // menu screens and their actions (a load/new game still runs the same
+        // travel_to, so its scene becomes the current view).
+        if (options.menu_mode || !options.menu_shot.empty() || !options.menu_clicks.empty()) {
+            MenuUi shot_menu;
+            shot_menu.init(session);
+            shot_menu.open_screen(options.menu_mode.value_or(2), session);
+            for (const auto& point : options.menu_clicks) {
+                if (!shot_menu.open) break;
+                shot_menu.click(session, point.first, point.second);
+            }
+            if (!options.menu_shot.empty()) {
+                if (shot_menu.open) {
+                    shot_menu.draw(session);
+                    if (byzantine::write_ppm(session.display.screen, options.menu_shot)) {
+                        std::cout << "menu_shot file=" << options.menu_shot
+                                  << " mode=" << shot_menu.mode << '\n';
+                    }
+                } else {
+                    std::cout << "menu_shot skipped: the menu closed before the shot\n";
+                }
+            }
+        }
         std::cout << "scene=" << session.view.name
                   << " background=" << session.view.background_name
                   << " hotspots=" << session.view.trace.active_hotspots.size() << " slots=";

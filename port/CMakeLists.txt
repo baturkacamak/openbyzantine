@@ -16,6 +16,7 @@ add_library(byzantine_formats STATIC
     src/cursors.cpp
     src/inventory.cpp
     src/jpeg.cpp
+    src/menu.cpp
     src/rle.cpp
     src/panorama.cpp
     src/panorama_view.cpp
@@ -67,6 +68,9 @@ if(BUILD_TESTING)
     add_executable(cursor-test tests/cursors.cpp)
     target_link_libraries(cursor-test PRIVATE byzantine_formats)
     add_test(NAME cursors COMMAND cursor-test)
+    add_executable(menu-test tests/menu.cpp)
+    target_link_libraries(menu-test PRIVATE byzantine_formats)
+    add_test(NAME menu COMMAND menu-test)
     add_executable(inventory-test tests/inventory.cpp)
     target_link_libraries(inventory-test PRIVATE byzantine_formats)
     add_test(NAME inventory COMMAND inventory-test)
