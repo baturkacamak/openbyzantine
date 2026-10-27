@@ -35,6 +35,12 @@ real X11 window grab. MAP 257 -> `MREst1` (160 frames, 10.7 s) before
 `travel index=27 scene=mr`. `make -C port -j2 all test` (new `video-test`) and
 all `analysis/rea/verify_*.py` pass; conversations keep their exact log lines.
 Report `analysis/rea/CF_VIDEO_PLAYBACK.md`; frames in `port/output/cf-video/`.
+Follow-up (same day): the `H` hotspot-outline diagnostic was still drawn on top
+of the clips (a reported MAP travel showed the map's destination rectangles over
+`MREst1`). Video frames are now presented with the overlay off
+(`present(view, false)` / `ui.present(session, false)`); the scene keeps `H`.
+Real-window check of the reported chain: outline-coloured pixels 0 on the clip,
+6508 on the same binary's map frame.
 Still open: `0x43d9c7` palette/format mode, mode 1's intro-buffer clear, mode 3's
 `DAT_00464878` value, and real-time playback makes `--shot` runs last as long as
 the clip (`--no-video` for body-only checks).

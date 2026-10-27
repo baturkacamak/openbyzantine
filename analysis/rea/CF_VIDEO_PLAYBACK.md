@@ -135,6 +135,11 @@ mode 5, and the mixed-case lookup) plus `tests/logging.py`.
 
 ## Boundaries
 
+* The `H` hotspot-outline diagnostic is never drawn on a video frame: `0x413bdd`
+  blits the clip onto the scene surface and no outline belongs to it. A reported
+  MAP travel showed the map's destination rectangles over `MREst1`; both clip
+  families (conversation and `0xbd`) now present frames with the outline
+  suppressed, while the scene itself keeps `H`.
 * The palette/format selector `0x43d9c7` and mode 1's intro-buffer clear
   (`0x419d28`/`0x42b280`) are not modelled; the port always draws RGB565 through
   the same surface.
@@ -166,3 +171,28 @@ SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy port/scene.sh . MAP 87 27.btb \
   --no-audio --run-label 257 --conversation-choices 0,0,0 --selftest-events \
   --video-shot /tmp/mr-est1.ppm
 ```
+
+## Follow-up — the hotspot outline stayed on the travel video (27 October 2026)
+
+Reported right after the first commit: "harita işaretleri kaldı video üzerinde
+mekana girerken" — during the MAP -> destination clip the map's destination
+rectangles stayed on top of the frames.
+
+Cause: the `H` hotspot-outline diagnostic is drawn inside `present_image` from
+`view.trace.active_hotspots`, and `play_cf_video` presented each frame with
+`session.options.overlay` still on. A travel label runs its `0xbd` *before* the
+`0x73`, so the current `view` is still the map and its regions were outlined
+over the clip. The conversation presenter had the same shape (`ui.present`).
+
+Fix: video frames are presented with the overlay off —
+`session.display.present(view, false)` for a `0xbd` clip and
+`ui.present(session, false)` for a conversation frame. The scene itself is
+unchanged (`H` still toggles the rectangle diagnostic).
+
+Verified on a real window (`DISPLAY=:1`, x11grab of the player window) with the
+reported chain: MR `--run-label 265` -> MAP `entry scene=MAP steps=147
+stopped_at=133 hotspots=8` -> click slot 47/action 246 (select) -> click
+slot 13/action 257 (travel) -> `video_request ... MREst1 mode=2 folder=site`
+-> `frames=160 fps=15` and the clip plays with **0** outline-coloured pixels,
+while the same binary's map scene frame has 6508 of them (the outlines are only
+gone from the video). The frame is `port/output/cf-video/map-travel-no-outline.png`.

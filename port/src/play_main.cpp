@@ -3680,7 +3680,10 @@ bool play_cf_video(Session& session, const byzantine::SceneVideoRequest& request
     const auto playback = play_decoded_clip(
         session, *decoded, placement.fullscreen, placement.x, placement.y,
         session.options.video_shot, kSceneClipTags, request.name,
-        [&] { session.display.present(session.view, session.options.overlay); },
+        // 0x413bdd presents the clip alone; the hotspot outline is a port
+        // diagnostic and must not be drawn over the video (the reported
+        // "map markers left on the video" while travelling).
+        [&] { session.display.present(session.view, false); },
         [&](const std::string& path) {
             session.display.build_screen(session.view);
             return byzantine::write_ppm(session.display.screen, path);
@@ -3870,11 +3873,17 @@ struct ConversationUi {
         draw_caption(screen);
     }
 
-    void present(Session& session) {
+    // `show_overlay` is the port's hotspot-outline diagnostic. The original
+    // never draws it, so a video frame (which covers the playfield) is presented
+    // without it: 0x413bdd blits the clip over the scene and no outline is part
+    // of that surface. The scene itself keeps the normal H behaviour.
+    void present(Session& session, bool show_overlay) {
         compose(session);
-        session.display.present_image(screen, session.view, session.options.overlay,
+        session.display.present_image(screen, session.view, show_overlay,
                                       kScreenPlayfieldTop);
     }
+
+    void present(Session& session) { present(session, session.options.overlay); }
 
     bool write(Session& session, const std::string& path) {
         compose(session);
@@ -4140,7 +4149,10 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                             video_shot_written ? std::string()
                                                : options.conversation_video_shot,
                             kConversationClipTags, event.line.clip,
-                            [&] { ui.present(session); },
+                            // 0x413bdd draws the clip over the scene surface;
+                            // the port's hotspot outline is a diagnostic and
+                            // must not sit on top of the FMV.
+                            [&] { ui.present(session, false); },
                             [&](const std::string& path) {
                                 return ui.write(session, path);
                             });

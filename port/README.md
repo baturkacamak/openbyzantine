@@ -117,6 +117,10 @@ etiket kümesinde bulunuyor. Kanıt ve bilinmeyen listesi:
   yok sayılır; ses bitince betik sesin sırasında kaldığı yerden devam eder.
   Tıklamayla başlayan etiketler de aynı yolu kullanır (önce betik tamamlanıp
   sonra ses çalınmaz). `H` alan çerçevelerini açar/kapatır, `Esc` çıkar.
+  `0xbd`/konuşma videoları oynarken kareler çerçeveler **çizilmeden** sunulur:
+  çerçeve çizimi portun tanı/sürüm kolaylığıdır, özgün yüzeyde yoktur ve
+  videonun üstünde kalmamalıdır (harita işaretlerinin geçiş videosunda kalması
+  bu yüzden düzeltildi).
   `--selftest-events` bu bekleme sırasında `H` ve bir tıklama enjekte edip
   sayaçları basar (başsız doğrulama).
   **Panorama**: bir `0xb9` düğümü yüklendiğinde sahne katmanı
