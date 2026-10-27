@@ -19,7 +19,13 @@ def main():
                SDL_AUDIODRIVER="dummy")
     with tempfile.TemporaryDirectory(prefix="byz-examine-controls-") as output:
         command = [str(root / "port/scene.sh"), str(root), "EA", "602", "26.btb",
-                   "--no-audio", "--bar-select", "17", "--bar-use"]
+                   "--no-audio"]
+        baseline = subprocess.run(
+            command + ["--shot", str(Path(output) / "arrival.ppm")],
+            cwd=root, env=env, text=True, capture_output=True, timeout=60)
+        assert baseline.returncode == 0, baseline.stdout + baseline.stderr
+        arrival_slots = baseline.stdout.strip().splitlines()[-1].split("slots=")[1]
+        command += ["--bar-select", "17", "--bar-use"]
         # Camera action, switch to the note, switch back, repeat action, exit.
         for point in ["210,280", "190,450", "310,450", "210,280", "589,349"]:
             command += ["--click-at", point]
@@ -34,7 +40,8 @@ def main():
         assert "closeup_switch scene=EXAMINE item=30" in log, log
         assert "closeup_switch scene=EXAMINE item=17" in log, log
         assert "closeup_return scene=EA from=EXAMINE" in log, log
-        assert "hotspots=9 bar=visible" in log, log
+        assert log.strip().splitlines()[-1].endswith("slots=" + arrival_slots), log
+        assert "bar=visible" in log, log
         assert "examined=yes" in log, log
         print("Real camera action twice, item switch and EA parent return: PASS")
 

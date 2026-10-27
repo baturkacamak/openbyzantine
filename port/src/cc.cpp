@@ -2263,8 +2263,19 @@ static SceneTrace trace_scene_from(const std::vector<CcInstruction>& script,
             // enabled bits, then disables those hotspots. A second suspension
             // replaces the first snapshot, rather than nesting it.
             state.suspended_hotspots.clear();
+            // 0x438cf9 reads and clears object +8, including save-active
+            // objects that have never been written through hotspot_enabled.
+            for (auto& [slot, object] : state.objects) {
+                if (object.active == 1) {
+                    state.suspended_hotspots[slot] = true;
+                    object.active = 0;
+                }
+                state.hotspot_enabled[slot] = false;
+            }
             for (auto& [slot, is_enabled] : state.hotspot_enabled) {
-                if (is_enabled) state.suspended_hotspots[slot] = true;
+                if (state.objects.find(slot) == state.objects.end() && is_enabled) {
+                    state.suspended_hotspots[slot] = true;
+                }
                 is_enabled = false;
             }
             break;
@@ -2272,7 +2283,12 @@ static SceneTrace trace_scene_from(const std::vector<CcInstruction>& script,
             // FUN_00438d78 consumes saved set bits and re-enables their live
             // hotspots. Other currently enabled hotspots remain enabled.
             for (const auto& [slot, was_enabled] : state.suspended_hotspots) {
-                if (was_enabled && hotspots.find(slot) != hotspots.end()) {
+                if (!was_enabled) continue;
+                const auto object = state.objects.find(slot);
+                if (object != state.objects.end()) {
+                    object->second.active = 1;
+                    state.hotspot_enabled[slot] = true;
+                } else if (hotspots.find(slot) != hotspots.end()) {
                     state.hotspot_enabled[slot] = true;
                 }
             }
@@ -2327,7 +2343,7 @@ static SceneTrace trace_scene_from(const std::vector<CcInstruction>& script,
         bool active = false;
         const auto object = state.objects.find(slot);
         if (object != state.objects.end()) active = object->second.active != 0;
-        if (!active) {
+        else {
             const auto enabled = state.hotspot_enabled.find(slot);
             if (enabled != state.hotspot_enabled.end()) active = enabled->second;
         }

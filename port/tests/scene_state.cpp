@@ -1446,6 +1446,35 @@ int main(int argc, char** argv) {
         require(byzantine::trace_scene_label(transitions, {}, transition_state, 20).active_hotspots.empty(),
                 "nested suspend retained obsolete snapshot");
 
+        // Real object +8 is authoritative, even if the compatibility mirror
+        // is missing or stale. TK switches from slots 1/2 to 3/4/5 through
+        // this path: retaining object.active made the old area win every hit.
+        byzantine::SceneState live_transitions;
+        live_transitions.objects[1].active = 1;  // saved active; no mirror
+        live_transitions.objects[2].active = 0;
+        live_transitions.hotspot_enabled[2] = true;  // stale mirror
+        const auto live_suspended = byzantine::trace_scene_label(
+            transitions, {}, live_transitions, 10);
+        require(live_suspended.active_hotspots.empty() &&
+                    live_transitions.objects[1].active == 0 &&
+                    live_transitions.suspended_hotspots.size() == 1 &&
+                    live_transitions.suspended_hotspots.count(1) == 1,
+                "suspend did not use authoritative object active bytes");
+        live_transitions.objects[2].active = 1;  // new view enabled separately
+        const auto live_restored = byzantine::trace_scene_label(
+            transitions, {}, live_transitions, 20);
+        require(live_restored.active_hotspots.size() == 2 &&
+                    live_transitions.objects[1].active == 1 &&
+                    live_transitions.objects[2].active == 1,
+                "restore lost an object or overwrote the new view's active set");
+        byzantine::trace_scene_label(transitions, {}, live_transitions, 30);
+        live_transitions.hotspot_enabled[1] = true;  // must not revive object
+        const auto live_consumed = byzantine::trace_scene_label(
+            transitions, {}, live_transitions, 20);
+        require(live_consumed.active_hotspots.size() == 1 &&
+                    live_consumed.active_hotspots.front().slot == 2,
+                "stale mirror revived a disabled object after restore");
+
         // Dialogue records (DAT_00486f90), channel stacks and the CI/CY name
         // mapping used by 0xab/0xb0/0xb1/0xb6. Synthetic tables keep every
         // expectation hand-checkable: the global lists define record ids, the

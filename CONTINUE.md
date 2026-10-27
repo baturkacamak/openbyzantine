@@ -20,7 +20,26 @@ game ISOs/archives, `analysis/rea/BETRAYAL.EXE`, `tools/rea`, `upscale_ornek` an
 needs `port/output/`: recreate it from your own copy with `port/byzantine-all`
 (and `port/scene.sh` for the extracted media) before running the suites.
 
-## Latest fix — examined items must not remain held (27 October 2026)
+## Latest fix — stale hitboxes after a view switch (TK, 27 October 2026)
+
+Reproduced the user's TKXA -> TKXB trace: slot 2/action 61 stayed active and
+won the hit test repeatedly; TKXB incorrectly exposed 1/2/3/4/5. `0xb8` and
+`0xb7` updated only `hotspot_enabled`, while the hit test also read the real
+object +8 bytes. They now snapshot/clear/restore `objects[].active` and keep
+the compatibility mirror synchronized. Active-set construction falls back to
+the mirror only when the object is absent, not when an existing object is off.
+Hash-verified saved evidence: `0x438cf9` / `0x438d78`; no new decompilation.
+
+TK real-script regression: TKXA slots 1/2 -> TKXB slots 3/4/5 -> TKXC slot 6
+-> TKXB -> TKXA slots 1/2. `python3 analysis/rea/verify_tk_hotspots.py
+/tmp/byz-conv` passes. `make -C port -j2 all test` passes all 14 suites.
+The examine regression now compares parent return to its actual arrival set
+(EA 602 now 7, not the old 9 which included stale mirror-only enabled bits).
+This is a shared VM fix, not removal of all overlapping rectangles: legitimate
+overlaps retain the existing ascending-id priority.
+Report: `analysis/rea/HOTSPOT_ACTIVE_REGRESSION.md`.
+
+## Previous fix — examined items must not remain held (27 October 2026)
 
 User reported every item's examine-specific action stopped working. Reproduced
 on EA `26.btb`, label 602, ICAMERA (17): EXAMINE slot 91/action 288 was rejected
