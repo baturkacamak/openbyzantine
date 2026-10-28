@@ -141,3 +141,34 @@ Everything else in the earlier "still open" list is either unused by shipped
 data (`0x10` offset pair, `0x418eb2` band blend, CF-video `0x43d9c7` modes), a
 host-library concern, or a save-block semantic that is round-tripped byte for
 byte.
+
+## 8. Do the leftovers need work? (measured)
+
+1. **`+0x09 & 0x10` — unreachable, do not implement.** Two independent scans:
+   no shipped script sets mask index 8/9 on `0x85`/`0x86` (§2), and every record
+   in **all 55 shipped saves** (820 records, `savegame/*.btb` + the save sample)
+   carries only flags `0x00` (25), `0x04` (281), `0x20` (460) and `0x24` (54).
+   Not one record carries `0x10`, `0x80` or `0x40`. The gate could never fire, so
+   implementing it would be dead code with no way to validate it.
+2. **`0x418eb2` — unreachable, do not implement.** It is only selected by
+   `0x431ec2`'s code `0x68`; `0x432133` never returns `0x68` (1 -> 0x67, 2 ->
+   0x65, 3 -> 0x66) and a `0xbd` leaves only `0x65`/`0x6a`/`0x67` in
+   `DAT_00460664`. Nothing in the shipped data can request it, and its band
+   geometry has no reference frame to be checked against.
+3. **`0x43d9c7` — host-library, do not reconstruct.** It is the original's AVI
+   engine: `ICSendMessage(handler, 0x5001, &format, size)` with fourcc `IV41`
+   (Indeo 4) for the 1:1, 2x and buffer modes `0x43a248` selects. FFmpeg
+   replaces it. Evidence that the codec is not a gap: all **381** AVIs already
+   extracted under the data root probe cleanly — `indeo4` 355, `indeo3` 25,
+   `msvideo1` 1, **0 undecodable**.
+4. **Save blocks — a data-vs-behaviour distinction.** The writer is
+   byte-identical to the parser on all 51 CD1 saves, so nothing written is lost;
+   what is not *applied* is the saved loop chain `DAT_0046019c` (block 21):
+   `resume_ambient` restarts the arrival state's active loops instead of
+   replaying the chain. That is the only behaviour gap left, and it is audible
+   only when a save is loaded mid-scene with a loop set that differs from the
+   arrival state's own. Worth doing only if a save-load report shows a wrong or
+   missing loop.
+
+Recommendation: 1-3 need no work (1 and 2 cannot be reached, 3 is delegated by
+policy); 4 is optional and evidence-driven.

@@ -1,5 +1,4 @@
 ## The three census gaps are closed: shadow draw, trail, klio pointer (28 October 2026)
-
 `analysis/rea/OPEN_GAPS_CENSUS.md` found three data-backed gaps; all three are now
 implemented.
 
@@ -32,6 +31,16 @@ produced `record id=34 … flags=0x84 asset=vtDEShdw`).
 
 `make -C port -j2 all test` (compose-test and scene-state-test extended) and all
 12 `analysis/rea/verify_*.py` pass.
+
+Leftovers measured the same day (`OPEN_GAPS_CENSUS.md` §8): `+0x09 & 0x10` is
+unreachable — no script sets mask 8/9 and **all 55 shipped saves (820 records)**
+carry only flags `0x00`/`0x04`/`0x20`/`0x24`; `0x418eb2` is unreachable (only
+`0x431ec2`'s code `0x68` selects it, which no operand produces); `0x43d9c7` is
+the original's Indeo-4 AVI setup (`ICSendMessage(…, 0x5001, &format, …)`, fourcc
+`IV41`) and FFmpeg replaces it (all 381 extracted AVIs probe cleanly: indeo4 355,
+indeo3 25, msvideo1 1, 0 failures). The only behaviour (not data) gap left is
+applying the saved loop chain `DAT_0046019c` on a save load, which
+`resume_ambient` approximates.
 
 ## Open-gap census: three real gaps, the rest unused by shipped data (28 October 2026)
 
