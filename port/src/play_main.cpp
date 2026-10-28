@@ -150,6 +150,11 @@ struct Options {
     std::string conversation_shot;             // --conversation-shot <file.ppm>
     std::string conversation_video_shot;       // first decoded media frame
     std::string video_shot;                    // first decoded 0xbd CF frame
+    // --present-dump <dir>: write every newly seen presented 640x480 screen as
+    // a PPM (video frames excluded: their JPEGs are already in the clip cache).
+    // Bounded by --present-dump-max (or BYZ_PRESENT_DUMP/BYZ_PRESENT_DUMP_MAX).
+    std::string present_dump;
+    std::size_t present_dump_max = 40;
     bool entry = false;                        // --entry: start at instruction 0
     std::optional<int> run_label;              // --run-label <n>: after --entry
     std::optional<int> click;                  // --click <slot>
@@ -330,6 +335,14 @@ Options parse_options(int argc, char** argv) {
             else if (token == "--conversation-object") options.conversation_object = std::stoi(value);
             else if (token == "--conversation-video-shot") options.conversation_video_shot = value;
             else if (token == "--video-shot") options.video_shot = value;
+            else if (token == "--present-dump") options.present_dump = value;
+            else if (token == "--present-dump-max") {
+                const auto limit = std::stoul(value);
+                if (limit == 0 || limit > 5000) {
+                    throw std::runtime_error("--present-dump-max must be 1..5000");
+                }
+                options.present_dump_max = limit;
+            }
             else if (token == "--conversation-cancel") {
                 options.conversation_cancel = std::stoi(value);
                 if (options.conversation_cancel < 0) {
@@ -1219,6 +1232,25 @@ struct Display {
     int logical_height = kScreenHeight;
     // Records the last compose drew and stepped through 0x43b216's normal pass.
     std::vector<std::uint16_t> drawn_record_ids;
+    // Host diagnostics for a reported "another picture flashes for an instant":
+    // every SDL_RenderPresent checks what it actually shows (tag, scene layer,
+    // dialogue/bar state, a sampled checksum). A detail-trace line is written
+    // when the picture changes, while a capture window is open, or as a slow
+    // heartbeat; the window is armed by a scene load and by a CF clip's end, so
+    // the frames that can flash are named without logging a 60 Hz animation.
+    // `present_detail` is set by the caller just before presenting (e.g. a
+    // clip's frame number).
+    std::uint64_t present_index = 0;
+    std::uint64_t present_logged = 0;
+    std::uint64_t present_hash = 0;
+    bool present_hash_known = false;
+    std::string present_state_key;
+    std::string present_detail;
+    std::chrono::steady_clock::time_point picture_since{};
+    std::chrono::steady_clock::time_point present_logged_at{};
+    std::chrono::steady_clock::time_point present_capture_until{};
+    std::size_t present_dumps = 0;
+    std::set<std::uint64_t> dumped_hashes;
 
     ~Display() {
         for (auto& entry : cursors_) {
@@ -1226,6 +1258,12 @@ struct Display {
         }
         cursors_.clear();
         if (default_cursor_ != nullptr) SDL_FreeCursor(default_cursor_);
+        if (present_index != 0) {
+            // End-of-run marker for the per-present trace lines (detail file).
+            std::cout << "present_summary frames=" << present_index
+                      << " logged=" << present_logged
+                      << " dumps=" << present_dumps << '\n';
+        }
     }
 
     void init(const Options& options) {
@@ -1676,7 +1714,7 @@ struct Display {
     }
 
     void present_image(const byzantine::Rgb16Surface& image, const SceneView& view,
-                       bool overlay, int hotspot_offset_y) {
+                       bool overlay, int hotspot_offset_y, const char* tag = "scene") {
         if (logical_width != image.width || logical_height != image.height) {
             SDL_DestroyTexture(texture);
             texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB565,
@@ -1728,6 +1766,140 @@ struct Display {
             }
         }
         SDL_RenderPresent(renderer);
+        log_present(image, view, tag);
+    }
+
+    // Called after each SDL_RenderPresent. The checksum samples every 4th
+    // pixel: enough to tell two different pictures apart without hashing
+    // 300k pixels per frame in the animation loop.
+    void log_present(const byzantine::Rgb16Surface& image, const SceneView& view,
+                     const char* tag) {
+        std::uint64_t hash = 1469598103934665603ull;
+        for (std::size_t index = 0; index < image.pixels.size(); index += 4) {
+            hash ^= image.pixels[index];
+            hash *= 1099511628211ull;
+        }
+        const auto now = std::chrono::steady_clock::now();
+        const std::string tag_name(tag);
+        const int bar = top_bar_visible
+                            ? (top_bar_press != 0 ? top_bar_press : top_bar_hover)
+                            : 0;
+        // "Which kind of picture is up" without the camera angle: a panorama
+        // rotation changes the pixels (and so the hash) but not this key.
+        const std::string state_key =
+            tag_name + '|' + layer_key(view) + '|' +
+            (view.state.dialogue_visible ? "1" : "0") + '|' + std::to_string(bar);
+        const bool state_changed = !present_hash_known || state_key != present_state_key;
+        const bool picture_changed = state_changed || hash != present_hash;
+        const auto held_prev =
+            present_hash_known
+                ? std::chrono::duration_cast<std::chrono::milliseconds>(now - picture_since)
+                      .count()
+                : 0;
+        const auto since_log = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                   now - present_logged_at)
+                                   .count();
+        const bool captured = now < present_capture_until;
+        ++present_index;
+        // Dump the picture when a capture window is open (a scene load or a clip
+        // end) or when the state changed, once per distinct checksum and up to
+        // --present-dump-max. Video frames are skipped: their JPEGs are already
+        // in the clip cache and the trace line names the exact frame.
+        std::string dump_path;
+        if (ui_options != nullptr && !ui_options->present_dump.empty() &&
+            present_dumps < ui_options->present_dump_max && present_detail.empty() &&
+            (captured || state_changed) && dumped_hashes.insert(hash).second) {
+            std::error_code error;
+            const std::filesystem::path directory(ui_options->present_dump);
+            std::filesystem::create_directories(directory, error);
+            if (!error) {
+                char name[96];
+                std::snprintf(name, sizeof(name), "p%05llu-%s-0x%016llx.ppm",
+                              static_cast<unsigned long long>(present_index),
+                              tag_name.c_str(),
+                              static_cast<unsigned long long>(hash));
+                if (byzantine::write_ppm(image, (directory / name).string())) {
+                    dump_path = (directory / name).string();
+                    ++present_dumps;
+                    std::cout << "present_dump file=" << dump_path
+                              << " index=" << present_index << " tag=" << tag_name
+                              << " layer=" << layer_name(view) << '\n';
+                }
+            }
+        }
+        // A detail line per changed picture, per dumped frame and a 5 s
+        // heartbeat. A 60 Hz animation therefore does not flood the trace.
+        if (picture_changed || since_log >= 5000 || !dump_path.empty()) {
+            ++present_logged;
+            byzantine::diagnostics::write("present", [&](auto& out) {
+                out << "index=" << present_index << " tag=" << tag_name;
+                if (!present_detail.empty()) out << " detail=" << present_detail;
+                out << " scene=" << view.name << " label=" << view.label
+                    << " layer=" << layer_name(view)
+                    << " dialogue=" << (view.state.dialogue_visible ? 1 : 0)
+                    << " bar=" << bar << " size=" << image.width << 'x'
+                    << image.height << " hash=0x" << std::hex << hash;
+                if (present_hash_known) {
+                    out << " prev_hash=0x" << present_hash;
+                }
+                out << std::dec << " changed=" << (picture_changed ? 1 : 0)
+                    << " prev_held_ms=" << held_prev
+                    << " since_log_ms=" << since_log
+                    << " captured=" << (captured ? 1 : 0);
+                if (!dump_path.empty()) out << " dump=" << dump_path;
+            });
+            present_logged_at = now;
+        }
+        present_detail.clear();
+        if (picture_changed) {
+            picture_since = now;
+            present_state_key = state_key;
+        }
+        present_hash = hash;
+        present_hash_known = true;
+    }
+
+    // Arms the capture window used by log_present before a scene load or after
+    // a 0xbd clip, i.e. exactly where a stale/other picture can flash.
+    void arm_present_capture(int milliseconds, const char* reason) {
+        const auto until =
+            std::chrono::steady_clock::now() + std::chrono::milliseconds(milliseconds);
+        if (until > present_capture_until) present_capture_until = until;
+        byzantine::diagnostics::write("present_capture", [&](auto& out) {
+            out << "reason=" << reason << " ms=" << milliseconds;
+        });
+    }
+
+    // What the scene layer is at this instant: the panorama node (with the
+    // camera) when 0xb9 is the last layer, otherwise the background JPEG.
+    static std::string layer_name(const SceneView& view) {
+        if (panorama_layer(view) && view.panorama) {
+            std::ostringstream out;
+            out << "panorama:"
+                << std::filesystem::path(view.panorama->path()).filename().string()
+                << " yaw=" << view.panorama->yaw_degrees()
+                << " pitch=" << view.panorama->pitch_degrees();
+            return out.str();
+        }
+        if (!view.background_file.empty()) {
+            return "background:" +
+                   std::filesystem::path(view.background_file).filename().string();
+        }
+        return "none";
+    }
+
+    // layer_name without the camera: the key an unchanged picture keeps while
+    // the panorama turns.
+    static std::string layer_key(const SceneView& view) {
+        if (panorama_layer(view) && view.panorama) {
+            return "panorama:" +
+                   std::filesystem::path(view.panorama->path()).filename().string();
+        }
+        if (!view.background_file.empty()) {
+            return "background:" +
+                   std::filesystem::path(view.background_file).filename().string();
+        }
+        return "none";
     }
 
     // 0x40df05 installs an SDL colour cursor from the game's own art. A table
@@ -2076,7 +2248,8 @@ void pump_window(Session& session) {
     }
     if (session.conversation_frame != nullptr) {
         session.display.present_image(*session.conversation_frame, session.view,
-                                      session.options.overlay, kScreenPlayfieldTop);
+                                      session.options.overlay, kScreenPlayfieldTop,
+                                      "conversation");
     } else {
         session.display.present(session.view, session.options.overlay);
     }
@@ -2801,6 +2974,15 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose,
         byzantine::scene_variable_layout(*session.metadata, session.view.name);
     const auto& to_layout = byzantine::scene_variable_layout(*session.metadata, target);
     const auto from = session.view.name;
+    // Bracket the scene load in the detail trace: the frames presented between
+    // these markers are what the window shows while the next scene is being
+    // read/decoded (a reported flash of an unexpected picture comes from here).
+    byzantine::diagnostics::write("travel_begin", [&](auto& out) {
+        out << "index=" << index << " from=" << from << " target=" << target;
+    });
+    // The departing scene stays presented while the target is read/decoded;
+    // capture those frames and the target's first ones.
+    session.display.arm_present_capture(800, "travel_begin");
     const auto from_locals = locals_digest(session.view.state);
     std::vector<std::uint16_t> pool;
     std::string written;
@@ -2878,6 +3060,10 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose,
     std::cout << '\n';
 
     session.view = std::move(next_view);
+    byzantine::diagnostics::write("travel_loaded", [&](auto& out) {
+        out << "index=" << index << " scene=" << session.view.name
+            << " layer=none (0x69/0xb9 not applied yet)";
+    });
     if (loaded_save != nullptr) session.save_base = *loaded_save;
     session.reload_available = false;
     options.scene = std::move(next);
@@ -3228,6 +3414,35 @@ void follow_switches(Session& session, bool verbose) {
         }
         if (!travel_to(session, index, verbose)) return;
     }
+}
+
+// 0x42db22's 0x73 writes DAT_00482428 and ends the script; 0x42c8a0 then reloads
+// the target. The original's loop draws between script calls, so inside one
+// action the departing scene is never drawn after the last instruction: a
+// blocking 0xbd clip keeps its last frame until the target's first frame.
+// The port used to compose+present the action's result before follow_switches,
+// which showed the old scene (for a MAP site action: the map with its markers
+// closed and the strip on) between the site video and the target scene. See
+// analysis/rea/PRESENT_TRACE.md (reported from the Topkapı entry).
+bool action_switches_scene(const Session& session) {
+    return session.view.trace.scene_switch_requested.has_value();
+}
+
+// Presents the committed click only when the scene stays. `travel_to` presents
+// the target scene itself.
+void present_action_result(Session& session, const Options& options, bool verbose) {
+    if (action_switches_scene(session)) return;
+    session.display.compose(session.view, verbose);
+    session.display.present(session.view, options.overlay);
+}
+
+// A requested 0x73 was refused (missing scene index/script): the departing
+// scene is still current, so show the click's own committed frame rather than
+// leaving the clip's last frame behind.
+void present_refused_switch(Session& session, const Options& options) {
+    if (!action_switches_scene(session)) return;
+    session.display.compose(session.view);
+    session.display.present(session.view, options.overlay);
 }
 
 // Diagnostic: the logical playfield rectangle that actually hits each active
@@ -3871,6 +4086,7 @@ ClipPlayback play_decoded_clip(Session& session, const DecodedClip& decoded,
     const auto frame_time = std::chrono::microseconds(
         1000000 / std::max(1, decoded.fps));
     auto next_frame = std::chrono::steady_clock::now();
+    std::size_t frame_index = 0;
     for (const auto& frame_file : decoded.frames) {
         if (!session.running) break;
         byzantine::JpegImage image;
@@ -3900,6 +4116,13 @@ ClipPlayback play_decoded_clip(Session& session, const DecodedClip& decoded,
         }
         if (!placed) break;
         result.played = true;
+        // The presentation trace line names the exact cached JPEG the clip
+        // showed, so a bright/wrong frame can be checked against f%04u.jpg.
+        ++frame_index;
+        session.display.present_detail =
+            clip + ":" + std::to_string(frame_index) + "/" +
+            std::to_string(decoded.frames.size()) + ":" +
+            frame_file.filename().string();
         present();
         if (!shot_path.empty() && !result.shot_written) {
             if (write_shot(shot_path)) {
@@ -4198,6 +4421,10 @@ bool play_cf_video(Session& session, const byzantine::SceneVideoRequest& request
     if (byzantine::video_sets_4859cd(request.mode, request.name)) {
         session.view.state.flag_4859cd = true;
     }
+    // The frames right after a clip are where a stale picture was reported: the
+    // script continues with the next instructions (often the 0x73 travel) and
+    // this build may still present the departing scene for a moment.
+    session.display.arm_present_capture(800, "video_end");
     return true;
 }
 
@@ -4372,7 +4599,7 @@ struct ConversationUi {
     void present(Session& session, bool show_overlay) {
         compose(session);
         session.display.present_image(screen, session.view, show_overlay,
-                                      kScreenPlayfieldTop);
+                                      kScreenPlayfieldTop, "conversation");
     }
 
     void present(Session& session) { present(session, session.options.overlay); }
@@ -5488,7 +5715,8 @@ struct MenuUi {
 
     void present(Session& session) {
         draw(session);
-        session.display.present_image(session.display.screen, session.view, false, 0);
+        session.display.present_image(session.display.screen, session.view, false, 0,
+                                      "menu");
         float x = 0;
         float y = 0;
         session.display.mouse_logical(&x, &y);
@@ -5878,7 +6106,7 @@ struct MenuUi {
                         display.surface.at(column, row);
                 }
             }
-            display.present_image(display.screen, session.view, false, 0);
+            display.present_image(display.screen, session.view, false, 0, "menu_movie");
         };
         const auto playback = play_decoded_clip(
             session, *decoded, true, 0, 0, session.options.video_shot, kSceneClipTags,
@@ -5978,7 +6206,7 @@ struct MenuUi {
                                      kScreenWidth / 2, line_y, 1, 1,
                                      headings[index] ? 0xffe0 : 0xffff);
             }
-            display.present_image(display.screen, session.view, false, 0);
+            display.present_image(display.screen, session.view, false, 0, "credits");
             ++frames;
             if (session.options.credits_frames &&
                 frames >= *session.options.credits_frames) {
@@ -7209,6 +7437,24 @@ int main(int argc, char** argv) {
         Session session;
         session.options = parse_options(argc, argv);
         auto& options = session.options;
+        if (options.present_dump.empty()) {
+            if (const char* env = std::getenv("BYZ_PRESENT_DUMP"); env && *env) {
+                options.present_dump = env;
+            }
+        }
+        if (const char* env = std::getenv("BYZ_PRESENT_DUMP_MAX"); env && *env) {
+            try {
+                const auto limit = std::stoul(env);
+                if (limit != 0) options.present_dump_max = limit;
+            } catch (const std::exception&) {
+                std::cout << "present_dump_max env ignored=" << env << '\n';
+            }
+        }
+        if (!options.present_dump.empty()) {
+            std::cout << "present_dump dir=" << options.present_dump
+                      << " max=" << options.present_dump_max
+                      << " (each distinct non-video presented frame)\n";
+        }
         const auto label_value = options.label.empty()
                                      ? 0
                                      : std::stoul(options.label, nullptr, 0);
@@ -7567,13 +7813,16 @@ int main(int argc, char** argv) {
                 show_message_text(session, true);
                 apply_panorama_events(session.view, options, true);
                 refresh_background(options, session.view);
-                session.display.compose(session.view);
-                session.display.present(session.view, options.overlay);
+                // A click that reaches 0x73 leaves this scene: the departing
+                // frame is not presented (travel_to presents the target).
+                const bool switching = action_switches_scene(session);
+                present_action_result(session, options, true);
                 std::cout << "click_result "
                           << describe_trace(session.view.trace, session.view.state)
                           << " active_slots="
                           << session.view.trace.active_hotspots.size() << '\n';
                 follow_switches(session, true);
+                if (switching) present_refused_switch(session, options);
                 if (options.print_hotspots) print_hotspot_screens(session.view);
             };
             // Arrow keys turn the panorama (the original uses on-screen cursor
@@ -7608,13 +7857,14 @@ int main(int argc, char** argv) {
                         show_message_text(session, true);
                         apply_panorama_events(session.view, options, true);
                         refresh_background(options, session.view);
-                        session.display.compose(session.view);
-                        session.display.present(session.view, options.overlay);
+                        const bool switching = action_switches_scene(session);
+                        present_action_result(session, options, true);
                         std::cout << "click_result "
                                   << describe_trace(session.view.trace, session.view.state)
                                   << " active_slots="
                                   << session.view.trace.active_hotspots.size() << '\n';
                         follow_switches(session, true);
+                        if (switching) present_refused_switch(session, options);
                     }
                 } else if (plan.ok) {
                     session.view.state = before_state;

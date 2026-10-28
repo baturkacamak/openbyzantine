@@ -72,6 +72,35 @@ karesinin piksel verisini, kaçırılmış fiziksel girişleri veya hoparlör ç
 kaydetmez. Normal çıkış ve yönlendirilen SIGTERM/SIGINT özete yazılır; kayıt
 süreci SIGKILL ile öldürülürse özet `running` kalabilir, yazılmış log korunur.
 
+### Sunulan kare izi (`present`)
+
+Ekranda bir an görünen yanlış/başka bir resmi bulmak için her
+`SDL_RenderPresent` ayrıntı loguna (`run-....trace.log`) yazılır:
+`present index= tag= scene= label= layer= dialogue= bar= hash= prev_hash=
+changed= prev_held_ms=`. `layer` o anda çizilen katmanı (arka plan JPEG'i veya
+panorama düğümü + yaw/pitch), `detail` bir video karesiyse tam kareyi
+(`SMEst1:65/65:f0065.jpg`), `prev_held_ms` ise **önceki resmin ekranda kaldığı
+süreyi** verir. Sahne yüklemesi ve video bitişi 800 ms'lik bir yakalama penceresi
+açar; `travel_begin`/`travel_loaded` ve `present_capture` satırları yüklemeyi
+sınırlar. Animasyon her karede log basmaz; resim/katman değişiminde ve 5 s'lik
+kalp atışında yazar. Koşu sonunda `present_summary frames= logged= dumps=`
+basılır. Ayrıntı: [`PRESENT_TRACE.md`](../analysis/rea/PRESENT_TRACE.md).
+
+Karelerin kendisini de saklamak için (video kareleri hariç, tekrarsız, varsayılan
+en fazla 40 PPM):
+
+```sh
+BYZ_PRESENT_DUMP=/tmp/byz-present ./port/scene.sh ".." MR 0 30.btb --entry
+# veya doğrudan oyuncuya: --present-dump <klasor> [--present-dump-max N]
+```
+
+Her yazılan kare terminale `present_dump file=... layer=...` olarak basılır.
+
+Bir tıklama `0x73` ile bitiyorsa (sahne değişecekse) tıklamanın kendi karesi
+artık sunulmaz: hedef sahneyi `travel_to` sunar. Böylece bir site videosundan
+sonra eski harita karesi araya girmiyor; video son karesi hedef sahne hazır
+olana kadar ekranda kalıyor (`PRESENT_TRACE.md`, Topkapı girişi).
+
 Panorama kamera tüketimi ve 16 bit kenar sarma tamponu, bağımsız C++17
 yardımcıları olarak `src/panorama.cpp` içine eklendi ve `panorama-test` ile
 sınandı. Devam adımında açı dönüşümü, yaw piksel ofseti, pitch sınırı ve açık

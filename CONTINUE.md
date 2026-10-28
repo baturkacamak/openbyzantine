@@ -1,3 +1,77 @@
+## Presented-frame trace added: the post-video flash is the old MAP frame (28 October 2026)
+
+User report on `run-20261028T103348.882238Z-mvh2o62q` (MR → MAP → SM): the site
+video plays, then "a picture appears for an instant and closes" and it cannot be
+identified. The logs showed the sequence but not the presented pixels, so the
+player now records every `SDL_RenderPresent` in the detail trace
+(`present index/tag/detail/scene/layer/dialogue/bar/hash/prev_hash/changed/
+prev_held_ms`), marks `travel_begin`/`travel_loaded` and opens an 800 ms
+`present_capture` window on a scene load and at a `0xbd` clip's end. Animated
+frames are not logged one by one (change + 5 s heartbeat only).
+`--present-dump <dir>` / `BYZ_PRESENT_DUMP` writes each distinct captured
+640x480 screen as PPM (video frames excluded, cap `--present-dump-max`, default
+40) and `present_summary` closes the run.
+
+Reproduction `run-20261028T105522.508703Z-z2r8s8ur` (dummy SDL, same save and
+three clicks) identifies the flash: after `SMEst1` frame 65 the **departing MAP
+frame** (`MAPFINM1.jpg`, records 0/15, `dialogue=1` strip) is presented and
+holds until the SM00 panorama is decoded — `prev_held_ms=176` on the SM line (two runs: 176/179 ms); the
+user's run held it 112 ms (`+10.377s` map compose → `+10.489s` SM compose).
+Cause observed: `handle_click` composes/presents the action result before
+`follow_switches`/`travel_to`, so a `0x73` action presents the old scene; the
+new scene appears only after its load. Inference (not proven): the original runs
+`0xbd`→`0xb5`→`0x73` in one script call and draws between calls, so it would
+keep the clip's last frame. No sequencing fix was made (loggers only, per
+request). Evidence: `port/output/present-flash/` (`flash-after-video-map.png`,
+`destination-sm.png`, `trace-transition-slice.txt`). Report:
+`analysis/rea/PRESENT_TRACE.md`. `make -C port -j2 all test` passes.
+
+Follow-up (same day, user report from the Topkapı entry,
+`run-20261028T110009.000355Z-_r_fgi3o`): the map frame was confirmed there too
+(last `TKEst1` frame at 10160 ms, MAP at 10234 ms, `TKXA` at 10321 ms = 87 ms).
+Fix: `action_switches_scene`/`present_action_result`/`present_refused_switch`
+next to `follow_switches` — the interactive click paths no longer compose/present
+the committed action's frame when its trace requests a `0x73`; `travel_to`
+presents the target, and a refused switch falls back to the click's frame.
+Headless `--shot` paths were already free of this. Verified on the same clicks
+(`run-20261028T110317.841986Z-t4soyybp`): last clip frame → TKXA with
+`prev_held_ms=96`, no MAP frame between; SM chain likewise (SM00,
+`prev_held_ms=227`). Evidence in `port/output/present-flash/`
+(`topkapi-user-before-map.png`, `topkapi-after-fix-first-frame.png`, the two
+trace slices).
+
+## REA MCP toolchain repaired after the drive move (28 October 2026)
+
+The project now lives at `/media/baturkacamak/M.2/PROJECTS/Byzantine - The Betrayal`
+(formerly `/media/baturkacamak/Backup/Byzantine - The Betrayal`). Two links still
+pointed at the old path, so OpenCode logged
+`mcp connect failed server=rea status.error="NotFound: ChildProcess.spawn
+(/home/baturkacamak/.nvm/versions/node/v24.22.1/bin/rea mcp)"` and the 229 rea
+tools were missing.
+
+Repaired (environment only, no analysis output changed):
+
+- `~/.nvm/versions/node/v24.22.1/bin/rea` and `rea-agents` are now small `sh`
+  wrappers that exec the project copy
+  (`tools/rea/scripts/rea.mjs`) with the pinned Node 24 binary. The previous
+  symlinks resolved through `lib/node_modules/rea-agents` to the vanished
+  Backup path; the old `#!/usr/bin/env node` shebang also picked the nvm default
+  Node 20, which cannot import `node:zlib` `zstdDecompress` (rea 6.8.0 needs
+  Node >= 22.15, `.nvmrc` is 24.22.1).
+- `~/.config/opencode/opencode.jsonc` was migrated to the V2 shape
+  (`mcp.servers.rea`, no deprecated `enabled`) and calls the wrapper with a
+  60 s `startup` timeout, keeping `GHIDRA_INSTALL_DIR`/`JAVA_HOME`.
+- Prior backup: `~/.config/opencode/opencode.jsonc.rea.backup` (schema only).
+
+Verification: `rea mcp doctor` passes (initialize, 229/229 tools, 6/6 prompts,
+catalog digest `fe938a7c…da0b`, target-free `binary_session` request flow,
+empty stderr); `opencode mcp list` reports `✓ rea connected`; a live
+`binary_session` call through Code Mode returned the capability inventory.
+
+Caveat: the wrapper hardcodes the current project path, so moving the project
+again breaks `rea` until the wrapper is updated. Old absolute paths inside
+`analysis/rea/*.json` are untouched historical evidence; no script reads them.
+
 ## Top bar and menu screens work (27 October 2026)
 
 Pinned run `run-20261027T170925.613868Z-lu9b3p1r` (MR, `30.btb`) showed the
