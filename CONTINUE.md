@@ -1,3 +1,28 @@
+## Open-gap census: three real gaps, the rest unused by shipped data (28 October 2026)
+
+After the transition work the user asked what is genuinely left on the RE side.
+`analysis/rea/OPEN_GAPS_CENSUS.md` answers it with counts: the project's
+`build_content_coverage.py` entered all 44 scenes with real saves (only the
+`examine*` scenes stop on `missing_examine_item`, `morris` on
+`unresolved_random`, `iuover` at `script_end`; no unimplemented-opcode stop), and
+a static scan of the 44 scripts classified the unmodelled draw-pass features:
+
+- `+0x09 & 0x10` offset pair: **0** uses — can stay unmodelled.
+- `+0x09 & 0x80` destination-read blend (`0x42b5b2`): **95** uses, all in `STAR`
+  (records 34/41/48/61 and 11..18) — the only place it matters.
+- `+0x3c` trail draw: `0x84` appears **193** times (`STAR` 132, `EXAMINE` 39,
+  `AL` 10, `GC` 10, `HSTMED` 1, `MAP` 1); the port fills `record.trail` but never
+  draws it.
+- Multi-frame cursors: only the klio theme has them (`forward`, `info`, `back`,
+  4 frames each); the normal set has no multi-frame stem, so `0x40ebe1`'s 250 ms
+  cycling only matters there.
+- Label reachability stays unsettled: 7,693 labels, 4,527 with a constant
+  transfer or object-table referrer, 0 dangling references — the balance needs a
+  playthrough census, not a static one.
+
+Nothing was changed in this step; it is a scoped answer, and the three items
+above are the only data-backed candidates if more fidelity is wanted.
+
 ## Scene transitions: a scene change no longer cuts (28 October 2026)
 
 User report/request: the fade between a site video and its destination looked
