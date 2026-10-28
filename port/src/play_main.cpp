@@ -190,6 +190,10 @@ struct Options {
     // original's own code is always preferred when the script has one.
     bool transitions = true;
     std::uint16_t travel_transition = 0x65;
+    // True when --transition was given: then a travel whose own data says
+    // "no blend" (code 100) still uses that code, because the user asked for a
+    // fade. Without it the recovered code wins, including 100 = draw at once.
+    bool transition_forced = false;
     bool print_audio = false;
     bool audio = true;
     // --no-audio-tail-guard: keep a clip's unmodified audio stream. Off by
@@ -379,6 +383,7 @@ Options parse_options(int argc, char** argv) {
                     throw std::runtime_error("--transition must be a 16-bit code");
                 }
                 options.travel_transition = static_cast<std::uint16_t>(code);
+                options.transition_forced = true;
             }
             else if (token == "--transition-shot") options.transition_shot = value;
             else if (token == "--present-dump") options.present_dump = value;
@@ -935,6 +940,15 @@ void refresh_background(const Options& options, SceneView& view) {
     }
     view.background_name = pick_background(view);
     view.background_file = background_path(options, view.background_name);
+    if (view.trace.background) {
+        // 0x431ec2's blend code for this 0x69 (100 = the picture appears at
+        // once). Printed once per applied load, so a fade can be traced to the
+        // script operand that asked for it.
+        std::cout << "background_load instruction=" << view.trace.background->instruction
+                  << " id=" << view.trace.background->id
+                  << " transition=0x" << std::hex << view.trace.background->transition
+                  << std::dec << '\n';
+    }
     if (!panorama_layer(view) && !view.background_name.empty() &&
         view.background_file.empty()) {
         if (view.missing_background_logged != view.background_name) {
@@ -1946,6 +1960,8 @@ struct Display {
                             const char* source) {
         const auto kind = byzantine::transition_kind(code);
         if (kind == byzantine::TransitionKind::none) {
+            std::cout << "transition code=0x" << std::hex << code << std::dec
+                      << " source=" << source << " kind=none (the picture appears at once)\n";
             present(view);
             return;
         }
@@ -3196,20 +3212,31 @@ int overlay_disc(const Options& options) {
     return disc;
 }
 
-// The engine transition code a scene arrival carries. A 0xb9 hands its own code
-// (operand 3 through 0x432133, or DAT_00460664 from the 0xbd that preceded it),
-// and that is the value the original's 0x40186e switch sees. A flat 0x69 scene
-// load has no code; the original reads the travel-side one from
-// DAT_004603d0/0x439349, which is not recovered, so the port uses its travel
-// default and reports source=travel_default rather than implying a recovery.
-std::uint16_t arrival_transition_code(const SceneView& view, std::uint16_t fallback,
+// The engine transition code a scene arrival carries. 0x69 backgrounds and
+// 0xb9 nodes both go through the blend family (`0x431ec2` and `0x40186e`), so
+// the destination's own load supplies the code: `0x432133` of its operand, or
+// the DAT_00460664 a preceding 0xbd left, or 100 for "draw at once".
+//
+// 100 is common in the shipped entries (MR, MAP and EA all load with it), so a
+// faithful run would still cut almost everywhere. The port therefore uses its
+// own code when the data says 100 and reports source=default/forced, never
+// source=background/panorama. `--transition 0x64` forces the 100 the scripts
+// carry and reproduces the shipped behaviour exactly; `--no-transitions`
+// disables the blends altogether.
+std::uint16_t arrival_transition_code(const SceneView& view, const Options& options,
                                       const char** source) {
     if (!view.trace.panorama_loads.empty()) {
-        *source = "panorama";
-        return view.trace.panorama_loads.back().transition;
+        const auto code = view.trace.panorama_loads.back().transition;
+        if (code != 100) {
+            *source = "panorama";
+            return code;
+        }
+    } else if (view.trace.background && view.trace.background->transition != 100) {
+        *source = "background";
+        return view.trace.background->transition;
     }
-    *source = "travel_default";
-    return fallback;
+    *source = options.transition_forced ? "forced" : "default";
+    return options.travel_transition;
 }
 
 // Composes the arrival frame and presents it through 0x40186e's transition
@@ -3217,9 +3244,8 @@ std::uint16_t arrival_transition_code(const SceneView& view, std::uint16_t fallb
 // close-up return, a scene reload) goes through this one presenter.
 void present_arrival(Session& session, bool verbose) {
     session.display.compose(session.view, verbose);
-    const char* source = "travel_default";
-    const auto code = arrival_transition_code(session.view,
-                                              session.options.travel_transition, &source);
+    const char* source = "none";
+    const auto code = arrival_transition_code(session.view, session.options, &source);
     session.display.present_transition(session.view, code, source);
 }
 
@@ -3806,16 +3832,20 @@ bool action_switches_scene(const Session& session) {
 void present_action_result(Session& session, bool verbose) {
     if (action_switches_scene(session)) return;
     session.display.compose(session.view, verbose);
-    // A 0xb9 in the clicked label loads a node: 0x40186e blends that with the
-    // code the script carried (0x65..0x6a). A label that only loads a 0x69
-    // background has no transition routine in the original, so it stays a cut.
-    const auto& loads = session.view.trace.panorama_loads;
-    if (!loads.empty()) {
-        session.display.present_transition(session.view, loads.back().transition,
-                                           "panorama");
-    } else {
+    // A 0xb9 in the clicked label loads a node and a 0x69 loads a background;
+    // both run 0x40186e's/0x431ec2's blend with the code the script carried.
+    // Only a load this label actually ran counts: the trace's background is
+    // empty when the frame was retained (resolve_frame_background), and a
+    // retained picture has no transition of its own.
+    const bool loaded = !session.view.trace.panorama_loads.empty() ||
+                        session.view.trace.background.has_value();
+    if (!loaded) {
         session.display.present(session.view);
+        return;
     }
+    const char* source = "none";
+    const auto code = arrival_transition_code(session.view, session.options, &source);
+    session.display.present_transition(session.view, code, source);
 }
 
 // A requested 0x73 was refused (missing scene index/script): the departing

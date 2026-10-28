@@ -44,6 +44,11 @@ struct SceneBackground {
     std::size_t instruction = 0;
     std::uint16_t id = 0;
     BackgroundEntry entry;
+    // 0x431ec2's transition code for this 0x69 (0x432133 with arg 0, or the
+    // DAT_00460664 a preceding 0xbd left, or 100 for none). 0x431ec2 loads the
+    // image into the new surface and then blends the old one into it, so a
+    // background load is a transition too, not only a 0xb9 node.
+    std::uint16_t transition = 100;
 };
 
 struct ScenePanorama {

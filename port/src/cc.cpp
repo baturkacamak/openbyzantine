@@ -1095,13 +1095,28 @@ static SceneTrace trace_scene_from(const std::vector<CcInstruction>& script,
             // 0x431ec2 passes operand 1 to 0x41045b. Code 4 is the examine
             // close-up: the image is inventor/examine/<stem>.jpg derived from
             // DAT_0045d1cc, not a CB background.
-            std::uint16_t transition = 0xffff;
+            //
+            // The blend code is 0x432133(operand 1, 0) when operand 1 is a
+            // constant (0/100 -> 100, 1 -> 0x67, 2 -> 0x65, 3 -> 0x66, 4 -> 4),
+            // otherwise the DAT_00460664 a preceding 0xbd left (consumed
+            // here), otherwise 100. 0x431ec2 then blends the departing surface
+            // into the new image, so the code has to reach the presenter.
+            std::uint16_t transition = 100;
             if (instruction.arguments.size() > 1) {
                 const auto& argument = instruction.arguments[1];
                 if ((argument.type == 2 || argument.type == 64) &&
                     argument.encoded_value.size() == 2) {
-                    transition = encoded_word(argument);
+                    const auto value = encoded_word(argument);
+                    transition = value == 1 ? 0x67
+                                             : (value == 2 ? 0x65
+                                                           : (value == 3 ? 0x66
+                                                                         : (value == 4
+                                                                                ? 4
+                                                                                : 100)));
                 }
+            } else if (state.pending_panorama_transition) {
+                transition = *state.pending_panorama_transition;
+                state.pending_panorama_transition.reset();
             }
             if (transition == 4) {
                 if (!state.current_use_item) {
@@ -1117,7 +1132,7 @@ static SceneTrace trace_scene_from(const std::vector<CcInstruction>& script,
             if (id >= entries.size()) {
                 throw std::runtime_error("CC background ID outside CB record");
             }
-            trace.background = SceneBackground{current, id, entries[id]};
+            trace.background = SceneBackground{current, id, entries[id], transition};
             break;
         }
         case 0x67: {

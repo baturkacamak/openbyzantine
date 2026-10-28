@@ -122,22 +122,27 @@ artık sunulmaz: hedef sahneyi `travel_to` sunar. Böylece bir site videosundan
 sonra eski harita karesi araya girmiyor; video son karesi hedef sahne hazır
 olana kadar ekranda kalıyor (`PRESENT_TRACE.md`, Topkapı girişi).
 
-### Sahne geçişleri (0x40186e'nin fade/blend ailesi)
+### Sahne geçişleri (0x40186e / 0x431ec2'nin fade/blend ailesi)
 
-Hedef sahne artık tek karede gelmiyor: orijinalin `0x40186e` switch'inin
-seçtiği geçiş oynatılıyor. Kod script'ten gelir (`0xb9` operand 3 → `0x432133`,
-ya da önceki `0xbd`'nin bıraktığı `DAT_00460664`); kod yoksa seyahat varsayılanı
-kullanılır ve log'da `source=travel_default` yazar.
+Hedef sahne artık tek karede gelmiyor: `0x40186e` (panorama düğümü) ve
+`0x431ec2` (`0x69` arka planı) aynı blend ailesini çağırıyor ve port bunu
+oynatıyor. Kod script'ten gelir (`0x69` operand 1 ve `0xb9` operand 3 →
+`0x432133`, ya da önceki `0xbd`'nin bıraktığı ve `0x73`'ü aşan `DAT_00460664`).
+Gönderilen kayıtlar çoğunlukla **100** ("tek karede çiz") diyor; port orada kendi
+kodunu kullanıp `source=default` diye loglar, script'ten gelen kod ise
+`source=background`/`source=panorama` olarak görünür.
 
 ```sh
-# varsayılan: geçişler açık
-#   --no-transitions        yeni kareyi eskisi gibi tek karede göster
-#   --transition 0x66       kodsuz seyahatlerde kodu zorla (0x65/0x66/0x67/0x68)
+# varsayılan: geçişler açık (veri 100 dese bile port kodunu kullanır)
+#   --transition 0x64       orijinalin "hemen çiz" davranışı (veriye sadık)
+#   --transition 0x66       kodsuz yüklemelerde 27 fazlı örgü
+#   --no-transitions        geçişleri tamamen kapat
 #   --transition-shot <dir> her ara kareyi PPM olarak yaz (kanıt)
 ```
 
-Log: `transition code=0x65 kind=fade8 source=travel_default steps=8 step_ms=16
-elapsed_ms=132`; ara kareler detay izinde `tag=transition
+Log: `transition code=0x65 kind=fade8 source=default steps=8 step_ms=16
+elapsed_ms=139` ve her `0x69` için `background_load instruction=… id=…
+transition=0x…`; ara kareler detay izinde `tag=transition
 detail=code=0x65 step=3/8` olarak görünür ve hotspot çerçevesi onlara çizilmez.
 Ayrıntı: [`TRANSITIONS.md`](../analysis/rea/TRANSITIONS.md).
 

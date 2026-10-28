@@ -80,14 +80,16 @@ Other rules learned here:
   `tail_guard …`; `--no-audio-tail-guard` keeps the raw stream.
 - **One transition presenter.** `Display::present_transition` is the only way a
   scene change is shown: `travel_to`/`restart_scene`/the close-up return call
-  `present_arrival`, and a click whose label ran a `0xb9` calls it from
-  `present_action_result`. The code comes from the script (`0xb9` operand 3 via
-  `0x432133`, or the `0xbd`-set `DAT_00460664`, which crosses a `0x73`); a
-  travel that carries none logs `source=travel_default` and uses
-  `--transition`'s code. Do not add a second fade path: a new presentation
-  point wraps the content, and `last_playfield` is kept by `present_image`.
-  `--no-transitions` restores the cut; `--transition-shot <dir>` writes the
-  steps. Report: `analysis/rea/TRANSITIONS.md`.
+  `present_arrival`, and a click whose label ran a `0x69` or `0xb9` calls it from
+  `present_action_result`. Both loaders blend (`0x431ec2` for `0x69`, `0x40186e`
+  for `0xb9`); the code is the script's (`0x432133` of the operand, or the
+  `0xbd`-set `DAT_00460664`, which crosses a `0x73`). Shipped entries mostly say
+  100 = "draw at once", so the port fades by default and logs `source=default`;
+  `source=background`/`panorama` means the value really came from the script.
+  Do not add a second fade path: a new presentation point wraps the content, and
+  `last_playfield` is kept by `present_image`. `--no-transitions` restores the
+  cut, `--transition 0x64` the shipped script behaviour, `--transition-shot
+  <dir>` writes the steps. Report: `analysis/rea/TRANSITIONS.md`.
 - The `--shot`/headless paths must keep `scene=… slots=…` as the **last stdout
   line** (the verification scripts parse it). `Display::log_present_summary()`
   is called before it.
