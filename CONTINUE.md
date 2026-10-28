@@ -1,3 +1,71 @@
+## Open-item audit: most "still open" lines in this file were stale (28 October 2026)
+
+After the presentation and hover fixes the user played the game and reported no
+obvious remaining problem. Each surviving "Still open" / "Remaining" / "Next
+step" claim in this file was then checked against the current source instead of
+being trusted. Baseline `0bb4139` with a clean tree: `make -C port -j2 all test`
+passes every native suite and all 12 `analysis/rea/verify_*.py` scripts pass.
+
+### Already implemented - do not redo these
+
+- **Top menu** (`0x408e3f`/`0x408f32`/`0x408fe7`/`0x4090c4`): real bar with
+  hover/pressed frames and all four screens, save/load, preferences, KEŞİF,
+  credits, notebook. `port/src/menu.cpp`, `TOP_MENU.md`. The old "Inventory: top
+  menu" open item is done.
+- **Item-on-object gate `0x407c5a`**: `byzantine::item_use_compatible`,
+  `ClickPlan::item_use_checked`/`item_use_ok`, `clear_text_after_rejected_use`
+  and the `item_use slot=… compatible=…` log line in `port/src/play_main.cpp`
+  (~3755-3850). The gate rejects an incompatible selection before the action
+  label runs, exactly as `0x40c329` does.
+- **Snap pass `+0x09 & 0x20`**: `compose_scene` in `port/src/cc.cpp` (~858-889)
+  draws `frame_index_20` through `draw_frame(..., true)`, drops the matching
+  `+0x3c` trail entry (`0x43264d`) and clears `+0x20`; `snap_drawn` and
+  `skipped_snap` are reported on every compose line. The old "Next step brief"
+  item 2 is therefore done; only the `0x80`/`0x10`/trail parts remain (below).
+- **The former request-only subsystems**: AVI `0x40d3af` (`video.cpp`,
+  `CF_VIDEO_PLAYBACK.md`), the text/message renderer (`text.cpp`), the
+  inventory/hotspot UI (`INVENTORY_AND_CLOSEUP.md`) and the DirectSound sessions
+  replaced by the shared SDL2 mixer (`AMBIENT_AUDIO.md`).
+- Everything described in the dated sections below (save write/load, notebook,
+  close-up and examine switch, cursor tables, panorama sprite warp, animation
+  clock, entry conversation, CF videos, dialogue media, torn audio tail) is
+  implemented; its own report is the evidence, not this summary.
+
+### Still genuinely missing
+
+1. **Transition/blend pixels** (`0x418bcf`, `0x42be07`, `0x42bce1`, `0x419cf6`,
+   `0x41920f`). The codes are carried (`ScenePanoramaLoad::transition`,
+   `SceneState::pending_panorama_transition`) but nothing is blended, so every
+   panorama/scene change is a hard cut (`PANORAMA_LOAD.md` §7 says so
+   explicitly). This is the only difference visible in normal play.
+2. **Item consume / item-on-item combine** (`0x407bd7`'s consume branch):
+   `inventory_mark_using` exists but only `tests/inventory.cpp` calls it; no
+   script path consumes or combines items.
+3. **Record draw pass remainder**: the `+0x09 & 0x80` destination-read blend
+   (`0x42b5b2`), the `+0x09 & 0x10` offset pair and the `+0x3c` trail draw are
+   not implemented (stated above `compose_scene` in `cc.hpp`).
+4. **Cursor details**: `0x40ebe1`'s 250 ms multi-frame cycling (four frame stems
+   are resolved by `0x40e89f`'s limit, but no timer runs;
+   `play_main.cpp` logs the omission), `0x4013ae`'s edge-band rotation arrows,
+   the top-menu pointer and the strip channel tabs.
+5. **CF video modes** `0x43d9c7` palette/format, mode 1's intro-buffer clear and
+   mode 3's `DAT_00464878` value: no observed clip uses them.
+6. **Audio**: voice volume/pan (`0x40c911`/`0x40c9ce`) and the saved loop chain
+   `DAT_0046019c`. `resume_ambient` restarts the arrival state's active loops
+   instead of replaying the chain.
+7. **Save**: unmodelled block interiors are round-tripped byte-for-byte (the
+   `raw` arrays in `save.hpp`); their field semantics are not recovered, and a
+   brand-new save keeps them empty.
+8. **`va` examine group**: the original reads index 5 of a five-entry table
+   (`0x438afa`/`0x438173`); left unresolved on purpose
+   (`examine_scene_for` returns `nullopt` and the player logs the skip).
+9. **Unreachable opcodes**: `0x8c`/`0x8e` still have no implementation because
+   no shipped label reaches them.
+
+Reading rule: this section is the current state. The "Still open" lines inside
+the older step records below are historical notes about the step that produced
+them; several are superseded here.
+
 ## Reversible map hover highlight (28 October 2026)
 
 User report: hovering a map destination showed its `*Hi` art, but mouse-out left
@@ -963,7 +1031,8 @@ reproduced and fixed in the same layer. Reports:
   stem tuple the image uses; `examine_state_mismatch` reports any drift instead
   of pairing one item's name with another's image.
 - Still open: item combining, the cursor atlas, `va`'s out-of-range examine
-  group, and the exact original snapshot table order.
+  group, and the exact original snapshot table order. (Superseded in part: see
+  the 28 October open-item audit at the top for the current list.)
 
 ## Previous step — inventory strip, examine close-up and mouse pitch
 
@@ -1009,7 +1078,9 @@ the first common inventory/close-up layer, not a scene-specific patch. Report:
   `ERIDNOTE.JPG`; exit playfield `589,349` -> `closeup_return scene=EA …
   hotspots=2, bar=visible`. Recording `ea_bar_examine_exit.mp4` (12 s). VT
   `73.btb` item 11 -> `EXAMVT`/`EBEERING.jpg` is a third headless check.
-- **Still open / prioritised by subsystem.** Inventory: top menu
+- **Still open / prioritised by subsystem.** (Superseded in part: the top menu
+  and the `0x407c5a` item gate are implemented; see the 28 October open-item
+  audit at the top.) Inventory: top menu
   (`0x408e3f`/`0x408f32`/`0x408fe7`/`0x4090c4`), item-on-object compatibility
   (`0x407c5a`) and consume (`0x407bd7`), remaining page tabs. Close-up: exact
   original snapshot tables (port snapshots the whole `SceneView`), `va`, and
@@ -2856,7 +2927,9 @@ remains is the draw-pass details, transitions and the interaction layer.
    through the `+0x20` rect, then zero `+0x20`/`+0x22` and clear `+0x29`), the
    `+0x09 & 0x80` destination-read blend (`0x42b5b2`) and `0x43b130`'s mode-1
    head→current frame sequence. The saves carry `+0x20`/`+0x22`/`+0x29`, so this
-   is verifiable without inventing state.
+   is verifiable without inventing state. **Status (28 October audit): the snap
+   pass is implemented in `compose_scene`; the `0x80` blend, the `+0x10` offset
+   pair and the `+0x3c` trail draw are still open.**
 3. **Transitions and blends** (`0x418bcf`, `0x42bce1`, `0x42be07`, `0x419cf6`,
    `0x418eb2`, `0x419a51`) that `0xbd`/`0xb9`/`0xd3`/`0x73` request — two decoded
    images plus a progress argument; the port currently renders neither.
