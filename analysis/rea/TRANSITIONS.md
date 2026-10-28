@@ -71,10 +71,10 @@ and `0x41842b(surface, 0x4b000)` (640*480) is the full-screen variant.
 |---|---|---|---|---|
 | 0x65 | `0x42be07` -> `0x42c1b8` | linear cross-fade, `delta = (new-old)>>3` re-added per step, 2x2 block processing | 8 | present per step |
 | 0x66 | `0x42bce1` (+`0x42bc8b`) | interleaved reveal: each phase copies every **27th** 16-bit word (`param_1 + param_3`, `+= param_4`), so the picture fills in a 27-step pattern | 27 | present per step |
-| 0x67 | `0x419cf6` -> `0x4196a4` + `0x419a51` | two-stage fade; `0x4196a4` runs 4 steps with alpha `0x1f,0x3f,0x7f,0xff`, `0x419a51` then halves its alpha from `0x7f` | 4 + 7 | present per step |
+| 0x67 | `0x419cf6` -> `0x4196a4` + `0x419a51` | **blink**: the departing picture dims to black (brightness `0xe1,0xc1,0x81,0x00`), then the new picture reveals from black | 4 + 7 | present per step |
 | 0x68 | `0x41917b` + `0x41920f` | cross-fade with the RGB555 multiply table `DAT_00487710`; `local_14 = 2, 8, 32, 128` | 4 | **60 ms** per step (`do { now = timeGetTime(); } while (now < start + 0x3c)`) |
 | 0x69 | — | none | 0 | — |
-| 0x6a | `0x419a51` | the second half of 0x67 only | 7 | present per step |
+| 0x6a | `0x419a51` | the reveal half of 0x67 only: the new picture appears **from black** | 7 | present per step |
 
 `0x42c57e` is the same 8-step fade as `0x42c1b8` but row-sequential instead of
 2x2-block; `0x42be07` picks it with mode 0 and either of them with modes 1/2.
@@ -84,11 +84,20 @@ and `0x41842b(surface, 0x4b000)` (640*480) is the full-screen variant.
 New module `port/{include/byzantine,src}/transition.*`:
 
 - `transition_kind(code)` — the switch above; every other code is
-  `TransitionKind::none`.
+  `TransitionKind::none`. Kinds: `fade8`, `interleave27`, `blink`, `fade4`,
+  `reveal`.
+- `TransitionPlayer(kind, from, to)` — produces the steps in the original's
+  order (`next()` then `surface()`), so the accumulating ones (`0x419a51`'s
+  phases, `0x42bc8b`'s stride) keep their state. `done()` then the caller
+  presents the real new picture.
 - `transition_steps` / `transition_step_ms` / `transition_weight` — the counts,
-  the 60 ms gate and the alpha sequences.
+  the 60 ms gate and the brightness sequences.
 - `blend_playfield(out, from, to, weight)` — per-channel RGB565 lerp, weight
   0..256 (`256` is exactly `to`).
+- `dim_playfield(out, from, weight)` — `0x4196a4`'s uniform dim toward black.
+- `reveal_phase(out, to, phase, weight)` — `0x419a51`'s 2x2 phase: bit 0 of the
+  phase is the column parity, bit 1 the row parity; the pixels of that phase are
+  written from `to` at `weight`, everything else keeps its previous value.
 - `interleave_playfield(out, to, phase)` — the stride-27 phase of `0x42bc8b`.
 
 Host wiring (`port/src/play_main.cpp`):
@@ -141,9 +150,18 @@ MR exit -> MAP), headless dummy devices and a real Xephyr `:9` window:
 | `--transition 0x64` | none (`source=forced`) | 0 | `kind=none (the picture appears at once)` |
 | `--transition 0x65` | `fade8` | 8 | `elapsed_ms=132` (8 x 16 ms) |
 | `--transition 0x66` | `interleave27` | 27 | `elapsed_ms=437` |
-| `--transition 0x67` | `fade7` | 7 | `elapsed_ms=115` |
+| `--transition 0x67` | `blink` | 11 | `elapsed_ms=209` |
 | `--transition 0x68` | `fade4` | 4 | `elapsed_ms=243` (4 x 60 ms) |
+| `--transition 0x6a` | `reveal` | 7 | `elapsed_ms=149` |
 | `--no-transitions` | — | 0 | `skipped reason=--no-transitions` |
+
+Frame means (0..255 over the whole screen) from `--transition-shot`, which show
+the shapes without relying on a viewer:
+
+- `0x6a` reveal: 9.8, 24.1, 41.0, 58.9, 67.7, 72.2, 74.5 — the picture grows in
+  a 2x2 dither and brightens (non-black coverage 19% -> 79%).
+- `0x67` blink: 74.6, 64.1, 43.7, **0.0**, then 9.8, 24.1, 41.0, 58.9, 67.7,
+  72.2, 74.5 — fade out to black, then the same reveal.
 
 What the shipped data says (the `background_load`/`panorama_load` lines):
 
@@ -169,14 +187,13 @@ in-scene `0x69` fade is only visible in the window path (or in an arrival).
   `source=default`; `--transition 0x64` restores the shipped behaviour. The
   travel-side snapshot `DAT_004603d0`/`0x439349` is still unmodelled, but it no
   longer decides the code: the destination's own `0x69`/`0xb9` provides it.
-- **`0x419a51`'s pixel roles are an inference.** The step count, the halving
-  alpha and the "blit param_2 to the screen" order are read from the routine,
-  but which surface holds the old and the new picture during its write pass is
-  not settled here. The port implements it as an old->new cross-fade with new
-  weights `0x81,0xc1,0xe1,0xf1,0xf9,0xfd,0xff`; the visible result is a quick
-  fade, and `fade7` is the only kind whose arithmetic is partly inferred.
-- **`0x4196a4`'s four extra steps for `0x67` are not modelled** (the port runs
-  the 7-step half only). `0x67` therefore looks close to `0x6a` in the port.
+- **The `0x419a51`/`0x4196a4` shape is now read from the instruction stream**
+  (`objdump -D -Mintel --start-address=0x419a51`), not inferred: the scratch is
+  cleared with `0x42b280` (memset 0) before the reveal, the seven steps halve
+  `[ebp-0x10]` (0x7f -> 1), the phase offsets are `+0`, `+1`, `+0x280`, `+0x281`
+  words with a two-pixel step and a two-row stride, and `0x41842b(0x3e800)`
+  presents the playfield each step. What remains approximate is the *colour*
+  arithmetic (below), not the shape.
 - **`0x418eb2`** (a 4-step band blend with 60 ms gates) is implemented as the
   plain `fade4`; its band/scroll geometry is not modelled. It is only reachable
   through `0x431ec2`'s `0x68` case, which no shipped operand produces.

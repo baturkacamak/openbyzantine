@@ -1991,9 +1991,7 @@ struct Display {
                         kSceneWidth,
                         target.pixels.begin() + static_cast<std::size_t>(row) * kSceneWidth);
         }
-        byzantine::Rgb16Surface from = last_playfield;
-        byzantine::Rgb16Surface step;
-        if (kind == byzantine::TransitionKind::interleave27) step = from;
+        byzantine::TransitionPlayer player(kind, last_playfield, target);
         const auto started = std::chrono::steady_clock::now();
         std::size_t presented = 0;
         // A transition frame is not the scene (the hotspot-outline diagnostic
@@ -2001,12 +1999,8 @@ struct Display {
         const auto previous_content = content;
         enter_content(ScreenContent::transition);
         for (int index = 0; index < steps && window != nullptr; ++index) {
-            if (kind == byzantine::TransitionKind::interleave27) {
-                byzantine::interleave_playfield(step, target, index);
-            } else {
-                byzantine::blend_playfield(step, from, target,
-                                           byzantine::transition_weight(kind, index));
-            }
+            player.next();  // produces this step: 0x419a51's phases need it
+            const auto& step = player.surface();
             auto frame = new_screen;
             for (int row = 0; row < kSceneHeight; ++row) {
                 std::copy_n(step.pixels.begin() + static_cast<std::size_t>(row) * kSceneWidth,
@@ -2049,7 +2043,8 @@ struct Display {
         switch (kind) {
             case byzantine::TransitionKind::fade8: return "fade8";
             case byzantine::TransitionKind::fade4: return "fade4";
-            case byzantine::TransitionKind::fade7: return "fade7";
+            case byzantine::TransitionKind::blink: return "blink";
+            case byzantine::TransitionKind::reveal: return "reveal";
             case byzantine::TransitionKind::interleave27: return "interleave27";
             case byzantine::TransitionKind::none: break;
         }

@@ -8,11 +8,25 @@ appeared at once (`run-20261028T133346.208785Z-thdrjf40`: present index 105 at
 12840 ms -> 115 at 13129 ms, `prev_held_ms=282`, no intermediate picture).
 
 Recovered from `0x40186e`'s `switch(param_3)`: `0x65` -> `0x42be07`/`0x42c1b8`
-(eight-step fade), `0x66` -> `0x42bce1`+`0x42bc8b` (27-phase reveal, every 27th
-16-bit word), `0x67` -> `0x4196a4`+`0x419a51`, `0x68` -> `0x41920f` (four steps,
-**60 ms** each, `timeGetTime() < start + 0x3c`), `0x69` -> nothing, `0x6a` ->
-`0x419a51` only. All of them blend the playfield rectangle `(0,0x14)-(0x280,
-0x1a4)`, never the strip or the top bar.
+(eight-step cross-fade), `0x66` -> `0x42bce1`+`0x42bc8b` (27-phase reveal, every
+27th 16-bit word), `0x67` -> `0x4196a4`+`0x419a51` (**blink**: the departing
+picture dims to black in 4 steps, brightness `0xe1,0xc1,0x81,0x00`, then the new
+one reveals from black), `0x68` -> `0x41920f` (four steps, **60 ms** each,
+`timeGetTime() < start + 0x3c`), `0x69` -> nothing, `0x6a` -> `0x419a51` only
+(**reveal from black**, 7 steps). All of them blend the playfield rectangle
+`(0,0x14)-(0x280,0x1a4)`, never the strip or the top bar.
+
+`0x419a51`/`0x4196a4` were then read from the instruction stream (`objdump`, not
+only the decompiler text) because the earlier cross-fade reading was wrong: the
+routine memsets its scratch to 0 first (`0x42b280`), so the new picture is
+revealed **over black**; seven steps halve alpha from `0x7f`, giving brightness
+`0x81,0xc1,0xe1,0xf1,0xf9,0xfd,0xff`; and each step writes one 2x2 phase
+(row/column parity, offsets `+0`,`+1`,`+0x280`,`+0x281`) of the playfield, so the
+result is a dark dithered fade-in, not a mix with the old picture. `0x4196a4`
+(only `0x67`) copies the departing picture and dims it uniformly with alpha
+`0x1f,0x3f,0x7f,0xff` before that. Measured frame means on real data:
+`0x6a` 9.8, 24.1, 41.0, 58.9, 67.7, 72.2, 74.5; `0x67` 74.6, 64.1, 43.7, **0**,
+then the same seven — a blink.
 
 Second finding, same day: the **`0x69` background loader is the same family.**
 `0x431ec2(image_id, code, progress)` loads the picture with `0x41045b`, draws the
@@ -34,8 +48,9 @@ reproduces the shipped cut, and a code that really came from the script logs
 `source=background`/`source=panorama`.
 
 Change: new `port/{include/byzantine,src}/transition.*` (`transition_kind`,
-`transition_steps`, `transition_step_ms`, `transition_weight`,
-`blend_playfield`, `interleave_playfield`), `Display::present_transition` and
+`TransitionPlayer`, `transition_steps`, `transition_step_ms`,
+`transition_weight`, `blend_playfield`, `dim_playfield`, `reveal_phase`,
+`interleave_playfield`), `Display::present_transition` and
 `present_arrival`, and `last_playfield` tracking in `present_image`. Transition
 frames run under `ScreenContent::transition` (no hotspot outline) and are
 excluded from `--present-dump`; `--transition-shot <dir>` writes them instead.
@@ -47,14 +62,14 @@ prints `background_load instruction=… id=… transition=0x…`.
 
 Real data (same chain: `MAP` 87/`27.btb` -> MR arrival -> MR exit -> MAP), both
 headless and on a real Xephyr window: default `source=default` 8 steps / 139 ms,
-`0x66` 27 / 437, `0x67` 7 / 115, `0x68` 4 / 243 ms, `--no-transitions` skips,
-`--transition 0x64` restores the shipped cut. Frames the port actually presented
+`0x66` 27 / 437, `0x67` 11 / 209, `0x68` 4 / 243, `0x6a` 7 / 149 ms,
+`--no-transitions` skips, `--transition 0x64` restores the shipped cut. Frames the port actually presented
 are in `port/output/transition-demo/` (`port-0x65.gif` etc. plus contact sheets).
 `make -C port -j2 all test` (new `transition-test`) and all 12
 `analysis/rea/verify_*.py` pass. Report and limits (fading where the scripts say
-100 is the port's choice; `0x419a51`'s pixel roles are partly inferred;
-`0x4196a4`'s four extra `0x67` steps and `0x418eb2`'s band geometry are not
-modelled): `analysis/rea/TRANSITIONS.md`.
+100 is the port's choice; the blend is RGB565 arithmetic instead of the
+RGB555 multiply table; `0x418eb2`'s band geometry is not modelled and no
+shipped operand reaches it): `analysis/rea/TRANSITIONS.md`.
 
 ## Open-item audit: most "still open" lines in this file were stale (28 October 2026)
 
