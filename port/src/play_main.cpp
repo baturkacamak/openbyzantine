@@ -172,7 +172,13 @@ struct Options {
     std::optional<int> bar_select;             // --bar-select <item id>
     bool bar_use = false;                      // --bar-use: examine selected item
     int bar_scroll = 0;                        // --bar-next/--bar-prev count
-    bool overlay = true;
+    // The hotspot-outline diagnostic is a port tool, not shipped behavior (the
+    // original only changes the cursor). No frames by default: the map's own
+    // *Hi art is the hover highlight (hover_highlight). --hotspots-hover draws
+    // only the pointer's hotspot, --hotspots/--hotspots-all draw every active
+    // one, H toggles. Clips and menus are always excluded (ScreenContent).
+    bool overlay = false;
+    bool hotspots_all = true;
     bool print_audio = false;
     bool audio = true;
     // --no-audio-tail-guard: keep a clip's unmodified audio stream. Off by
@@ -243,6 +249,16 @@ Options parse_options(int argc, char** argv) {
         const std::string token(argv[index]);
         if (token == "--no-hotspots") {
             options.overlay = false;
+            continue;
+        }
+        if (token == "--hotspots" || token == "--hotspots-all") {
+            options.overlay = true;
+            options.hotspots_all = true;
+            continue;
+        }
+        if (token == "--hotspots-hover") {
+            options.overlay = true;
+            options.hotspots_all = false;
             continue;
         }
         if (token == "--print-audio") {
@@ -445,7 +461,10 @@ Options parse_options(int argc, char** argv) {
             "[--conversation-video-shot <ppm>] [--video-shot <ppm>] "
             "[--bar-select <id>] [--bar-use] "
             "[--bar-next] [--bar-prev] [--no-video] "
-            "[--no-hotspots] [--no-audio] [--print-audio] [--print-hotspots] "
+            "[--hotspots] [--no-hotspots] [--hotspots-all] [--hotspots-hover] "
+            "[--no-audio] [--no-audio-tail-guard] "
+            "[--present-dump <dir>] [--present-dump-max <n>] "
+            "[--print-audio] [--print-hotspots] "
             "[--print-objects] [--print-variables] [--print-records] "
             "[--compose-frames <n>] [--selftest-events] [--anim-pass-hz <hz>] "
             "[--menu <0..5>] [--menu-click-at <x>,<y> ...] [--menu-text <utf8>] "
@@ -1187,6 +1206,15 @@ void apply_panorama_events(SceneView& view, Options& options, bool verbose) {
 // ---------------------------------------------------------------------------
 // Composition: background JPEG + records -> RGB565 surface -> SDL texture.
 // ---------------------------------------------------------------------------
+
+// What is on screen right now. This exists because the hotspot-outline
+// diagnostic (`H`, `--hotspots`, off by default) is a *scene* tool: the original engine has
+// no outlines at all and draws everything into one surface, while the port has
+// several presenters (scene, clip media, conversation, menu). Every presenter
+// ends in Display::present_image, which applies the one rule below, so no path
+// has to remember to pass overlay=false (a clip's audio drain used to forget).
+enum class ScreenContent { scene, conversation, clip, menu };
+
 struct Display {
     SDL_Window* window = nullptr;
     SDL_Renderer* renderer = nullptr;
@@ -1211,6 +1239,30 @@ struct Display {
     // 640x400 playfield and `screen` is the composed 640x480 frame.
     byzantine::Rgb16Surface screen;
     const Options* ui_options = nullptr;
+    // ScreenContentScope keeps this current (see play_decoded_clip/MenuUi). The
+    // hotspot outline is drawn only for scene/conversation content.
+    ScreenContent content = ScreenContent::scene;
+    bool overlay_allowed() const {
+        if (ui_options == nullptr || !ui_options->overlay) return false;
+        return content == ScreenContent::scene || content == ScreenContent::conversation;
+    }
+    bool overlay_all() const { return ui_options != nullptr && ui_options->hotspots_all; }
+    // The active hotspot under the pointer, or -1. Only the script-enabled set
+    // counts: an object the script has not enabled is not clickable.
+    int hovered_overlay_slot(const SceneView& view, int x, int y) const {
+        if (y < kScreenPlayfieldTop || y >= kScreenBandTop) return -1;
+        const auto hit = hotspot_at(view, x, y - kScreenPlayfieldTop);
+        return hit.slot ? *hit.slot : -1;
+    }
+    // Updates the outlined slot; true when it changed (the caller re-presents).
+    bool set_hover_overlay(const SceneView& view, int x, int y) {
+        if (!overlay_allowed() || overlay_all()) return false;
+        const int slot = hovered_overlay_slot(view, x, y);
+        if (slot == hover_overlay_slot) return false;
+        hover_overlay_slot = slot;
+        return true;
+    }
+    int hover_overlay_slot = -1;
     std::optional<UiImage> bottom_bar;
     // 0x408e3f/0x408f32: setupart/TOP_BAR.TGA plus the HOTBAR/DWNBAR RLE
     // states. The bar is a roll-over UI: it appears when the pointer enters the
@@ -1258,6 +1310,7 @@ struct Display {
     std::chrono::steady_clock::time_point present_logged_at{};
     std::chrono::steady_clock::time_point present_capture_until{};
     std::size_t present_dumps = 0;
+    bool present_summary_printed = false;
     std::set<std::uint64_t> dumped_hashes;
 
     ~Display() {
@@ -1266,12 +1319,18 @@ struct Display {
         }
         cursors_.clear();
         if (default_cursor_ != nullptr) SDL_FreeCursor(default_cursor_);
-        if (present_index != 0) {
-            // End-of-run marker for the per-present trace lines (detail file).
-            std::cout << "present_summary frames=" << present_index
-                      << " logged=" << present_logged
-                      << " dumps=" << present_dumps << '\n';
-        }
+        log_present_summary();
+    }
+
+    // End-of-run marker for the per-present trace lines (detail file). The
+    // paths that print their own final state call it first, so `scene=…
+    // slots=…` stays the last stdout line for the verification scripts.
+    void log_present_summary() {
+        if (present_summary_printed || present_index == 0) return;
+        present_summary_printed = true;
+        std::cout << "present_summary frames=" << present_index
+                  << " logged=" << present_logged
+                  << " dumps=" << present_dumps << '\n';
     }
 
     void init(const Options& options) {
@@ -1721,8 +1780,11 @@ struct Display {
         draw_top_bar();
     }
 
+    // The only presentation entry point. Whether the hotspot-outline diagnostic
+    // is drawn is decided here from ScreenContent, never per caller: a clip (and
+    // its audio drain) and a menu screen are never outlined.
     void present_image(const byzantine::Rgb16Surface& image, const SceneView& view,
-                       bool overlay, int hotspot_offset_y, const char* tag = "scene") {
+                       int hotspot_offset_y, const char* tag = "scene") {
         if (logical_width != image.width || logical_height != image.height) {
             SDL_DestroyTexture(texture);
             texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB565,
@@ -1751,8 +1813,15 @@ struct Display {
         // 640x400 playfield for a background scene, the panorama SOURCE for a
         // panorama scene. Only the former can be drawn as a rectangle here, so
         // the panorama outline is not invented (the click still works).
-        if (overlay && !panorama_layer(view)) {
+        // The diagnostic belongs to the scene: ScreenContent keeps it off a
+        // clip (including its audio drain) and off a menu. By default only the
+        // hotspot under the pointer is drawn (--hotspots-all draws every one).
+        const bool draw_overlay =
+            overlay_allowed() && !panorama_layer(view) &&
+            (overlay_all() || hover_overlay_slot >= 0);
+        if (draw_overlay) {
             for (const auto& hotspot : view.trace.active_hotspots) {
+                if (!overlay_all() && hotspot.slot != hover_overlay_slot) continue;
                 SDL_Rect bounds{hotspot.x,
                                 hotspot.y - kPlayfieldTop + hotspot_offset_y,
                                 hotspot.width, hotspot.height};
@@ -1774,14 +1843,14 @@ struct Display {
             }
         }
         SDL_RenderPresent(renderer);
-        log_present(image, view, tag);
+        log_present(image, view, tag, draw_overlay);
     }
 
     // Called after each SDL_RenderPresent. The checksum samples every 4th
     // pixel: enough to tell two different pictures apart without hashing
     // 300k pixels per frame in the animation loop.
     void log_present(const byzantine::Rgb16Surface& image, const SceneView& view,
-                     const char* tag) {
+                     const char* tag, bool draw_overlay) {
         std::uint64_t hash = 1469598103934665603ull;
         for (std::size_t index = 0; index < image.pixels.size(); index += 4) {
             hash ^= image.pixels[index];
@@ -1845,7 +1914,8 @@ struct Display {
                 out << " scene=" << view.name << " label=" << view.label
                     << " layer=" << layer_name(view)
                     << " dialogue=" << (view.state.dialogue_visible ? 1 : 0)
-                    << " bar=" << bar << " size=" << image.width << 'x'
+                    << " bar=" << bar << " overlay=" << (draw_overlay ? 1 : 0)
+                    << " size=" << image.width << 'x'
                     << image.height << " hash=0x" << std::hex << hash;
                 if (present_hash_known) {
                     out << " prev_hash=0x" << present_hash;
@@ -2057,10 +2127,10 @@ struct Display {
         update_cursor_at(view, static_cast<int>(logical_x), static_cast<int>(logical_y));
     }
 
-    void present(const SceneView& view, bool overlay) {
+    void present(const SceneView& view) {
         update_cursor(view);
         build_screen(view);
-        present_image(screen, view, overlay, kScreenPlayfieldTop);
+        present_image(screen, view, kScreenPlayfieldTop);
     }
 
     // SDL_RenderSetLogicalSize installs SDL_RendererEventWatch, which rewrites
@@ -2136,6 +2206,44 @@ struct Display {
     }
 };
 
+// Sets what is on screen for the duration of a media/menu presenter and
+// restores it on every exit path. One rule in Display::present_image then keeps
+// the hotspot-outline diagnostic off anything that is not the scene.
+struct ScreenContentScope {
+    Display& display;
+    ScreenContent previous;
+    bool clip_scope;
+    ScreenContentScope(Display& target, ScreenContent next)
+        : display(target), previous(target.content), clip_scope(next == ScreenContent::clip) {
+        display.content = next;
+        if (clip_scope) {
+            byzantine::diagnostics::write("screen_content", [&](auto& out) {
+                out << "now=clip previous=" << name(previous);
+            });
+        }
+    }
+    ~ScreenContentScope() {
+        display.content = previous;
+        if (clip_scope) {
+            // The detail trace now shows exactly which presenter owned the
+            // screen, so a stray outline or overlay is attributable.
+            byzantine::diagnostics::write("screen_content", [&](auto& out) {
+                out << "now=" << name(previous) << " previous=clip";
+            });
+        }
+    }
+    ScreenContentScope(const ScreenContentScope&) = delete;
+    ScreenContentScope& operator=(const ScreenContentScope&) = delete;
+
+    static const char* name(ScreenContent content) {
+        switch (content) {
+            case ScreenContent::conversation: return "conversation";
+            case ScreenContent::clip: return "clip";
+            case ScreenContent::menu: return "menu";
+            default: return "scene";
+        }
+    }
+};
 // ---------------------------------------------------------------------------
 // Session: the window, the audio device and the wait bookkeeping.
 // ---------------------------------------------------------------------------
@@ -2177,6 +2285,15 @@ struct Session {
     // any other script. --shot stays deterministic and never waits.
     bool interactive = false;
     bool running = true;
+    // Hover highlight: the destination the pointer is on and the exact state
+    // captured before its select label ran. Leaving restores that snapshot, so
+    // a highlight can never accumulate or survive a mouse-out. The label is the
+    // map's own select (0x6e disable the destination, 0x6d enable its travel
+    // object), which is what makes a single click travel.
+    int hover_select_slot = -1;
+    bool hover_highlight_active = false;
+    byzantine::SceneState hover_highlight_base;
+    byzantine::SceneTrace hover_highlight_trace;
     WaitStats wait;
     // While a conversation is running its 640x480 screen is what the window
     // shows, including during audio waits. run_conversation sets and clears it.
@@ -2245,6 +2362,11 @@ void pump_window(Session& session) {
         if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_h) {
             session.options.overlay = !session.options.overlay;
             session.wait.overlay_toggled = true;
+            float pointer_x = 0;
+            float pointer_y = 0;
+            session.display.mouse_logical(&pointer_x, &pointer_y);
+            session.display.set_hover_overlay(session.view, static_cast<int>(pointer_x),
+                                              static_cast<int>(pointer_y));
             continue;
         }
         if (event.type == SDL_MOUSEBUTTONDOWN) {
@@ -2256,10 +2378,9 @@ void pump_window(Session& session) {
     }
     if (session.conversation_frame != nullptr) {
         session.display.present_image(*session.conversation_frame, session.view,
-                                      session.options.overlay, kScreenPlayfieldTop,
-                                      "conversation");
+                                      kScreenPlayfieldTop, "conversation");
     } else {
-        session.display.present(session.view, session.options.overlay);
+        session.display.present(session.view);
     }
     ++session.wait.frames;
 }
@@ -2442,7 +2563,7 @@ bool run_label_gated(Session& session, EntryPoint point,
             (!panorama_layer(session.view) || session.view.panorama)) {
             refresh_background(session.options, session.view);
             session.display.compose(session.view, verbose);
-            session.display.present(session.view, session.options.overlay);
+            session.display.present(session.view);
         } else if (verbose) {
             std::cout << "gate_frame retained (scene layer not ready)\n";
         }
@@ -2908,7 +3029,7 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose,
         resume_ambient(session, verbose);
         refresh_background(options, session.view);
         session.display.compose(session.view, verbose);
-        session.display.present(session.view, options.overlay);
+        session.display.present(session.view);
         std::cout << "closeup_return scene=" << session.view.name << " from=" << from
                   << " requested_index=" << index
                   << " hotspots=" << session.view.trace.active_hotspots.size()
@@ -3068,6 +3189,11 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose,
     std::cout << '\n';
 
     session.view = std::move(next_view);
+    session.display.hover_overlay_slot = -1;
+    session.hover_select_slot = -1;
+    session.hover_highlight_active = false;
+    session.hover_highlight_base = {};
+    session.hover_highlight_trace = {};
     byzantine::diagnostics::write("travel_loaded", [&](auto& out) {
         out << "index=" << index << " scene=" << session.view.name
             << " layer=none (0x69/0xb9 not applied yet)";
@@ -3091,7 +3217,7 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose,
         resume_ambient(session, verbose);
         refresh_background(options, session.view);
         session.display.compose(session.view, verbose);
-        session.display.present(session.view, options.overlay);
+        session.display.present(session.view);
         if (session.display.window != nullptr) {
             SDL_SetWindowTitle(session.display.window,
                                ("Byzantine - " + session.view.name + " save").c_str());
@@ -3165,7 +3291,7 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose,
     resume_ambient(session, verbose);
     refresh_background(options, session.view);
     session.display.compose(session.view, verbose);
-    session.display.present(session.view, options.overlay);
+    session.display.present(session.view);
     if (session.display.window != nullptr) {
         SDL_SetWindowTitle(session.display.window,
                            ("Byzantine - " + session.view.name + " entry").c_str());
@@ -3329,7 +3455,7 @@ bool handle_bar_click(Session& session, int x, int y, bool verbose) {
                 std::cout << "bar_page page=" << page.page << " scroll=" << page.scroll
                           << " count=" << page.items.size() << '\n';
             }
-            session.display.present(session.view, session.options.overlay);
+            session.display.present(session.view);
             return true;
         }
     }
@@ -3353,14 +3479,14 @@ bool handle_bar_click(Session& session, int x, int y, bool verbose) {
         byzantine::inventory_scroll(state, 1);
         std::cout << "bar_scroll direction=next scroll=" << state.dialogue_scroll
                   << " page=" << state.current_dialogue_channel << '\n';
-        session.display.present(session.view, session.options.overlay);
+        session.display.present(session.view);
         return true;
     }
     if (x >= 0x25d && x <= 0x27b && y >= 0x1b1 && y <= 0x1cb) {
         byzantine::inventory_scroll(state, -1);
         std::cout << "bar_scroll direction=prev scroll=" << state.dialogue_scroll
                   << " page=" << state.current_dialogue_channel << '\n';
-        session.display.present(session.view, session.options.overlay);
+        session.display.present(session.view);
         return true;
     }
     std::cout << "ui_click bar_empty x=" << x << " y=" << y << " consumed\n";
@@ -3389,7 +3515,7 @@ void apply_bar_options(Session& session, const Options& options, bool verbose) {
                   << " selected=" << (selected ? "yes" : "no") << '\n';
     }
     session.display.compose(session.view, verbose);
-    session.display.present(session.view, options.overlay);
+    session.display.present(session.view);
     if (!options.bar_use) return;
     if (!session.view.state.current_dialogue_record) {
         std::cout << "bar_use skipped: no selected item\n";
@@ -3438,19 +3564,19 @@ bool action_switches_scene(const Session& session) {
 
 // Presents the committed click only when the scene stays. `travel_to` presents
 // the target scene itself.
-void present_action_result(Session& session, const Options& options, bool verbose) {
+void present_action_result(Session& session, bool verbose) {
     if (action_switches_scene(session)) return;
     session.display.compose(session.view, verbose);
-    session.display.present(session.view, options.overlay);
+    session.display.present(session.view);
 }
 
 // A requested 0x73 was refused (missing scene index/script): the departing
 // scene is still current, so show the click's own committed frame rather than
 // leaving the clip's last frame behind.
-void present_refused_switch(Session& session, const Options& options) {
+void present_refused_switch(Session& session) {
     if (!action_switches_scene(session)) return;
     session.display.compose(session.view);
-    session.display.present(session.view, options.overlay);
+    session.display.present(session.view);
 }
 
 // Diagnostic: the logical playfield rectangle that actually hits each active
@@ -3721,7 +3847,7 @@ void clear_text_after_rejected_use(Session& session, const ClickPlan& plan,
                   << (had ? "true" : "false") << '\n';
     }
     session.display.compose(session.view, false);
-    session.display.present(session.view, session.options.overlay);
+    session.display.present(session.view);
 }
 
 // FNV-1a over the parts of SceneState a label can change. Used to prove that the
@@ -3767,6 +3893,160 @@ std::string describe_trace(const byzantine::SceneTrace& trace,
         text += formatted.str();
     }
     return text;
+}
+
+// Committing one executed click/label. The window path, `--click`,
+// `--click-at` and `--run-label` used to repeat this sequence with different
+// ordering and presentation, which is how a presentation fix could land in one
+// path and miss another (the departing-scene flash, then the clip audio drain).
+// The flags keep each path's observable output identical; the *policy* lives
+// here once.
+struct ClickCommit {
+    std::optional<std::uint16_t> object_slot;  // 0x40c329's object text window
+    bool result_first = false;   // --shot paths print click_result before the texts
+    bool refresh = false;        // refresh_background (interactive paths only)
+    bool present_frame = false;  // compose/present the result unless a 0x73 follows
+    bool active_slots = false;   // " active_slots=N" suffix on the result line
+    bool panorama_verbose = true;
+    std::string prefix;          // "run_label N " for a headless label run
+};
+
+void commit_click(Session& session, Options& options, const ClickCommit& commit,
+                  bool verbose) {
+    // The click keeps the state the hover preview produced (that is what makes
+    // one click travel), so only the rewind snapshot is dropped here.
+    session.hover_select_slot = -1;
+    session.hover_highlight_active = false;
+    session.hover_highlight_base = {};
+    session.hover_highlight_trace = {};
+    const bool switching = action_switches_scene(session);
+    const auto print_result = [&] {
+        std::cout << commit.prefix << "click_result "
+                  << describe_trace(session.view.trace, session.view.state);
+        if (commit.active_slots) {
+            std::cout << " active_slots=" << session.view.trace.active_hotspots.size();
+        }
+        std::cout << '\n';
+    };
+    const auto show_text = [&] {
+        if (commit.object_slot) show_object_text(session, *commit.object_slot, true);
+        show_message_text(session, true);
+        apply_panorama_events(session.view, options, commit.panorama_verbose);
+    };
+    if (!commit.result_first) {
+        show_text();
+        if (commit.refresh) refresh_background(options, session.view);
+        if (commit.present_frame) present_action_result(session, verbose);
+    }
+    print_result();
+    if (commit.result_first) show_text();
+    follow_switches(session, verbose);
+    // travel_to presents the target. Only a path that presented the result can
+    // fall back to it when the requested 0x73 is refused.
+    if (switching && commit.present_frame) present_refused_switch(session);
+}
+
+// The map's destinations carry their own highlight art: each 0x72 select object
+// (kind 0x17, label 433/450/…) draws a *Hi record when it runs (0x64/0x95).
+// Hovering a destination should show that art without the click's side effects,
+// so run the label on a COPY of the state and keep only its record changes; the
+// object/hotspot state stays untouched, which keeps the script's click model
+// (select → travel) intact. Restoring the saved records on the next hover
+// removes the preview.
+// Rewinds the hover preview: the state captured when the pointer entered the
+// destination is put back exactly (records, objects, enabled hotspots and the
+// trace), so the *Hi highlight disappears instead of accumulating.
+bool restore_hover_preview(Session& session, bool verbose) {
+    if (!session.hover_highlight_active) return false;
+    session.view.state = std::move(session.hover_highlight_base);
+    session.hover_highlight_base = {};
+    set_trace(session.view, std::move(session.hover_highlight_trace));
+    session.hover_highlight_trace = {};
+    session.hover_highlight_active = false;
+    if (verbose) std::cout << "hover_highlight slot=-1 restored\n";
+    return true;
+}
+
+// The destination under the pointer, picked from the PREVIEW state's base when
+// a preview runs: the select label swaps the destination (41) for its travel
+// object (7) and enables the full-playfield cancel (24), so picking from the
+// live trace would lose the destination as soon as it was highlighted and make
+// the highlight flicker with every motion event.
+int hover_select_pick(const Session& session, int screen_x, int screen_y) {
+    if (screen_y < kScreenPlayfieldTop || screen_y >= kScreenBandTop) return -1;
+    const auto& hotspots = session.hover_highlight_active
+        ? session.hover_highlight_trace.active_hotspots
+        : session.view.trace.active_hotspots;
+    const auto& objects = session.hover_highlight_active
+        ? session.hover_highlight_base.objects
+        : session.view.state.objects;
+    // A destination rectangle wins over the map's full-playfield "click
+    // anywhere" handler; the plain smallest-slot hit test would return 24/32.
+    int picked = -1;
+    for (const auto& hotspot : hotspots) {
+        if (hotspot.width >= kSceneWidth && hotspot.height >= kSceneHeight) continue;
+        if (screen_x < hotspot.x || screen_x > hotspot.x + hotspot.width) continue;
+        if (screen_y < hotspot.y || screen_y > hotspot.y + hotspot.height) continue;
+        const auto object = objects.find(static_cast<std::uint16_t>(hotspot.slot));
+        if (object == objects.end()) continue;
+        if (!object->second.active || object->second.kind != 0x17) continue;
+        if (object->second.label == 0) continue;
+        if (picked < 0 || hotspot.slot < picked) picked = hotspot.slot;
+    }
+    return picked;
+}
+
+bool hover_select(Session& session, int screen_x, int screen_y, bool verbose) {
+    const int picked = hover_select_pick(session, screen_x, screen_y);
+    // Staying on the same destination must not rewind and re-apply (that would
+    // flash the plain map on every motion event); only a change rewinds.
+    if (picked == session.hover_select_slot) return false;
+    bool dirty = restore_hover_preview(session, verbose);
+    session.hover_select_slot = picked;
+    if (picked < 0) return dirty;
+    const auto object = session.view.state.objects.at(static_cast<std::uint16_t>(picked));
+    auto before = session.view.state;
+    auto before_trace = session.view.trace;
+    byzantine::SceneState probe_state = session.view.state;
+    byzantine::SceneTrace probe;
+    try {
+        probe = byzantine::trace_scene_label(session.view.script, session.view.entries,
+                                             probe_state, object.label);
+    } catch (const std::exception& error) {
+        std::cout << "hover_highlight slot=" << picked << " label=" << object.label
+                  << " trace_failed=" << error.what() << '\n';
+        return dirty;
+    }
+    const auto blocker = byzantine::trace_blocker(probe);
+    // A hover must stay a highlight: no travel, dialogue, clip, sound or
+    // unsupported command may start from it.
+    if (probe.scene_switch_requested || probe.conversation_request ||
+        !probe.video_requests.empty() || !blocker.empty() ||
+        !sound_events(probe).empty()) {
+        if (verbose) {
+            std::cout << "hover_highlight slot=" << picked << " label=" << object.label
+                      << " skipped reason=not_a_highlight"
+                      << " switch=" << (probe.scene_switch_requested ? "yes" : "no")
+                      << " conversation=" << (probe.conversation_request ? "yes" : "no")
+                      << " videos=" << probe.video_requests.size()
+                      << " sounds=" << sound_events(probe).size()
+                      << " blocker=" << blocker << '\n';
+        }
+        return dirty;
+    }
+    // Commit the select label's state (highlight + travel object) and remember
+    // the previous state for the rewind.
+    session.view.state = std::move(probe_state);
+    session.hover_highlight_base = std::move(before);
+    session.hover_highlight_trace = std::move(before_trace);
+    session.hover_highlight_active = true;
+    set_trace(session.view, probe);
+    if (verbose) {
+        std::cout << "hover_highlight slot=" << picked << " label=" << object.label
+                  << " steps=" << session.view.trace.steps << " at=" << screen_x << ','
+                  << screen_y << '\n';
+    }
+    return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -4054,6 +4334,9 @@ ClipPlayback play_decoded_clip(Session& session, const DecodedClip& decoded,
                                const std::function<bool(const std::string&)>& write_shot) {
     ClipPlayback result;
     if (decoded.frames.empty()) return result;
+    // A clip is not the scene: no hotspot outline on its frames or on the audio
+    // drain's re-present (the drain used to draw the map's rectangles).
+    ScreenContentScope content(session.display, ScreenContent::clip);
     std::optional<byzantine::WavClip> sound;
     if (!decoded.audio) {
         std::cout << tags.media << " clip=" << clip
@@ -4420,7 +4703,7 @@ bool play_cf_video(Session& session, const byzantine::SceneVideoRequest& request
         // 0x413bdd presents the clip alone; the hotspot outline is a port
         // diagnostic and must not be drawn over the video (the reported
         // "map markers left on the video" while travelling).
-        [&] { session.display.present(session.view, false); },
+        [&] { session.display.present(session.view); },
         [&](const std::string& path) {
             session.display.build_screen(session.view);
             return byzantine::write_ppm(session.display.screen, path);
@@ -4614,17 +4897,18 @@ struct ConversationUi {
         draw_caption(screen);
     }
 
-    // `show_overlay` is the port's hotspot-outline diagnostic. The original
-    // never draws it, so a video frame (which covers the playfield) is presented
-    // without it: 0x413bdd blits the clip over the scene and no outline is part
-    // of that surface. The scene itself keeps the normal H behaviour.
-    void present(Session& session, bool show_overlay) {
+    // The conversation screen is scene content: the hotspot-outline diagnostic
+    // (H) stays available here, exactly as on the scene. A clip presented inside
+    // a conversation is ScreenContent::clip, so its frames and their audio drain
+    // are never outlined (0x413bdd blits over the scene surface).
+    void present(Session& session) {
         compose(session);
-        session.display.present_image(screen, session.view, show_overlay,
-                                      kScreenPlayfieldTop, "conversation");
+        ScreenContentScope content(session.display, ScreenContent::conversation);
+        session.display.present_image(screen, session.view, kScreenPlayfieldTop,
+                                      "conversation");
     }
 
-    void present(Session& session) { present(session, session.options.overlay); }
+
 
     bool write(Session& session, const std::string& path) {
         compose(session);
@@ -5281,7 +5565,7 @@ struct MenuUi {
         session.display.top_bar_hover = 0;
         session.display.top_bar_press = 0;
         session.display.compose(session.view, false, false);
-        session.display.present(session.view, session.options.overlay);
+        session.display.present(session.view);
     }
 
     int read_status_count() const {
@@ -5737,8 +6021,8 @@ struct MenuUi {
 
     void present(Session& session) {
         draw(session);
-        session.display.present_image(session.display.screen, session.view, false, 0,
-                                      "menu");
+        ScreenContentScope content(session.display, ScreenContent::menu);
+        session.display.present_image(session.display.screen, session.view, 0, "menu");
         float x = 0;
         float y = 0;
         session.display.mouse_logical(&x, &y);
@@ -6128,7 +6412,8 @@ struct MenuUi {
                         display.surface.at(column, row);
                 }
             }
-            display.present_image(display.screen, session.view, false, 0, "menu_movie");
+            ScreenContentScope content(display, ScreenContent::menu);
+            display.present_image(display.screen, session.view, 0, "menu_movie");
         };
         const auto playback = play_decoded_clip(
             session, *decoded, true, 0, 0, session.options.video_shot, kSceneClipTags,
@@ -6228,7 +6513,8 @@ struct MenuUi {
                                      kScreenWidth / 2, line_y, 1, 1,
                                      headings[index] ? 0xffe0 : 0xffff);
             }
-            display.present_image(display.screen, session.view, false, 0, "credits");
+            ScreenContentScope content(display, ScreenContent::menu);
+            display.present_image(display.screen, session.view, 0, "credits");
             ++frames;
             if (session.options.credits_frames &&
                 frames >= *session.options.credits_frames) {
@@ -6784,7 +7070,7 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                             // 0x413bdd draws the clip over the scene surface;
                             // the port's hotspot outline is a diagnostic and
                             // must not sit on top of the FMV.
-                            [&] { ui.present(session, false); },
+                            [&] { ui.present(session); },
                             [&](const std::string& path) {
                                 return ui.write(session, path);
                             });
@@ -7272,7 +7558,7 @@ bool restart_scene(Session& session,
     resume_ambient(session, verbose);
     refresh_background(session.options, session.view);
     session.display.compose(session.view, verbose);
-    session.display.present(session.view, session.options.overlay);
+    session.display.present(session.view);
     std::cout << "scene_restart reason=" << reason << " scene=" << session.view.name
               << " point=" << (point.at_entry ? "entry" : "label")
               << " hotspots=" << session.view.trace.active_hotspots.size()
@@ -7301,7 +7587,7 @@ bool execute_plan(Session& session, const ClickPlan& plan,
     apply_panorama_events(session.view, session.options, verbose);
     refresh_background(session.options, session.view);
     session.display.compose(session.view, false);
-    session.display.present(session.view, false);
+    session.display.present(session.view);
     {
         std::ostringstream entry_state;
         entry_state << "conversation_entry locals_digest=0x" << std::hex
@@ -7321,11 +7607,11 @@ bool execute_plan(Session& session, const ClickPlan& plan,
     // inventory strip) is what the caller and the player see on return.
     refresh_background(session.options, session.view);
     session.display.compose(session.view, false);
-    session.display.present(session.view, session.options.overlay);
+    session.display.present(session.view);
     if (!outcome.ok) {
         refresh_background(session.options, session.view);
         session.display.compose(session.view, false);
-        session.display.present(session.view, false);
+        session.display.present(session.view);
         std::cout << "conversation stopped before completion; the click is not committed\n";
         return false;
     }
@@ -7383,7 +7669,7 @@ bool execute_plan(Session& session, const ClickPlan& plan,
             "OTURUM SONLANDI\nYENİDEN YÜKLE: R\nÇIKIŞ: ESC");
         refresh_background(session.options, session.view);
         session.display.compose(session.view, false);
-        session.display.present(session.view, false);
+        session.display.present(session.view);
         std::cout << "scene_session_ended reason=conversation_exit hotspots="
                   << session.view.trace.active_hotspots.size() << '\n';
         std::cout << "reload_choice available=yes key=R scene=" << session.view.name
@@ -7678,7 +7964,7 @@ int main(int argc, char** argv) {
             if (!options.entry) {
                 refresh_background(options, session.view);
                 session.display.compose(session.view);
-                session.display.present(session.view, options.overlay);
+                session.display.present(session.view);
             }
             const auto run = [&](EntryPoint point, const byzantine::SceneState& entry,
                                  const byzantine::SceneTrace& look) {
@@ -7764,7 +8050,7 @@ int main(int argc, char** argv) {
                         apply_panorama_events(session.view, options, true);
                         refresh_background(options, session.view);
                         session.display.compose(session.view);
-                        session.display.present(session.view, options.overlay);
+                        session.display.present(session.view);
                         follow_switches(session, true);
                         if (options.print_hotspots) print_hotspot_screens(session.view);
                     }
@@ -7773,12 +8059,12 @@ int main(int argc, char** argv) {
             }
             refresh_background(options, session.view);
             session.display.compose(session.view);
-            session.display.present(session.view, options.overlay);
+            session.display.present(session.view);
             if (options.bar_show) {
                 session.display.top_bar_visible = *options.bar_show != 0;
                 session.display.top_bar_hover = *options.bar_show;
                 session.display.top_bar_press = 0;
-                session.display.present(session.view, options.overlay);
+                session.display.present(session.view);
                 std::cout << "bar_show button=" << *options.bar_show
                           << " visible=" << (session.display.top_bar_visible ? "yes" : "no")
                           << '\n';
@@ -7819,7 +8105,7 @@ int main(int argc, char** argv) {
                     session.view.state = before_state;
                     set_trace(session.view, before_trace);
                     session.display.compose(session.view, false);
-                    session.display.present(session.view, options.overlay);
+                    session.display.present(session.view);
                     return;
                 }
                 if (ended) {
@@ -7831,20 +8117,12 @@ int main(int argc, char** argv) {
                     if (options.print_hotspots) print_hotspot_screens(session.view);
                     return;
                 }
-                show_object_text(session, *hit.slot, true);
-                show_message_text(session, true);
-                apply_panorama_events(session.view, options, true);
-                refresh_background(options, session.view);
-                // A click that reaches 0x73 leaves this scene: the departing
-                // frame is not presented (travel_to presents the target).
-                const bool switching = action_switches_scene(session);
-                present_action_result(session, options, true);
-                std::cout << "click_result "
-                          << describe_trace(session.view.trace, session.view.state)
-                          << " active_slots="
-                          << session.view.trace.active_hotspots.size() << '\n';
-                follow_switches(session, true);
-                if (switching) present_refused_switch(session, options);
+                ClickCommit commit;
+                commit.object_slot = *hit.slot;
+                commit.refresh = true;
+                commit.present_frame = true;
+                commit.active_slots = true;
+                commit_click(session, options, commit, true);
                 if (options.print_hotspots) print_hotspot_screens(session.view);
             };
             // Arrow keys turn the panorama (the original uses on-screen cursor
@@ -7853,7 +8131,7 @@ int main(int argc, char** argv) {
                 if (!panorama_layer(session.view)) return;
                 session.view.panorama->advance(yaw, pitch, 1.0);
                 session.display.compose(session.view, false, false);
-                session.display.present(session.view, options.overlay);
+                session.display.present(session.view);
                 std::cout << "panorama yaw=" << session.view.panorama->yaw_degrees()
                           << " pitch=" << session.view.panorama->pitch_degrees()
                           << '\n';
@@ -7875,24 +8153,18 @@ int main(int argc, char** argv) {
                                   << session.view.trace.active_hotspots.size() << '\n';
                         follow_switches(session, true);
                     } else {
-                        show_object_text(session, static_cast<std::uint16_t>(*options.click), true);
-                        show_message_text(session, true);
-                        apply_panorama_events(session.view, options, true);
-                        refresh_background(options, session.view);
-                        const bool switching = action_switches_scene(session);
-                        present_action_result(session, options, true);
-                        std::cout << "click_result "
-                                  << describe_trace(session.view.trace, session.view.state)
-                                  << " active_slots="
-                                  << session.view.trace.active_hotspots.size() << '\n';
-                        follow_switches(session, true);
-                        if (switching) present_refused_switch(session, options);
+                        ClickCommit commit;
+                        commit.object_slot = static_cast<std::uint16_t>(*options.click);
+                        commit.refresh = true;
+                        commit.present_frame = true;
+                        commit.active_slots = true;
+                        commit_click(session, options, commit, true);
                     }
                 } else if (plan.ok) {
                     session.view.state = before_state;
                     set_trace(session.view, before_trace);
                     session.display.compose(session.view, false);
-                    session.display.present(session.view, options.overlay);
+                    session.display.present(session.view);
                     std::cout << "click not committed\n";
                 }
                 if (!plan.ok) clear_text_after_rejected_use(session, plan, true);
@@ -7975,10 +8247,28 @@ int main(int argc, char** argv) {
                     if (event.type == SDL_QUIT ||
                         (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE)) {
                         session.running = false;
+                    } else if (event.type == SDL_WINDOWEVENT &&
+                               (event.window.event == SDL_WINDOWEVENT_LEAVE ||
+                                event.window.event == SDL_WINDOWEVENT_FOCUS_LOST)) {
+                        // The pointer left the window (or the window lost focus),
+                        // so no motion event will rewind the hover highlight.
+                        session.hover_select_slot = -1;
+                        if (restore_hover_preview(session, true)) {
+                            session.display.compose(session.view, false, false);
+                            session.display.present(session.view);
+                        }
                     } else if (event.type == SDL_KEYDOWN &&
                                event.key.keysym.sym == SDLK_h) {
                         options.overlay = !options.overlay;
-                        session.display.present(session.view, options.overlay);
+                        // Turning the hover outline back on follows the live
+                        // pointer; the outlined slot is not tracked while off.
+                        float pointer_x = 0;
+                        float pointer_y = 0;
+                        session.display.mouse_logical(&pointer_x, &pointer_y);
+                        session.display.set_hover_overlay(
+                            session.view, static_cast<int>(pointer_x),
+                            static_cast<int>(pointer_y));
+                        session.display.present(session.view);
                     } else if (event.type == SDL_KEYDOWN &&
                                event.key.keysym.sym == SDLK_r &&
                                session.reload_available) {
@@ -8028,7 +8318,7 @@ int main(int argc, char** argv) {
                                 session.display.top_bar_visible = true;
                                 session.display.top_bar_hover = button;
                                 session.display.top_bar_press = button;
-                                session.display.present(session.view, false);
+                                session.display.present(session.view);
                                 std::cout << "ui_click top_bar x="
                                           << static_cast<int>(logical_x) << " y="
                                           << static_cast<int>(logical_y) << " button="
@@ -8066,10 +8356,21 @@ int main(int argc, char** argv) {
                         session.display.top_bar_hover = bar_button;
                         session.display.top_bar_press = 0;
                         if (bar_changed) {
-                            session.display.present(session.view, options.overlay);
+                            session.display.present(session.view);
                         }
                         session.display.update_cursor_at(
                             session.view, event.motion.x, event.motion.y);
+                        // The hover outline follows the pointer; redraw only
+                        // when it moves to another active hotspot (or leaves).
+                        bool hover_dirty = session.display.set_hover_overlay(
+                            session.view, event.motion.x, event.motion.y);
+                        // Show the destination's own *Hi art while hovered.
+                        if (!dragging &&
+                            hover_select(session, event.motion.x, event.motion.y, true)) {
+                            session.display.compose(session.view, false, false);
+                            hover_dirty = true;
+                        }
+                        if (hover_dirty) session.display.present(session.view);
                         if (!dragging) continue;
                         const float logical_x = static_cast<float>(event.motion.x);
                         const float logical_y = static_cast<float>(event.motion.y);
@@ -8166,7 +8467,7 @@ int main(int argc, char** argv) {
                                 static_cast<std::size_t>(owed));
                             pass_clock.applied(owed);
                         }
-                        session.display.present(session.view, options.overlay);
+                        session.display.present(session.view);
                     }
                     pacer.consumed(now_ms, 1);
                 }
@@ -8183,6 +8484,7 @@ int main(int argc, char** argv) {
                           << " injected=" << (session.wait.injected ? "true" : "false")
                           << '\n';
             }
+            session.display.log_present_summary();
             SDL_DestroyTexture(session.display.texture);
             SDL_DestroyRenderer(session.display.renderer);
             SDL_DestroyWindow(session.display.window);
@@ -8255,11 +8557,10 @@ int main(int argc, char** argv) {
                               << " click_result scene_session_ended\n";
                     follow_switches(session, false);
                 } else {
-                    std::cout << "run_label " << plan.action << " click_result "
-                              << describe_trace(session.view.trace, session.view.state) << '\n';
-                    show_message_text(session, true);
-                    apply_panorama_events(session.view, options, true);
-                    follow_switches(session, false);
+                    ClickCommit commit;
+                    commit.result_first = true;
+                    commit.prefix = "run_label " + std::to_string(plan.action) + " ";
+                    commit_click(session, options, commit, false);
                 }
             }
         }
@@ -8280,12 +8581,10 @@ int main(int argc, char** argv) {
                     std::cout << "click_result scene_session_ended\n";
                     follow_switches(session, false);
                 } else {
-                    std::cout << "click_result "
-                              << describe_trace(session.view.trace, session.view.state) << '\n';
-                    show_object_text(session, static_cast<std::uint16_t>(*options.click), true);
-                    show_message_text(session, true);
-                    apply_panorama_events(session.view, options, true);
-                    follow_switches(session, true);
+                    ClickCommit commit;
+                    commit.object_slot = static_cast<std::uint16_t>(*options.click);
+                    commit.result_first = true;
+                    commit_click(session, options, commit, true);
                 }
             }
         }
@@ -8322,12 +8621,11 @@ int main(int argc, char** argv) {
                 follow_switches(session, false);
                 continue;
             }
-            std::cout << "click_result "
-                      << describe_trace(session.view.trace, session.view.state) << '\n';
-            show_object_text(session, *hit.slot, true);
-            show_message_text(session, true);
-            apply_panorama_events(session.view, options, false);
-            follow_switches(session, false);
+            ClickCommit commit;
+            commit.object_slot = *hit.slot;
+            commit.result_first = true;
+            commit.panorama_verbose = false;
+            commit_click(session, options, commit, false);
         }
         refresh_background(options, session.view);
         session.display.compose(session.view);
@@ -8345,9 +8643,9 @@ int main(int argc, char** argv) {
         // interactive loop's 0x43b216 cadence, to observe the frame walk.
         for (std::size_t frame = 0; frame < options.compose_frames; ++frame) {
             session.display.compose(session.view, false);
-            session.display.present(session.view, false);
+            session.display.present(session.view);
         }
-        session.display.present(session.view, options.overlay);
+        session.display.present(session.view);
         // --cursor-at: the same 0x40c329/0x4083d4 selection the mouse uses, for
         // a deterministic headless check of the installed pointer.
         for (const auto& point : options.cursor_ats) {
@@ -8380,6 +8678,7 @@ int main(int argc, char** argv) {
                 }
             }
         }
+        session.display.log_present_summary();
         std::cout << "scene=" << session.view.name
                   << " background=" << session.view.background_name
                   << " hotspots=" << session.view.trace.active_hotspots.size() << " slots=";

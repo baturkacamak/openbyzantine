@@ -1,3 +1,73 @@
+## Reversible map hover highlight (28 October 2026)
+
+User report: hovering a map destination showed its `*Hi` art, but mouse-out left
+it on screen and other destinations stacked different colours. Root cause: the
+select label does not only draw art, it swaps the destination for its travel
+object (`0x6e` disables 41, `0x6d` enables 7 and the cancel 24), and only the
+record changes were being rewound, so every later motion re-selected from an
+already-selected map.
+
+Fix: `hover_select` snapshots the whole `SceneState`/`SceneTrace` before it
+commits the label and `restore_hover_preview` restores it on destination change,
+mouse-out, `SDL_WINDOWEVENT_LEAVE` and `FOCUS_LOST`. The pick reads the snapshot
+(not the live trace) and a stationary pointer never re-runs the label, which also
+removed a one-frame flash per motion event. One click still travels because the
+preview keeps the enabled travel object. Log:
+`hover_highlight slot=N label=… steps=… at=x,y` / `hover_highlight slot=-1 restored`.
+
+Measured against the plain map frame: 26,780 px for the Süleymaniye highlight,
+24,740 px for Topkapı, **0 px** after mouse-out, after a 5-destination sweep,
+after an empty-space click and after leaving the window
+(`port/output/hover-outline/`, `analysis/rea/PRESENTATION_ARCHITECTURE.md`).
+Note: `ffmpeg x11grab` recentred the pointer in this environment; use
+`xwd -root` for hover captures. `make -C port -j2 all test` and the verify
+scripts pass.
+
+## One presentation policy and one click commit (28 October 2026)
+
+User report on `run-20261028T112743.479241Z-rhubkx1k` (MR → MAP → EA): after the
+site clip the **map's hotspot rectangles** were visible again. The trace shows
+the last clip frame (index 129) and the first EA frame (index 132) with indices
+130/131 missing: they re-presented the same picture, so no line was written. They
+are the clip's audio drain (`EaEst1` 8333 ms audio vs 8344 ms of frames), where
+`pump_window` presented with `session.options.overlay`, drawing the map's
+regions over the clip for ~214 ms (`active_slots=4,32,34,36,39,40,41,46,47`).
+
+Audit: the overlay decision was repeated at **40** call sites, and a committed
+click sequence was copied **five** times; that is why the 27 October clip-frame
+fix and this morning's flash fix could each miss a path. The shipped engine is
+not built that way — it draws into one surface and presents it once
+(`0x43b216`/`0x4242bd` draw, `0x413bdd` blits frames, `0x4146a7`/`0x41b251` are
+the presents, `0x41e289` menus draw into the same surface) and has no hotspot
+outline at all (`0x40c329` only picks the cursor). The duplication is host-side.
+
+Change: `ScreenContent` + `ScreenContentScope` set what is on screen
+(`scene`/`conversation`/`clip`/`menu`); `Display::present_image` (the only
+`SDL_RenderPresent`) lost its `overlay` parameter and derives the diagnostic from
+`overlay_allowed()` (`--hotspots`/H + content). The outline is **off by
+default**. The map's hover aid is the game's own select labels: `hover_select`
+runs the active kind-0x17 destination's label once when the pointer enters it
+(the `*Hi` highlight + its travel object), so one click travels. The preview is
+transactional: the whole `SceneState`/`SceneTrace` is snapshotted before the
+label and restored exactly when the pointer leaves the destination or the window
+(`restore_hover_preview`), so highlights cannot accumulate. Full-playfield
+"click anywhere" objects are excluded; labels that would travel, talk, play a
+clip/sound or hit a blocker are refused (`skipped reason=not_a_highlight`).
+`--hotspots-hover`/`--hotspots` restore the rectangle diagnostic.
+`play_decoded_clip` wraps
+frames **and** the audio drain in `clip`; menus are `menu`; a conversation screen
+is `conversation`. Present lines now carry `overlay=0|1` and the trace has
+`screen_content now=… previous=…`. `commit_click(ClickCommit)` replaces the five
+copies (window, `--click`, `--click-at`, `--run-label`). `log_present_summary()`
+now runs before `scene=… slots=…`, which the verification scripts require (the
+previous commit printed it from the destructor and broke them).
+
+Real data: `run-20261028T115014.820707Z-ihsxl6j2` (same MR → MAP → EA clicks) has
+125 clip presents `overlay=0`, scene presents `overlay=1`, EA panorama `overlay=0`,
+and the `screen_content` markers around the clip. `make -C port -j2 all test` and
+all 12 `analysis/rea/verify_*.py` pass. Report and rules for future work:
+`analysis/rea/PRESENTATION_ARCHITECTURE.md`, `AGENTS.md`.
+
 ## Presented-frame trace added: the post-video flash is the old MAP frame (28 October 2026)
 
 User report on `run-20261028T103348.882238Z-mvh2o62q` (MR → MAP → SM): the site

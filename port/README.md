@@ -86,6 +86,27 @@ sınırlar. Animasyon her karede log basmaz; resim/katman değişiminde ve 5 s'l
 kalp atışında yazar. Koşu sonunda `present_summary frames= logged= dumps=`
 basılır. Ayrıntı: [`PRESENT_TRACE.md`](../analysis/rea/PRESENT_TRACE.md).
 
+Her `present` satırında artık `overlay=0|1` de var: hotspot çerçevesi o karede
+çizildi mi. Hangi sunucunun ekranı sahiplendiği `screen_content now=…
+previous=…` satırlarıyla görünür (`scene`, `conversation`, `clip`, `menu`).
+Politika tek yerde: `Display::present_image` (`ScreenContent`). Sarı çerçeve
+tanılaması **varsayılan kapalı**. Haritada imleç bir hedefin üzerine gelince
+hedefin kendi seçim etiketi çalışır: `*Hi` vurgu resmi çizilir ve o hedefin
+seyahat nesnesi açılır (`hover_select`), böylece **tek tıkla** oraya gidilir.
+Vurgu geçicidir: `hover_select` etiketten önce tüm `SceneState`/`SceneTrace`
+kopyasını alır, imleç hedefi terk edince (veya pencere odağı gidince)
+`restore_hover_preview` bu kopyayı aynen geri koyar; böylece vurgular birikmez.
+Log: `hover_highlight slot=N label=… at=x,y` ve
+`hover_highlight slot=-1 restored`. Tam-ekran "iptal" nesneleri hover'da
+çalışmaz; seyahat/diyalog/klip/ses/blocker üreten etiketler reddedilir
+(`skipped reason=not_a_highlight`).
+`--hotspots-hover` imlecin altındaki alanı, `--hotspots` hepsini çizer; H
+aç/kapa. Klip ve menü ekranlarında asla çizilmez;
+klip (ses kuyruğu dahil) ve menü ekranları asla çerçevelenmez. Tıklama bitişi de
+tek yerde: `commit_click` (pencere, `--click`, `--click-at`, `--run-label`).
+Ayrıntı ve gelecek çalışma kuralları: `AGENTS.md`,
+[`PRESENTATION_ARCHITECTURE.md`](../analysis/rea/PRESENTATION_ARCHITECTURE.md).
+
 Karelerin kendisini de saklamak için (video kareleri hariç, tekrarsız, varsayılan
 en fazla 40 PPM):
 

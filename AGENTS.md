@@ -11,6 +11,78 @@
 - After a substantive step update `CONTINUE.md` and a focused evidence report.
 - Build and validate behavior with `make -C port -j2 all test`.
 
+## Player presentation and click architecture (read before touching the player)
+
+The engine modules (`cc.cpp`, `compose.cpp`, `records.cpp`, `save.cpp`,
+`panorama*.cpp`, `conversation.cpp`) are data-driven: script labels, records,
+sounds, backgrounds and panorama nodes come from the shipped tables, and there
+are **no scene-name branches**. The only scene names in code are recovered data
+tables, each tied to an original address: `inventory.cpp`'s examine mapping
+(`0x438afa`/`0x438173`), the notebook prefixes (`0x4216fe`), `Hints`
+(`0x41e002`), the cursor tables (`0x45dbe8`/`0x45e090`) and `video.cpp`'s
+`mcaft1a1` (`0x40d031`). Do not add a per-scene fix; fix the shared rule.
+
+`port/src/play_main.cpp` is the host (window, menus, clips, diagnostics) and is
+where duplication used to cause regressions. Keep these three single points:
+
+1. **One presentation decision.** `Display::present_image` is the only
+   `SDL_RenderPresent`. `ScreenContentScope` sets what is on screen
+   (`scene`, `conversation`, `clip`, `menu`) and `Display::overlay_allowed()`
+   decides the hotspot-outline diagnostic from it plus `--hotspots`/`H`. It is
+   **off by default**: the map's own `*Hi` art is the visible highlight
+   (`hover_select`, see below). `--hotspots-hover` outlines the pointer's
+   hotspot, `--hotspots`/`--hotspots-all` every active one. A clip (including
+   its audio drain, which runs inside `play_decoded_clip`) and a menu are never
+   outlined (that was the reported bug). Do not add an `overlay` parameter to a
+   new presenter; wrap the content instead. `ScreenContentScope` writes
+   `screen_content now=… previous=…` to the detail trace, and every present line
+   carries `overlay=0|1`, so a leak is attributable.
+2. **One click commit.** `commit_click` (next to `describe_trace`) is the only
+   way to finish a click: object/message windows, panorama events, the
+   presented result, `click_result`, `follow_switches` and the refused-switch
+   fallback. The window path, `--click`, `--click-at` and `--run-label` pass
+   `ClickCommit` flags for their observable differences, never their own copy of
+   the sequence.
+3. **A `0x73` never presents the departing scene.** `action_switches_scene` /
+   `present_action_result` skip the frame; `travel_to` presents the target, and
+   `present_refused_switch` restores the click's frame only when the switch is
+   refused. This is what stopped the map flashing between a site video and its
+   destination.
+
+Other rules learned here:
+
+- The hotspot outline is a **port diagnostic**, not original behavior; the
+  shipped build only changes the cursor (and on the map that cursor is `map`
+  everywhere). The port's hover aid is the game's own select labels:
+  `hover_select` runs the active kind-0x17 destination's label once (433/450…)
+  when the pointer enters it; that draws its `*Hi` highlight and enables its
+  travel object, so **one click then travels**. Only destination rectangles are
+  considered — never the full-playfield "click anywhere" handlers (24/32) — and
+  a hover is refused (logged `skipped reason=not_a_highlight`) when the label
+  would travel, talk, play a clip or sound, or hit an unsupported command.
+  Do not add a fallback/retry over full-playfield objects: that ran 8 labels in
+  one sweep and churned the map.
+- The hover preview is **transactional**: `hover_select` snapshots the whole
+  `SceneState` + `SceneTrace` before it commits the select label, and
+  `restore_hover_preview` puts that snapshot back exactly when the pointer
+  leaves or changes destination (also on window leave/focus loss). Without the
+  rewind the `*Hi` art accumulates and different destinations stack their
+  colours. The pick must read the **snapshot**, never the live trace (the label
+  disables the destination 41 and enables travel 7 + cancel 24), and staying on
+  the same destination must not re-run the label (that flashed the plain map on
+  every motion event). The log names it: `hover_highlight slot=N label=… at=x,y`
+  and `hover_highlight slot=-1 restored`. Capture real-window evidence with
+  `xwd -root`; ffmpeg `x11grab` recentred the pointer here and silently
+  invalidated a hover test.
+- A clip's last audio buffer can be torn data (e.g. `NBEST1.avi`'s last 67 ms).
+  `trim_torn_audio_tail` handles only that shape and logs
+  `tail_guard …`; `--no-audio-tail-guard` keeps the raw stream.
+- The `--shot`/headless paths must keep `scene=… slots=…` as the **last stdout
+  line** (the verification scripts parse it). `Display::log_present_summary()`
+  is called before it.
+- Report evidence in `port/output/…`, and update `CONTINUE.md` plus a focused
+  `analysis/rea/*.md`. `PRESENTATION_ARCHITECTURE.md` describes this audit.
+
 ## Runtime diagnostics (user request, 27 October 2026)
 
 - Normal `port/scene.sh` launches automatically retain a separate run bundle in
