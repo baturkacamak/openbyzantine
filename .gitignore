@@ -45,3 +45,4 @@ port/audio-test
 port/cursor-test
 port/video-test
 port/menu-test
+port/transition-test

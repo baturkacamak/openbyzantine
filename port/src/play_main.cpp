@@ -32,6 +32,7 @@
 #include "byzantine/panorama_view.hpp"
 #include "byzantine/scene_setup.hpp"
 #include "byzantine/text.hpp"
+#include "byzantine/transition.hpp"
 #include "byzantine/video.hpp"
 #include "byzantine/rle.hpp"
 
@@ -57,6 +58,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -155,6 +157,9 @@ struct Options {
     // Bounded by --present-dump-max (or BYZ_PRESENT_DUMP/BYZ_PRESENT_DUMP_MAX).
     std::string present_dump;
     std::size_t present_dump_max = 40;
+    // --transition-shot <dir>: write each intermediate frame of a transition as
+    // a PPM, so the blend steps can be inspected without a window.
+    std::string transition_shot;
     bool entry = false;                        // --entry: start at instruction 0
     std::optional<int> run_label;              // --run-label <n>: after --entry
     std::optional<int> click;                  // --click <slot>
@@ -179,6 +184,12 @@ struct Options {
     // one, H toggles. Clips and menus are always excluded (ScreenContent).
     bool overlay = false;
     bool hotspots_all = true;
+    // --no-transitions: show the new picture at once instead of running
+    // 0x40186e's blend family (0x65..0x6a). --transition <code> overrides the
+    // code used when a travel carries none (a flat 0x69 scene load); the
+    // original's own code is always preferred when the script has one.
+    bool transitions = true;
+    std::uint16_t travel_transition = 0x65;
     bool print_audio = false;
     bool audio = true;
     // --no-audio-tail-guard: keep a clip's unmodified audio stream. Off by
@@ -236,12 +247,11 @@ const std::set<std::string> kValued = {
     "--dialog-cache",
     "--run-label", "--conversation-choices", "--conversation-shot",
     "--conversation-object", "--conversation-video-shot", "--conversation-cancel",
-    "--video-shot",
+    "--video-shot", "--transition", "--transition-shot",
     "--bar-select", "--media-isos", "--anim-pass-hz", "--cursor-at",
     "--panorama-yaw", "--menu", "--menu-click-at", "--menu-shot", "--bar-show",
     "--menu-text", "--menu-key", "--menu-hover", "--credits-frames",
     "--credits-shot"};
-
 Options parse_options(int argc, char** argv) {
     Options options;
     std::vector<std::string> positional;
@@ -275,6 +285,10 @@ Options parse_options(int argc, char** argv) {
         }
         if (token == "--no-video") {
             options.video = false;
+            continue;
+        }
+        if (token == "--no-transitions") {
+            options.transitions = false;
             continue;
         }
         if (token == "--selftest-events") {
@@ -359,6 +373,14 @@ Options parse_options(int argc, char** argv) {
             else if (token == "--conversation-object") options.conversation_object = std::stoi(value);
             else if (token == "--conversation-video-shot") options.conversation_video_shot = value;
             else if (token == "--video-shot") options.video_shot = value;
+            else if (token == "--transition") {
+                const auto code = static_cast<unsigned>(std::stoul(value, nullptr, 0));
+                if (code > 0xffff) {
+                    throw std::runtime_error("--transition must be a 16-bit code");
+                }
+                options.travel_transition = static_cast<std::uint16_t>(code);
+            }
+            else if (token == "--transition-shot") options.transition_shot = value;
             else if (token == "--present-dump") options.present_dump = value;
             else if (token == "--present-dump-max") {
                 const auto limit = std::stoul(value);
@@ -1110,12 +1132,14 @@ void apply_panorama_events(SceneView& view, Options& options, bool verbose) {
                           << " yaw_degrees=" << setup.horizontal_degrees
                           << " vertical_degrees=" << setup.vertical_degrees
                           << " yaw=" << view.panorama->yaw_degrees()
+                          << " transition=0x" << std::hex << load.transition << std::dec
                           << (loaded ? " loaded" : " reused") << '\n';
             }
         } else if (verbose) {
             std::cout << "panorama_load instruction=" << load.instruction
                       << " name=" << load.name << " record=" << load.record
                       << " staged_x=none yaw=" << view.panorama->yaw_degrees()
+                      << " transition=0x" << std::hex << load.transition << std::dec
                       << (loaded ? " loaded" : " reused") << '\n';
         }
         if (load.vertical != 0) {
@@ -1213,7 +1237,19 @@ void apply_panorama_events(SceneView& view, Options& options, bool verbose) {
 // several presenters (scene, clip media, conversation, menu). Every presenter
 // ends in Display::present_image, which applies the one rule below, so no path
 // has to remember to pass overlay=false (a clip's audio drain used to forget).
-enum class ScreenContent { scene, conversation, clip, menu };
+enum class ScreenContent { scene, conversation, clip, menu, transition };
+
+// The detail trace's name for what owns the screen (see ScreenContentScope).
+const char* screen_content_name(ScreenContent content) {
+    switch (content) {
+        case ScreenContent::conversation: return "conversation";
+        case ScreenContent::clip: return "clip";
+        case ScreenContent::menu: return "menu";
+        case ScreenContent::transition: return "transition";
+        case ScreenContent::scene: break;
+    }
+    return "scene";
+}
 
 struct Display {
     SDL_Window* window = nullptr;
@@ -1247,6 +1283,25 @@ struct Display {
         return content == ScreenContent::scene || content == ScreenContent::conversation;
     }
     bool overlay_all() const { return ui_options != nullptr && ui_options->hotspots_all; }
+    // Records who owns the screen in the detail trace, then switches to it.
+    // ScreenContentScope wraps this for media/menu presenters; a transition
+    // calls it directly because that scope type is declared after Display.
+    void enter_content(ScreenContent next) {
+        const auto previous = content;
+        content = next;
+        byzantine::diagnostics::write("screen_content", [&](auto& out) {
+            out << "now=" << screen_content_name(next)
+                << " previous=" << screen_content_name(previous);
+        });
+    }
+    void restore_content(ScreenContent previous) {
+        const auto now = content;
+        content = previous;
+        byzantine::diagnostics::write("screen_content", [&](auto& out) {
+            out << "now=" << screen_content_name(previous)
+                << " previous=" << screen_content_name(now);
+        });
+    }
     // The active hotspot under the pointer, or -1. Only the script-enabled set
     // counts: an object the script has not enabled is not clickable.
     int hovered_overlay_slot(const SceneView& view, int x, int y) const {
@@ -1305,6 +1360,11 @@ struct Display {
     std::uint64_t present_hash = 0;
     bool present_hash_known = false;
     std::string present_state_key;
+    // The outgoing 640x400 playfield of the next transition: present_image keeps
+    // it from every full-screen frame. 0x40186e's blends cover (0,0x14)-(0x280,
+    // 0x1a4) only, so the strip and the top bar are never part of the mix.
+    byzantine::Rgb16Surface last_playfield;
+    bool last_playfield_valid = false;
     std::string present_detail;
     std::chrono::steady_clock::time_point picture_since{};
     std::chrono::steady_clock::time_point present_logged_at{};
@@ -1844,6 +1904,152 @@ struct Display {
         }
         SDL_RenderPresent(renderer);
         log_present(image, view, tag, draw_overlay);
+        update_last_playfield(image, hotspot_offset_y, tag);
+    }
+
+    // Keeps the playfield of the frame that is on screen, so the next travel or
+    // panorama load has a real departing picture to blend from. A presentation
+    // that is not a whole 640x480 screen (or a bare 640x400 playfield) is not a
+    // scene frame, so it invalidates the buffer instead of guessing.
+    void update_last_playfield(const byzantine::Rgb16Surface& image,
+                               int hotspot_offset_y, const char* tag) {
+        if (std::strcmp(tag, "transition") == 0) return;  // keep the departing frame
+        const bool full_screen = image.width == kScreenWidth &&
+                                 image.height == kScreenHeight &&
+                                 hotspot_offset_y == kScreenPlayfieldTop;
+        const bool playfield = image.width == kSceneWidth &&
+                               image.height == kSceneHeight && hotspot_offset_y == 0;
+        if (!full_screen && !playfield) {
+            last_playfield_valid = false;
+            return;
+        }
+        const int top = full_screen ? kScreenPlayfieldTop : 0;
+        last_playfield.width = kSceneWidth;
+        last_playfield.height = kSceneHeight;
+        last_playfield.pixels.resize(static_cast<std::size_t>(kSceneWidth) * kSceneHeight);
+        for (int row = 0; row < kSceneHeight; ++row) {
+            const auto begin = image.pixels.begin() +
+                               static_cast<std::size_t>(row + top) * image.width;
+            std::copy_n(begin, kSceneWidth,
+                        last_playfield.pixels.begin() +
+                            static_cast<std::size_t>(row) * kSceneWidth);
+        }
+        last_playfield_valid = true;
+    }
+
+    // 0x40186e's transition family (0x65..0x6a): the new picture arrives as the
+    // blend steps the original presents, not as one cut. `code` is the engine
+    // code the script carried; `source` is where it came from, so a port default
+    // is never mistaken for a recovered value. The final frame goes through
+    // present(), which keeps the single SDL_RenderPresent path.
+    void present_transition(const SceneView& view, std::uint16_t code,
+                            const char* source) {
+        const auto kind = byzantine::transition_kind(code);
+        if (kind == byzantine::TransitionKind::none) {
+            present(view);
+            return;
+        }
+        if (!last_playfield_valid || ui_options == nullptr || !ui_options->transitions) {
+            std::cout << "transition code=0x" << std::hex << code << std::dec
+                      << " source=" << source << " skipped reason="
+                      << (!last_playfield_valid ? "no_departing_frame"
+                                                : "--no-transitions")
+                      << '\n';
+            present(view);
+            return;
+        }
+        update_cursor(view);
+        build_screen(view);
+        const auto new_screen = screen;
+        const int steps = byzantine::transition_steps(kind);
+        const int step_ms = byzantine::transition_step_ms(kind);
+        // The playfield of the arrival frame, in the blend's own coordinates.
+        byzantine::Rgb16Surface target;
+        target.width = kSceneWidth;
+        target.height = kSceneHeight;
+        target.pixels.resize(static_cast<std::size_t>(kSceneWidth) * kSceneHeight);
+        for (int row = 0; row < kSceneHeight; ++row) {
+            std::copy_n(new_screen.pixels.begin() +
+                            static_cast<std::size_t>(row + kScreenPlayfieldTop) *
+                                kScreenWidth,
+                        kSceneWidth,
+                        target.pixels.begin() + static_cast<std::size_t>(row) * kSceneWidth);
+        }
+        byzantine::Rgb16Surface from = last_playfield;
+        byzantine::Rgb16Surface step;
+        if (kind == byzantine::TransitionKind::interleave27) step = from;
+        const auto started = std::chrono::steady_clock::now();
+        std::size_t presented = 0;
+        // A transition frame is not the scene (the hotspot-outline diagnostic
+        // stays off it), and the trace names the owner once for the family.
+        const auto previous_content = content;
+        enter_content(ScreenContent::transition);
+        for (int index = 0; index < steps && window != nullptr; ++index) {
+            if (kind == byzantine::TransitionKind::interleave27) {
+                byzantine::interleave_playfield(step, target, index);
+            } else {
+                byzantine::blend_playfield(step, from, target,
+                                           byzantine::transition_weight(kind, index));
+            }
+            auto frame = new_screen;
+            for (int row = 0; row < kSceneHeight; ++row) {
+                std::copy_n(step.pixels.begin() + static_cast<std::size_t>(row) * kSceneWidth,
+                            kSceneWidth,
+                            frame.pixels.begin() +
+                                static_cast<std::size_t>(row + kScreenPlayfieldTop) *
+                                    kScreenWidth);
+            }
+            present_detail = "code=0x" + hex_word(code) + " step=" +
+                             std::to_string(index + 1) + "/" + std::to_string(steps);
+            present_image(frame, view, kScreenPlayfieldTop, "transition");
+            if (ui_options != nullptr && !ui_options->transition_shot.empty()) {
+                std::error_code error;
+                const std::filesystem::path directory(ui_options->transition_shot);
+                std::filesystem::create_directories(directory, error);
+                const std::filesystem::path path =
+                    directory / ("transition-0x" + hex_word(code) + "-" +
+                                 std::to_string(index + 1) + ".ppm");
+                byzantine::write_ppm(frame, path.string());
+            }
+            present_detail.clear();
+            ++presented;
+            // 0x41920f's own gate: one step every 60 ms; the presenting
+            // routines only blit, so one 60 Hz tick is their spacing.
+            std::this_thread::sleep_until(
+                started + std::chrono::milliseconds(step_ms * (index + 1)));
+        }
+        restore_content(previous_content);
+        present(view);
+        const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                 std::chrono::steady_clock::now() - started)
+                                 .count();
+        std::cout << "transition code=0x" << std::hex << code << std::dec
+                  << " kind=" << transition_kind_name(kind)
+                  << " source=" << source << " steps=" << presented
+                  << " step_ms=" << step_ms << " elapsed_ms=" << elapsed << '\n';
+    }
+
+    static const char* transition_kind_name(byzantine::TransitionKind kind) {
+        switch (kind) {
+            case byzantine::TransitionKind::fade8: return "fade8";
+            case byzantine::TransitionKind::fade4: return "fade4";
+            case byzantine::TransitionKind::fade7: return "fade7";
+            case byzantine::TransitionKind::interleave27: return "interleave27";
+            case byzantine::TransitionKind::none: break;
+        }
+        return "none";
+    }
+
+    static std::string hex_word(std::uint16_t value) {
+        static const char* digits = "0123456789abcdef";
+        std::string text;
+        bool started = false;
+        for (int shift = 12; shift >= 0; shift -= 4) {
+            const int nibble = (value >> shift) & 0xf;
+            if (nibble != 0) started = true;
+            if (started || shift == 0) text.push_back(digits[nibble]);
+        }
+        return text;
     }
 
     // Called after each SDL_RenderPresent. The checksum samples every 4th
@@ -2212,23 +2418,25 @@ struct Display {
 struct ScreenContentScope {
     Display& display;
     ScreenContent previous;
-    bool clip_scope;
+    ScreenContent entered;
+    bool logged_scope;
     ScreenContentScope(Display& target, ScreenContent next)
-        : display(target), previous(target.content), clip_scope(next == ScreenContent::clip) {
+        : display(target), previous(target.content), entered(next),
+          logged_scope(next == ScreenContent::clip || next == ScreenContent::transition) {
         display.content = next;
-        if (clip_scope) {
+        if (logged_scope) {
             byzantine::diagnostics::write("screen_content", [&](auto& out) {
-                out << "now=clip previous=" << name(previous);
+                out << "now=" << name(entered) << " previous=" << name(previous);
             });
         }
     }
     ~ScreenContentScope() {
         display.content = previous;
-        if (clip_scope) {
+        if (logged_scope) {
             // The detail trace now shows exactly which presenter owned the
             // screen, so a stray outline or overlay is attributable.
             byzantine::diagnostics::write("screen_content", [&](auto& out) {
-                out << "now=" << name(previous) << " previous=clip";
+                out << "now=" << name(previous) << " previous=" << name(entered);
             });
         }
     }
@@ -2240,6 +2448,7 @@ struct ScreenContentScope {
             case ScreenContent::conversation: return "conversation";
             case ScreenContent::clip: return "clip";
             case ScreenContent::menu: return "menu";
+            case ScreenContent::transition: return "transition";
             default: return "scene";
         }
     }
@@ -2987,6 +3196,33 @@ int overlay_disc(const Options& options) {
     return disc;
 }
 
+// The engine transition code a scene arrival carries. A 0xb9 hands its own code
+// (operand 3 through 0x432133, or DAT_00460664 from the 0xbd that preceded it),
+// and that is the value the original's 0x40186e switch sees. A flat 0x69 scene
+// load has no code; the original reads the travel-side one from
+// DAT_004603d0/0x439349, which is not recovered, so the port uses its travel
+// default and reports source=travel_default rather than implying a recovery.
+std::uint16_t arrival_transition_code(const SceneView& view, std::uint16_t fallback,
+                                      const char** source) {
+    if (!view.trace.panorama_loads.empty()) {
+        *source = "panorama";
+        return view.trace.panorama_loads.back().transition;
+    }
+    *source = "travel_default";
+    return fallback;
+}
+
+// Composes the arrival frame and presents it through 0x40186e's transition
+// family when the scene carries a code. Every arriving path (0x73 travel, the
+// close-up return, a scene reload) goes through this one presenter.
+void present_arrival(Session& session, bool verbose) {
+    session.display.compose(session.view, verbose);
+    const char* source = "travel_default";
+    const auto code = arrival_transition_code(session.view,
+                                              session.options.travel_transition, &source);
+    session.display.present_transition(session.view, code, source);
+}
+
 bool travel_to(Session& session, std::uint16_t index, bool verbose,
                const std::string& save_path = {},
                const byzantine::SaveGame* loaded_save = nullptr) {
@@ -3028,8 +3264,7 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose,
         session.view.state.random_state = current.random_state;
         resume_ambient(session, verbose);
         refresh_background(options, session.view);
-        session.display.compose(session.view, verbose);
-        session.display.present(session.view);
+        present_arrival(session, verbose);
         std::cout << "closeup_return scene=" << session.view.name << " from=" << from
                   << " requested_index=" << index
                   << " hotspots=" << session.view.trace.active_hotspots.size()
@@ -3157,6 +3392,11 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose,
     next_view.entry_state = setup.state;
     // DAT_00462ef8 is process-global and is not reset by a scene load.
     next_view.entry_state.random_state = session.view.state.random_state;
+    // DAT_00460664 is process-global too: a 0xbd in the departing scene (a site
+    // video) hands its transition code to the destination's first 0xb9, so it
+    // must cross the 0x73 like the RNG state does.
+    next_view.entry_state.pending_panorama_transition =
+        session.view.state.pending_panorama_transition;
     next_view.state = next_view.entry_state;
     next_view.pool_on_arrival = pool;
     // 0x401256 fixed the node size once at startup; the current node stays in
@@ -3290,8 +3530,7 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose,
     apply_panorama_events(session.view, options, verbose);
     resume_ambient(session, verbose);
     refresh_background(options, session.view);
-    session.display.compose(session.view, verbose);
-    session.display.present(session.view);
+    present_arrival(session, verbose);
     if (session.display.window != nullptr) {
         SDL_SetWindowTitle(session.display.window,
                            ("Byzantine - " + session.view.name + " entry").c_str());
@@ -3567,7 +3806,16 @@ bool action_switches_scene(const Session& session) {
 void present_action_result(Session& session, bool verbose) {
     if (action_switches_scene(session)) return;
     session.display.compose(session.view, verbose);
-    session.display.present(session.view);
+    // A 0xb9 in the clicked label loads a node: 0x40186e blends that with the
+    // code the script carried (0x65..0x6a). A label that only loads a 0x69
+    // background has no transition routine in the original, so it stays a cut.
+    const auto& loads = session.view.trace.panorama_loads;
+    if (!loads.empty()) {
+        session.display.present_transition(session.view, loads.back().transition,
+                                           "panorama");
+    } else {
+        session.display.present(session.view);
+    }
 }
 
 // A requested 0x73 was refused (missing scene index/script): the departing
@@ -7557,8 +7805,7 @@ bool restart_scene(Session& session,
     if (!entry_session_ended) show_message_text(session, verbose);
     resume_ambient(session, verbose);
     refresh_background(session.options, session.view);
-    session.display.compose(session.view, verbose);
-    session.display.present(session.view);
+    present_arrival(session, verbose);
     std::cout << "scene_restart reason=" << reason << " scene=" << session.view.name
               << " point=" << (point.at_entry ? "entry" : "label")
               << " hotspots=" << session.view.trace.active_hotspots.size()

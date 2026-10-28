@@ -250,6 +250,33 @@ rewinds those counters on restore. The map's `*Hi` art is static, so this is not
 visible there; a scene with long hover periods over animated records would need
 a narrower merge.
 
+## Follow-up 3 — scene changes go through one transition presenter (28 October 2026)
+
+The policy above decided *what* is on screen; the arrival itself was still a
+cut. Two frames of the same run prove it: `present index=105` (the last
+`HLEst1` clip frame, 12840 ms) and `present index=115` (`HL00`, 13129 ms) with
+`prev_held_ms=282` and nothing between them.
+
+The shipped engine blends there (`0x40186e`'s `switch(param_3)`, see
+`TRANSITIONS.md`), so `Display::present_transition` is now the only way a scene
+change is shown:
+
+- `present_arrival` composes and presents the target for `travel_to` (entry and
+  save paths), the close-up return and `restart_scene`;
+  `present_action_result` uses it when the clicked label ran a `0xb9`.
+- The intermediate frames are ordinary `present_image` calls, so the single
+  `SDL_RenderPresent` rule and the `overlay=` trace field still hold. They run
+  under `ScreenContent::transition`, so the outline is never drawn on them, and
+  `screen_content` records the ownership change.
+- `present_image` keeps `last_playfield` (the 640x400 rectangle the original's
+  blends cover) for the next transition; a presentation that is not a full
+  screen invalidates it instead of guessing, which is why a headless
+  `--click-at` run whose first action is a travel reports
+  `skipped reason=no_departing_frame`.
+
+Evidence: `port/output/transition-demo/` (the port's own frames per code),
+`TRANSITIONS.md` §4.
+
 ## Boundaries
 
 - The outline is drawn by SDL on top of the composed image, so the
@@ -258,8 +285,10 @@ a narrower merge.
   headless (SDL dummy), not a window-pixel capture. The earlier 27 October
   window-pixel check (`port/output/cf-video/map-travel-no-outline.png`) remains
   the visual reference for the clip-frame part.
-- `ScreenContent` says *what* is on screen; it does not model original
-  transitions. Menus keep their own screens and the diagnostic stays off there.
+- `ScreenContent` says *what* is on screen; transitions are a separate
+  presenter (`present_transition`) that composes its steps through
+  `present_image`. Menus keep their own screens and the diagnostic stays off
+  there and on transition frames.
 - Default-off means the player now looks like the shipped game by default: no
   outlines at all. `--hotspots`/`H` restore the diagnostic for investigation; the
   `present … overlay=` field records which state was active.

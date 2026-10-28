@@ -122,6 +122,25 @@ artık sunulmaz: hedef sahneyi `travel_to` sunar. Böylece bir site videosundan
 sonra eski harita karesi araya girmiyor; video son karesi hedef sahne hazır
 olana kadar ekranda kalıyor (`PRESENT_TRACE.md`, Topkapı girişi).
 
+### Sahne geçişleri (0x40186e'nin fade/blend ailesi)
+
+Hedef sahne artık tek karede gelmiyor: orijinalin `0x40186e` switch'inin
+seçtiği geçiş oynatılıyor. Kod script'ten gelir (`0xb9` operand 3 → `0x432133`,
+ya da önceki `0xbd`'nin bıraktığı `DAT_00460664`); kod yoksa seyahat varsayılanı
+kullanılır ve log'da `source=travel_default` yazar.
+
+```sh
+# varsayılan: geçişler açık
+#   --no-transitions        yeni kareyi eskisi gibi tek karede göster
+#   --transition 0x66       kodsuz seyahatlerde kodu zorla (0x65/0x66/0x67/0x68)
+#   --transition-shot <dir> her ara kareyi PPM olarak yaz (kanıt)
+```
+
+Log: `transition code=0x65 kind=fade8 source=travel_default steps=8 step_ms=16
+elapsed_ms=132`; ara kareler detay izinde `tag=transition
+detail=code=0x65 step=3/8` olarak görünür ve hotspot çerçevesi onlara çizilmez.
+Ayrıntı: [`TRANSITIONS.md`](../analysis/rea/TRANSITIONS.md).
+
 ### Klip sesi son-kırpı koruması
 
 Bazı AVI'ların son ses tamponu ses değil: `NBEST1.avi` (Nargile Kahvesi site

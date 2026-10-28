@@ -27,16 +27,17 @@ where duplication used to cause regressions. Keep these three single points:
 
 1. **One presentation decision.** `Display::present_image` is the only
    `SDL_RenderPresent`. `ScreenContentScope` sets what is on screen
-   (`scene`, `conversation`, `clip`, `menu`) and `Display::overlay_allowed()`
+   (`scene`, `conversation`, `clip`, `menu`, `transition`) and `Display::overlay_allowed()`
    decides the hotspot-outline diagnostic from it plus `--hotspots`/`H`. It is
    **off by default**: the map's own `*Hi` art is the visible highlight
    (`hover_select`, see below). `--hotspots-hover` outlines the pointer's
    hotspot, `--hotspots`/`--hotspots-all` every active one. A clip (including
-   its audio drain, which runs inside `play_decoded_clip`) and a menu are never
-   outlined (that was the reported bug). Do not add an `overlay` parameter to a
-   new presenter; wrap the content instead. `ScreenContentScope` writes
-   `screen_content now=… previous=…` to the detail trace, and every present line
-   carries `overlay=0|1`, so a leak is attributable.
+   its audio drain, which runs inside `play_decoded_clip`), a menu and a
+   **transition frame** are never outlined (that was the reported bug). Do not
+   add an `overlay` parameter to a new presenter; wrap the content instead.
+   `ScreenContentScope` writes `screen_content now=… previous=…` to the detail
+   trace, and every present line carries `overlay=0|1`, so a leak is
+   attributable.
 2. **One click commit.** `commit_click` (next to `describe_trace`) is the only
    way to finish a click: object/message windows, panorama events, the
    presented result, `click_result`, `follow_switches` and the refused-switch
@@ -77,6 +78,16 @@ Other rules learned here:
 - A clip's last audio buffer can be torn data (e.g. `NBEST1.avi`'s last 67 ms).
   `trim_torn_audio_tail` handles only that shape and logs
   `tail_guard …`; `--no-audio-tail-guard` keeps the raw stream.
+- **One transition presenter.** `Display::present_transition` is the only way a
+  scene change is shown: `travel_to`/`restart_scene`/the close-up return call
+  `present_arrival`, and a click whose label ran a `0xb9` calls it from
+  `present_action_result`. The code comes from the script (`0xb9` operand 3 via
+  `0x432133`, or the `0xbd`-set `DAT_00460664`, which crosses a `0x73`); a
+  travel that carries none logs `source=travel_default` and uses
+  `--transition`'s code. Do not add a second fade path: a new presentation
+  point wraps the content, and `last_playfield` is kept by `present_image`.
+  `--no-transitions` restores the cut; `--transition-shot <dir>` writes the
+  steps. Report: `analysis/rea/TRANSITIONS.md`.
 - The `--shot`/headless paths must keep `scene=… slots=…` as the **last stdout
   line** (the verification scripts parse it). `Display::log_present_summary()`
   is called before it.

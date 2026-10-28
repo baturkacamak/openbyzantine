@@ -1,3 +1,42 @@
+## Scene transitions: a scene change no longer cuts (28 October 2026)
+
+User report/request: the fade between a site video and its destination looked
+right in the recovered-effects demonstration and should be in the player. The
+port really was cutting: `travel_to` composed the target and presented it in a
+single frame, so the last clip frame stayed ~280 ms and then the new scene
+appeared at once (`run-20261028T133346.208785Z-thdrjf40`: present index 105 at
+12840 ms -> 115 at 13129 ms, `prev_held_ms=282`, no intermediate picture).
+
+Recovered from `0x40186e`'s `switch(param_3)`: `0x65` -> `0x42be07`/`0x42c1b8`
+(eight-step fade), `0x66` -> `0x42bce1`+`0x42bc8b` (27-phase reveal, every 27th
+16-bit word), `0x67` -> `0x4196a4`+`0x419a51`, `0x68` -> `0x41920f` (four steps,
+**60 ms** each, `timeGetTime() < start + 0x3c`), `0x69` -> nothing, `0x6a` ->
+`0x419a51` only. All of them blend the playfield rectangle `(0,0x14)-(0x280,
+0x1a4)`, never the strip or the top bar. The code comes from the `0xb9` operand
+(through `0x432133`) or from `DAT_00460664`, which a `0xbd` sets (mode 0 -> 0x65,
+2 -> 0x6a, 4 -> 0x67); 100 means no blend.
+
+Change: new `port/{include/byzantine,src}/transition.*` (`transition_kind`,
+`transition_steps`, `transition_step_ms`, `transition_weight`,
+`blend_playfield`, `interleave_playfield`), `Display::present_transition` and
+`present_arrival`, and `last_playfield` tracking in `present_image`. Transition
+frames run under `ScreenContent::transition` (no hotspot outline) and are
+excluded from `--present-dump`; `--transition-shot <dir>` writes them instead.
+`present_action_result` fades when the clicked label ran a `0xb9`; a plain `0x69`
+background load still cuts, because the original's blend lives in the node
+loader. `pending_panorama_transition` now crosses the `0x73` (it is the global
+`DAT_00460664`).
+
+Real data (same chain: `MAP` 87/`27.btb` -> MR arrival -> MR exit -> MAP), both
+headless and on a real Xephyr window: `0x65` 8 steps / 132 ms, `0x66` 27 / 437,
+`0x67` 7 / 115, `0x68` 4 / 243 ms, `--no-transitions` skips. Frames the port
+actually presented are in `port/output/transition-demo/` (`port-0x65.gif` etc.
+plus contact sheets). `make -C port -j2 all test` (new `transition-test`) and all
+12 `analysis/rea/verify_*.py` pass. Report and limits (the per-`0x73` code is
+not recovered, so those travels log `source=travel_default`; `0x419a51`'s pixel
+roles are partly inferred; `0x4196a4`'s four extra `0x67` steps and `0x418eb2`
+are not modelled): `analysis/rea/TRANSITIONS.md`.
+
 ## Open-item audit: most "still open" lines in this file were stale (28 October 2026)
 
 After the presentation and hover fixes the user played the game and reported no
