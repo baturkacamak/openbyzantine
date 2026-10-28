@@ -90,6 +90,15 @@ Other rules learned here:
   `last_playfield` is kept by `present_image`. `--no-transitions` restores the
   cut, `--transition 0x64` the shipped script behaviour, `--transition-shot
   <dir>` writes the steps. Report: `analysis/rea/TRANSITIONS.md`.
+- The record draw keeps the original's per-record gates: `+0x09 & 0x20` is the
+  snap pass, `0x40` hides, and **`0x80` is the shadow draw** (`0x43b130` ->
+  `0x40bbfd` reads the destination and writes it back at 5/8 through
+  `0x42b5b2`/`0x42b395`; `byzantine::shade_pixel`). The `+0x3c` trail list is
+  drawn **before** the record itself and even for snap/hidden records, as
+  `0x43b216`'s loop order does. `+0x09 & 0x10` is never set by shipped data.
+- Pointer frames: `0x40e89f` up to four, `0x40ebe1` advances every 250 ms
+  (`Display::tick_cursor`, `cursor_frame` trace line). Only the klio set
+  (`forward`/`info`/`back`) has multiple frames.
 - The `--shot`/headless paths must keep `scene=… slots=…` as the **last stdout
   line** (the verification scripts parse it). `Display::log_present_summary()`
   is called before it.

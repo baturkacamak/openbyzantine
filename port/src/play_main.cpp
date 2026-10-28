@@ -1355,6 +1355,19 @@ struct Display {
     // cursor_key_ is the id of the pointer currently installed on the window.
     std::string cursor_key_;
     std::map<std::string, SDL_Cursor*> cursors_;
+    // 0x40ebe1's animation: the frame images of each multi-frame pointer and the
+    // pointer currently cycling (if any).
+    std::map<std::string, std::map<std::string, UiImage>> cursor_frame_images;
+    std::map<std::string, std::vector<const UiImage*>> cursor_frame_groups;
+    struct CursorAnimation {
+        std::string key;                         // identity of the pointer
+        std::vector<const UiImage*> frames;
+        int hot_x = 0;
+        int hot_y = 0;
+        std::size_t frame = 0;
+        std::chrono::steady_clock::time_point since{};
+    };
+    std::optional<CursorAnimation> cursor_animation;
     SDL_Cursor* default_cursor_ = nullptr;
     std::set<std::string> missing_ui;
     int logical_width = kScreenWidth;
@@ -1767,6 +1780,38 @@ struct Display {
         return {};
     }
 
+    // 0x40e89f fills up to four frame handles and 0x40ebe1 advances the current
+    // one every 250 ms. The klio set is the only shipped set with more than one
+    // file per pointer (forward/info/back, four frames each); the normal set has
+    // one file per stem, so this returns a single image there.
+    const std::vector<const UiImage*>& cursor_frames(byzantine::CursorTheme theme,
+                                                     const std::string& name) {
+        static const std::vector<const UiImage*> none;
+        const bool klio = theme == byzantine::CursorTheme::klio;
+        const auto group = std::string(klio ? "kf:" : "f:") + lower_ascii(name);
+        const auto cached = cursor_frame_groups.find(group);
+        if (cached != cursor_frame_groups.end()) {
+            if (cached->second.empty()) return none;
+            return cached->second;
+        }
+        auto& frames = cursor_frame_groups[group];
+        auto root = cursors_root();
+        if (root.empty()) return none;
+        if (klio) root /= "klio";
+        const auto match = byzantine::find_cursor_file(root, name);
+        if (!match) return none;
+        for (const auto& path : match->paths) {
+            auto& slot = cursor_frame_images[group][path.string()];
+            if (slot.width == 0) {
+                auto decoded = decode_ui_image(path, true, false);
+                if (!decoded) continue;
+                slot = std::move(*decoded);
+            }
+            frames.push_back(&slot);
+        }
+        return frames;
+    }
+
     const UiImage* cursor_image(byzantine::CursorTheme theme, const std::string& name) {
         const bool klio = theme == byzantine::CursorTheme::klio;
         const auto key = std::string(klio ? "kc:" : "c:") + lower_ascii(name);
@@ -1859,6 +1904,7 @@ struct Display {
     // its audio drain) and a menu screen are never outlined.
     void present_image(const byzantine::Rgb16Surface& image, const SceneView& view,
                        int hotspot_offset_y, const char* tag = "scene") {
+        tick_cursor();
         if (logical_width != image.width || logical_height != image.height) {
             SDL_DestroyTexture(texture);
             texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB565,
@@ -2235,6 +2281,7 @@ struct Display {
     // tables, passed through 0x40de7b's small-variant remap.
     void set_cursor(const SceneView& view, const byzantine::CursorChoice& choice) {
         const UiImage* image = nullptr;
+        std::vector<const UiImage*> frames;
         std::string key;
         std::string label;
         std::string missing_item;
@@ -2287,6 +2334,7 @@ struct Display {
                     " name=" + (asset.name != nullptr ? asset.name : "default") +
                     " theme=" + (theme == byzantine::CursorTheme::klio ? "klio" : "normal");
             image = asset.name != nullptr ? cursor_image(theme, asset.name) : nullptr;
+            if (asset.name != nullptr) frames = cursor_frames(theme, asset.name);
             hot_x = asset.hotspot_x;
             hot_y = asset.hotspot_y;
             if (image != nullptr) {
@@ -2316,7 +2364,40 @@ struct Display {
         } else {
             SDL_SetCursor(cursor);
         }
+        if (frames.size() > 1) {
+            cursor_animation = CursorAnimation{key, frames, hot_x, hot_y, 0,
+                                               std::chrono::steady_clock::now()};
+            label += " frames=" + std::to_string(frames.size()) + " cycling_ms=250";
+        } else {
+            cursor_animation.reset();
+        }
         std::cout << "cursor " << label << '\n';
+    }
+
+    // 0x40ebe1: the pointer's frames advance every 250 ms while one is
+    // installed. Cheap when the pointer is static (one optional check).
+    void tick_cursor() {
+        if (!cursor_animation) return;
+        const auto now = std::chrono::steady_clock::now();
+        if (now - cursor_animation->since < std::chrono::milliseconds(250)) return;
+        auto& animation = *cursor_animation;
+        animation.since = now;
+        animation.frame = (animation.frame + 1) % animation.frames.size();
+        const auto frame_key = animation.key + "#" + std::to_string(animation.frame);
+        SDL_Cursor* cursor = nullptr;
+        const auto cached = cursors_.find(frame_key);
+        if (cached != cursors_.end()) {
+            cursor = cached->second;
+        } else {
+            cursor = cursor_from_image(*animation.frames[animation.frame],
+                                       animation.hot_x, animation.hot_y);
+            cursors_.emplace(frame_key, cursor);
+        }
+        if (cursor != nullptr) SDL_SetCursor(cursor);
+        byzantine::diagnostics::write("cursor_frame", [&](auto& out) {
+            out << "pointer=" << animation.key << " frame=" << animation.frame
+                << " of=" << animation.frames.size() << " interval_ms=250";
+        });
     }
 
     // 0x40c329/0x4083d4 for the point under the mouse. Rows 0x14..0x1a3 are
@@ -2564,6 +2645,7 @@ int poll_logged_event(SDL_Event* event, const char* phase, const Session& sessio
 }
 
 void pump_window(Session& session) {
+    session.display.tick_cursor();
     SDL_Event event;
     while (poll_logged_event(&event, "sound_wait", session)) {
         ++session.wait.events;
@@ -3957,7 +4039,8 @@ void print_records(const SceneView& view) {
                           : std::to_string(record.frame_index_20))
                   << " frames=" << record.frame_count
                   << " frames_known=" << (record.frames_known ? 1 : 0)
-                  << " delay=" << record.field04 << " count=" << record.field06;
+                  << " delay=" << record.field04 << " count=" << record.field06
+                  << " trail=" << record.trail.size();
         if (id < view.state.actor_assets.size()) {
             std::cout << " asset=" << view.state.actor_assets[id].name
                       << " type=" << static_cast<unsigned>(view.state.actor_assets[id].type);
@@ -8715,6 +8798,7 @@ int main(int argc, char** argv) {
                         }
                     }
                 }
+                session.display.tick_cursor();
                 const bool animates = session.display.scene_animates(session.view);
                 if (!animates) {
                     // Nothing steps the frame lists: drop the outstanding passes

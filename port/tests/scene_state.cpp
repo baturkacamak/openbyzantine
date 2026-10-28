@@ -1009,6 +1009,33 @@ int main(int argc, char** argv) {
             require(target.pixels == std::vector<std::uint16_t>{0x001f, 0x07c0, 0x001f, 0x001f},
                     "delta reconstruction leaked a future frame after seeking backwards");
         }
+        {
+            // 0x43b216's trail loop (inside its `param_3 != 0` branch): every
+            // recorded +0x3c position except the record's current one draws the
+            // same head->current frames, so a record moved by 0x84 leaves
+            // after-images. The record itself is unaffected.
+            auto trail_state = with_assets(1, 0);
+            trail_state.actor_assets[0].name = "abdelta";
+            trail_state.anims_library =
+                std::make_shared<byzantine::AnimsLibrary>(root.string());
+            auto& trail_record = trail_state.records[0];
+            trail_record.flags = 4;
+            trail_record.current_frame = 2;
+            trail_record.x = 4;
+            trail_record.y = byzantine::kPlayfieldTop;  // playfield row 0
+            auto plain = byzantine::make_surface(8, 1, 0x7777);
+            byzantine::compose_scene(trail_state, plain, nullptr, false);
+            trail_record.trail.emplace_back(0, byzantine::kPlayfieldTop);
+            auto trailed = byzantine::make_surface(8, 1, 0x7777);
+            byzantine::compose_scene(trail_state, trailed, nullptr, false);
+            require(trailed.pixels[0] != 0x7777 && trailed.pixels[3] != 0x7777,
+                    "the trail position was not drawn");
+            require(trailed.pixels[4] == plain.pixels[4] &&
+                    trailed.pixels[7] == plain.pixels[7],
+                    "the trail changed the record's current frame");
+            require(plain.pixels[0] == 0x7777,
+                    "the plain compose drew at the trail position");
+        }
         auto anim_state = with_assets(4, 2);
         anim_state.actor_assets[1] = byzantine::NamedRecord{"abanim", "T.CCG", 2};
         anim_state.anims_library =

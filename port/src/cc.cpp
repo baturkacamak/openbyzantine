@@ -683,6 +683,11 @@ SceneCompose compose_scene(SceneState& state, Rgb16Surface& target,
             return false;
         }
         const auto& name = state.actor_assets[id].name;
+        // 0x43b130 passes `*(byte *)(record + 9) & 0x80` to 0x40bbfd, which then
+        // reads the destination instead of the frame's colour (0x42b5b2 ->
+        // 0x42b395, `* 5 >> 3`). The record draws as a shadow of its own
+        // silhouette; STAR is the only shipped scene that sets the bit.
+        const bool shadow = (record.flags & 0x80) != 0;
         const auto current = *frame;
         const auto current_decoded = state.anims_library->decode(name, current);
         if (!current_decoded) {
@@ -784,7 +789,9 @@ SceneCompose compose_scene(SceneState& state, Rgb16Surface& target,
                             static_cast<std::size_t>(width) +
                         static_cast<std::size_t>(column);
                     if (covered[patch_index] == 0) continue;
-                    target.at(viewport_x, viewport_y) = patch[patch_index];
+                    target.at(viewport_x, viewport_y) =
+                        shadow ? byzantine::shade_pixel(target.at(viewport_x, viewport_y))
+                               : patch[patch_index];
                     ++written;
                 }
             }
@@ -844,7 +851,7 @@ SceneCompose compose_scene(SceneState& state, Rgb16Surface& target,
                                      ? current_decoded
                                      : state.anims_library->decode(name, node);
             if (!decoded) continue;
-            const auto blit = byzantine::blit_frame(target, *decoded, x, y);
+            const auto blit = byzantine::blit_frame(target, *decoded, x, y, shadow);
             written_total += blit.written;
             if (node == current) entry.blit = blit;
         }
@@ -898,6 +905,17 @@ SceneCompose compose_scene(SceneState& state, Rgb16Surface& target,
             if ((record.flags & 0x20) != 0) {
                 ++result.skipped_snap;
                 continue;
+            }
+            // 0x43b216's trail loop runs before the record itself (inside the
+            // `param_3 != 0` branch): every recorded `+0x3c` position except the
+            // record's current one draws the same head->current frames, so a
+            // record moved by 0x84 leaves after-images. The trail is drawn even
+            // for a record the snap pass owns or the 0x40 flag hides, exactly
+            // like the original's loop order.
+            for (const auto& position : record.trail) {
+                if (position.first == record.x && position.second == record.y) continue;
+                draw_frame(it->first, record, record.current_frame, position.first,
+                           position.second, false);
             }
             if ((record.flags & 0x40) != 0) {
                 ++result.skipped_hidden;

@@ -19,8 +19,23 @@ Rgb16Surface make_surface(std::int32_t width, std::int32_t height,
     return surface;
 }
 
+std::uint16_t shade_pixel(std::uint16_t pixel) {
+    // 0x42b5b2 unpacks the RGB555 channels, applies 0x42b395 `(x * 5) >> 3` to
+    // each and repacks them. The port's surface is RGB565, so the same 5/8
+    // factor is applied per channel.
+    const auto channel = [](std::uint16_t value, int high_bit) {
+        const auto scaled = (static_cast<int>(value) * 5) >> 3;
+        return static_cast<std::uint16_t>(scaled > high_bit ? high_bit : scaled);
+    };
+    const auto red = channel((pixel >> 11) & 0x1f, 0x1f);
+    const auto green = channel((pixel >> 5) & 0x3f, 0x3f);
+    const auto blue = channel(pixel & 0x1f, 0x1f);
+    return static_cast<std::uint16_t>((red << 11) | (green << 5) | blue);
+}
+
 FrameBlit blit_frame(Rgb16Surface& target, const DecodedFrame& frame,
-                     std::int32_t x, std::int32_t y) {
+                     std::int32_t x, std::int32_t y,
+                     bool shadow) {
     FrameBlit result;
     result.x = x;
     result.y = y;
@@ -41,7 +56,8 @@ FrameBlit blit_frame(Rgb16Surface& target, const DecodedFrame& frame,
                 ++result.clipped;
                 continue;
             }
-            target.at(tx, ty) = frame.pixels[index];
+            target.at(tx, ty) = shadow ? shade_pixel(target.at(tx, ty))
+                                       : frame.pixels[index];
             ++result.written;
             result.drawn = true;
         }

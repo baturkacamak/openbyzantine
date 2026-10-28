@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace byzantine {
 
@@ -72,8 +73,11 @@ std::string hotitem_media_name(std::string item_name);
 // forward0/1/2, back1..4 and INFO1..4 animation frames). `frames` is the number
 // of files the original wildcard would have loaded (at most four).
 struct CursorFileMatch {
-    std::filesystem::path path;
-    std::size_t frames = 0;
+    std::filesystem::path path;              // the exact-name file, or the first
+    std::size_t frames = 0;                  // 0x40e89f's <= 4 frame handles
+    // The frame files in stem order (the original's FindFirstFile order is not
+    // recovered, so the port sorts by stem). `paths.size() == frames`.
+    std::vector<std::filesystem::path> paths;
 };
 std::optional<CursorFileMatch> find_cursor_file(const std::filesystem::path& directory,
                                                 const std::string& name);

@@ -236,9 +236,13 @@ std::optional<CursorFileMatch> find_cursor_file(const std::filesystem::path& dir
     std::sort(matches.begin(), matches.end(),
               [](const auto& left, const auto& right) { return left.first < right.first; });
     CursorFileMatch result;
-    // 0x40e89f fills at most four frame handles.
+    // 0x40e89f fills at most four frame handles; 0x40ebe1 then advances them
+    // every 250 ms (the host applies the timing).
     result.frames = std::min<std::size_t>(matches.size(), 4);
-    result.path = matches.front().second;
+    for (std::size_t index = 0; index < result.frames; ++index) {
+        result.paths.push_back(matches[index].second);
+    }
+    result.path = result.paths.front();
     for (const auto& match : matches) {
         if (match.first != wanted) continue;
         result.path = match.second;

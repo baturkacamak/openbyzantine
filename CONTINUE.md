@@ -1,3 +1,38 @@
+## The three census gaps are closed: shadow draw, trail, klio pointer (28 October 2026)
+
+`analysis/rea/OPEN_GAPS_CENSUS.md` found three data-backed gaps; all three are now
+implemented.
+
+1. **`+0x09 & 0x80` shadow draw.** `0x43b130` hands `*(byte *)(record+9) & 0x80`
+   to `0x40bbfd`; its `param_6` reads the *destination* instead of the frame
+   colour and writes it back through `0x42b5b2` -> `0x42b395` (`(value*5)>>3` per
+   channel). New `byzantine::shade_pixel` plus `blit_frame(..., shadow)`; the
+   panorama patch path shades its final write too. Confirmed by the shipped data:
+   STAR's two `0x80` records are `vtDEShdw`/`vtAShdw` (the backgammon pieces'
+   shadow sprites). `compose-test` covers the 5/8 math, channel isolation and
+   transparent pixels.
+2. **`+0x3c` trail draw.** `0x43b216` walks the record's trail list before the
+   record itself (inside `param_3 != 0`) and draws the same head->current frames
+   at every recorded position except the current one; `compose_scene` does that
+   now, before the `0x20`/`0x40` gates, exactly like the original's loop order.
+   `scene-state-test` composes a trailed record and checks the after-image, the
+   unchanged current frame and that a plain compose draws nothing there.
+   `--print-records` reports `trail=N`.
+3. **klio pointer animation.** `0x40e89f` fills up to four frame handles and
+   `0x40ebe1` advances them every 250 ms. `CursorFileMatch::paths` carries the
+   ordered frames; `Display::tick_cursor` installs the next one (main loop,
+   `pump_window`, and every `present_image`, so clips and waits animate too) and
+   logs `cursor_frame pointer=… frame=N of=4 interval_ms=250`. Measured on a real
+   Xephyr window: 1.455 s -> 1.712 s -> 1.969 s -> 2.224 s. The normal cursor set
+   is single-frame (one file per stem), so nothing changes there.
+
+New helper `port/scene-direct.sh <data> <SCENE> [args]` runs one scene without a
+shipped save, the way the coverage census does (STAR has no save; that command
+produced `record id=34 … flags=0x84 asset=vtDEShdw`).
+
+`make -C port -j2 all test` (compose-test and scene-state-test extended) and all
+12 `analysis/rea/verify_*.py` pass.
+
 ## Open-gap census: three real gaps, the rest unused by shipped data (28 October 2026)
 
 After the transition work the user asked what is genuinely left on the RE side.

@@ -95,13 +95,47 @@ drawn and having frames; the *instructions that request it* are in six scenes.
   difference (if any) is unquantified.
 - **Scene transition codes** were settled separately (`TRANSITIONS.md`).
 
-## 6. Bottom line
+## 6. What was implemented after this census (same day)
 
-Three concrete, data-backed gaps remain in the draw/presentation layer:
+All three data-backed items are now in the port:
 
-1. `+0x09 & 0x80` destination-read blend — `STAR` only, 6 records.
-2. `+0x3c` trail draw — six scenes, 193 request sites.
-3. klio cursor animation — `forward`/`info`/`back`, 4 frames.
+1. **`+0x09 & 0x80` destination-read blend.** `0x43b130` passes
+   `*(byte *)(record + 9) & 0x80` to `0x40bbfd`, whose `param_6` reads the
+   destination instead of the frame colour and writes it back through
+   `0x42b5b2` -> `0x42b395` (`(value * 5) >> 3` per channel). The port now does
+   the same (`byzantine::shade_pixel`, `blit_frame(..., shadow)`), for the normal
+   and the panorama-patch path. Independent confirmation from the shipped data:
+   the two STAR records that carry the bit are `vtDEShdw` and `vtAShdw` — shadow
+   sprites of the backgammon pieces. `compose-test` checks the 5/8 arithmetic,
+   channel isolation and that transparent pixels stay untouched.
+2. **`+0x3c` trail draw.** `0x43b216` walks the record's trail list *before* the
+   record itself (inside its `param_3 != 0` branch) and draws the same
+   head->current frames at every recorded position except the current one, adding
+   each to the dirty-rect list. `compose_scene` now does that; the record's own
+   draw and the animation step are unchanged. `scene-state-test` composes a
+   record with a trail and checks that the trail position is drawn, the current
+   frame is unchanged and a plain compose leaves the trail position alone.
+   `--print-records` now reports `trail=N`.
+3. **klio pointer animation.** `0x40e89f` fills up to four frame handles and
+   `0x40ebe1` advances them every 250 ms. `CursorFileMatch` now carries the
+   ordered frame paths, and the player cycles the installed pointer under the
+   detail trace `cursor_frame pointer=… frame=N of=4 interval_ms=250` (measured
+   1.45 s -> 1.71 s -> 1.97 s -> 2.22 s, i.e. 255 ms). The normal set stays
+   single-frame because it has one file per stem.
+
+What is left unmodelled is now only the unused/duplicated parts: the `+0x09 &
+0x10` offset gate (`0x42b679` is skipped when it is set; the bit is never set),
+`0x418eb2`'s band geometry, CF-video `0x43d9c7` modes and the save-block
+semantics.
+
+## 7. Bottom line
+
+The census found exactly three data-backed gaps in the draw/presentation layer,
+and all three are implemented (§6):
+
+1. `+0x09 & 0x80` shadow draw — `STAR` only, 6 records (`vtDEShdw`/`vtAShdw`). Done.
+2. `+0x3c` trail draw — six scenes, 193 request sites. Done.
+3. klio cursor animation — `forward`/`info`/`back`, 4 frames. Done.
 
 Everything else in the earlier "still open" list is either unused by shipped
 data (`0x10` offset pair, `0x418eb2` band blend, CF-video `0x43d9c7` modes), a

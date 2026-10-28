@@ -72,6 +72,31 @@ int main() {
                     transparent.at(2, 0) == 0x3333 && transparent.at(1, 1) == 0x1111,
                 "transparent column overwrote the destination");
 
+        // 0x40bbfd's `param_6` (`+0x09 & 0x80`): the covered pixels read the
+        // destination and write it back at 5/8 (0x42b5b2 -> 0x42b395). The
+        // frame's own colour is not used, and transparent pixels stay put.
+        auto shadowed = byzantine::make_surface(4, 2, 0xffff);
+        const auto sprite = make_frame(2, 2, 0x001f, 1);  // blue, one hole column
+        const auto shade = byzantine::blit_frame(shadowed, sprite, 1, 0, true);
+        require(shade.covered == 2 && shade.written == 2, "shadow blit counters");
+        require(shadowed.at(1, 0) == byzantine::shade_pixel(0xffff) &&
+                    shadowed.at(1, 1) == byzantine::shade_pixel(0xffff),
+                "shadow did not darken the destination");
+        require(shadowed.at(2, 0) == 0xffff && shadowed.at(0, 0) == 0xffff,
+                "shadow touched a pixel outside its coverage");
+        // 31*5>>3 = 19, 63*5>>3 = 39, 31*5>>3 = 19 -> 0x9cf3.
+        require(byzantine::shade_pixel(0xffff) == 0x9cf3,
+                "shade_pixel does not apply 5/8 per channel");
+        require(byzantine::shade_pixel(0x0000) == 0x0000, "shade_pixel of black");
+        {
+            // Channel independence: a pure-red pixel keeps green and blue at
+            // zero and scales red by 5/8 (31 -> 19).
+            const auto pixel = byzantine::shade_pixel(0xf800);
+            require(((pixel >> 11) & 0x1f) == 19 && ((pixel >> 5) & 0x3f) == 0 &&
+                        (pixel & 0x1f) == 0,
+                    "shade_pixel channel math");
+        }
+
         // Clipping: a frame partly outside the surface writes only what fits.
         auto clipped = byzantine::make_surface(4, 4, 0);
         const auto big = make_frame(3, 3, 0x4444, 3);

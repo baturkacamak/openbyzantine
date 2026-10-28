@@ -57,7 +57,15 @@ struct FrameBlit {
 };
 
 FrameBlit blit_frame(Rgb16Surface& target, const DecodedFrame& frame,
-                     std::int32_t x, std::int32_t y);
+                     std::int32_t x, std::int32_t y, bool shadow = false);
+
+// 0x40bbfd's `param_6` (the record's `+0x09 & 0x80`): the destination is read
+// per covered pixel and written back at 5/8 (`0x42b5b2` -> `0x42b395`:
+// `(value * 5) >> 3` per channel), instead of the frame's own colour. The
+// record therefore draws as a shadow of its own silhouette over the picture
+// that is already there. `0x43b130` passes the flag to the blitter, so this is
+// the same draw with a different pixel source.
+std::uint16_t shade_pixel(std::uint16_t pixel);
 
 // Copies an RGB565 image row by row at (x, y), clipping everything outside the
 // surface. This is the same unconditional row copy 0x42b679 performs for the
