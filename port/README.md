@@ -101,6 +101,23 @@ artık sunulmaz: hedef sahneyi `travel_to` sunar. Böylece bir site videosundan
 sonra eski harita karesi araya girmiyor; video son karesi hedef sahne hazır
 olana kadar ekranda kalıyor (`PRESENT_TRACE.md`, Topkapı girişi).
 
+### Klip sesi son-kırpı koruması
+
+Bazı AVI'ların son ses tamponu ses değil: `NBEST1.avi` (Nargile Kahvesi site
+videosu, altı CD'de de aynı dosya) 12.000 sn'de başlayan 67 ms'lik tam ölçekli
+gürültüyle bitiyor; görüntü aynı anda siyaha dönüyor. Oynatınca "pat" sesi
+çıkıyor. `byzantine::trim_torn_audio_tail` yalnız bu tür *yırtık* kuyruğu keser
+(tek örnekli işaret sıçraması ≥0,45 FS, öncesi sessiz, arkası tam ölçeğe yakın ve
+sona kadar süren patlama) ve kesimi loglar:
+
+```
+video_audio clip=NBEst1 tail_guard trimmed_at_ms=11999 removed_ms=67             flip_at_ms=12011 peak=32765 reason=single-sample-sign-flip
+```
+
+Klip görüntüsü yine 181 kare oynar; sadece bozuk kuyruk sessizleşir.
+`--no-audio-tail-guard` korumayı kapatıp dosyanın ham sesini dinletir (A/B).
+Kanıt: [`AUDIO_TAIL_GUARD.md`](../analysis/rea/AUDIO_TAIL_GUARD.md).
+
 Panorama kamera tüketimi ve 16 bit kenar sarma tamponu, bağımsız C++17
 yardımcıları olarak `src/panorama.cpp` içine eklendi ve `panorama-test` ile
 sınandı. Devam adımında açı dönüşümü, yaw piksel ofseti, pitch sınırı ve açık

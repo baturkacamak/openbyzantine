@@ -3,6 +3,7 @@
 #include <SDL.h>
 
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <iostream>
 #include <stdexcept>
@@ -78,6 +79,98 @@ int main() {
             rejects(truncated, "accepted a truncated WAV");
         }
         rejects({'R', 'I', 'F', 'F'}, "accepted garbage");
+
+        // Torn-tail guard (NBEST1.avi's last 67 ms is full-scale noise). The
+        // rule must fire for a ragged buffer and stay away from real endings.
+        const auto pcm_wav = [](const std::vector<std::int16_t>& samples, int channels) {
+            const auto data_size = static_cast<std::uint32_t>(samples.size() * 2);
+            std::vector<std::uint8_t> bytes;
+            const auto put32 = [&bytes](std::uint32_t value) {
+                for (int i = 0; i < 4; ++i) {
+                    bytes.push_back(static_cast<std::uint8_t>(value >> (i * 8)));
+                }
+            };
+            const auto put16 = [&bytes](std::uint16_t value) {
+                bytes.push_back(static_cast<std::uint8_t>(value & 0xff));
+                bytes.push_back(static_cast<std::uint8_t>(value >> 8));
+            };
+            const auto text = [&bytes](const char* value) {
+                for (int i = 0; i < 4; ++i) bytes.push_back(static_cast<std::uint8_t>(value[i]));
+            };
+            text("RIFF");
+            put32(36 + data_size);
+            text("WAVE");
+            text("fmt ");
+            put32(16);
+            put16(1);
+            put16(static_cast<std::uint16_t>(channels));
+            put32(22050);
+            put32(static_cast<std::uint32_t>(22050 * channels * 2));
+            put16(static_cast<std::uint16_t>(channels * 2));
+            put16(16);
+            text("data");
+            put32(data_size);
+            for (const auto sample : samples) {
+                put16(static_cast<std::uint16_t>(sample));
+            }
+            return parse_wav(bytes, "synthetic-tail.wav");
+        };
+        const auto push_stereo = [](std::vector<std::int16_t>& out, int value) {
+            out.push_back(static_cast<std::int16_t>(value));
+            out.push_back(static_cast<std::int16_t>(value));
+        };
+        {
+            std::vector<std::int16_t> samples;
+            for (int frame = 0; frame < 11025; ++frame) {  // 500 ms quiet
+                push_stereo(samples, ((frame * 37) % 600) - 300);
+            }
+            const int torn[] = {25341, 29437, 31997, -23555, 32765, 31485, -29699, 30979};
+            for (int frame = 0; frame < 1456; ++frame) {  // ~66 ms torn buffer
+                push_stereo(samples, torn[frame % 8]);
+            }
+            for (int frame = 0; frame < 20; ++frame) push_stereo(samples, 0);
+            auto clip = pcm_wav(samples, 2);
+            const auto before = clip.duration_ms;
+            const auto guard = trim_torn_audio_tail(clip);
+            require(guard.trimmed, "torn audio tail was not detected");
+            require(guard.trimmed_at_ms >= 495 && guard.trimmed_at_ms <= 505,
+                    "torn tail trimmed at the wrong point");
+            require(clip.duration_ms < before && clip.duration_ms == guard.trimmed_at_ms,
+                    "torn tail trim did not shorten the clip");
+            require(guard.peak > 30000, "torn tail peak not reported");
+        }
+        {
+            // A loud but continuous ending (0.5 FS sine) is real audio.
+            std::vector<std::int16_t> samples;
+            for (int frame = 0; frame < 11025; ++frame) push_stereo(samples, 300);
+            for (int frame = 0; frame < 2205; ++frame) {
+                push_stereo(samples, static_cast<int>(16000 * std::sin(frame * 0.2)));
+            }
+            auto clip = pcm_wav(samples, 2);
+            require(!trim_torn_audio_tail(clip).trimmed,
+                    "trimmed a continuous loud ending");
+        }
+        {
+            // A loud slam that decays (0.95 FS for 40 ms, then silence).
+            std::vector<std::int16_t> samples;
+            for (int frame = 0; frame < 11025; ++frame) push_stereo(samples, 200);
+            for (int frame = 0; frame < 882; ++frame) {
+                push_stereo(samples, static_cast<int>(31000 * std::sin(frame * 0.9)));
+            }
+            for (int frame = 0; frame < 2205; ++frame) push_stereo(samples, 0);
+            auto clip = pcm_wav(samples, 2);
+            require(!trim_torn_audio_tail(clip).trimmed,
+                    "trimmed a decaying sound effect");
+        }
+        {
+            // A single-sample click, not a torn buffer.
+            std::vector<std::int16_t> samples;
+            for (int frame = 0; frame < 11025; ++frame) push_stereo(samples, 120);
+            push_stereo(samples, 32000);
+            for (int frame = 0; frame < 220; ++frame) push_stereo(samples, 120);
+            auto clip = pcm_wav(samples, 2);
+            require(!trim_torn_audio_tail(clip).trimmed, "trimmed a one-sample click");
+        }
 
         AudioMixer mixer;
         mixer.open();

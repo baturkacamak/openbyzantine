@@ -3,6 +3,8 @@
 #include <SDL2/SDL.h>
 
 #include <algorithm>
+#include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
@@ -69,8 +71,107 @@ WavClip parse_wav(const std::vector<std::uint8_t>& data, const std::string& path
     return clip;
 }
 
-AudioMixer::AudioMixer() = default;
+namespace {
 
+// Signed 16-bit PCM word at `frame`, channel `channel` of `clip`.
+std::int16_t pcm_word(const WavClip& clip, std::size_t frame, int channel) {
+    const auto at = (frame * static_cast<std::size_t>(clip.channels) +
+                     static_cast<std::size_t>(channel)) * 2;
+    return static_cast<std::int16_t>(
+        static_cast<std::uint16_t>(clip.bytes[at]) |
+        (static_cast<std::uint16_t>(clip.bytes[at + 1]) << 8));
+}
+
+struct Level {
+    int peak = 0;
+    double rms = 0.0;
+};
+
+Level level_of(const WavClip& clip, std::size_t first, std::size_t last) {
+    Level level;
+    if (last <= first) return level;
+    double squares = 0.0;
+    std::size_t count = 0;
+    for (std::size_t frame = first; frame < last; ++frame) {
+        for (int channel = 0; channel < clip.channels; ++channel) {
+            const auto value = pcm_word(clip, frame, channel);
+            const auto magnitude = std::abs(static_cast<int>(value));
+            if (magnitude > level.peak) level.peak = magnitude;
+            squares += static_cast<double>(value) * value;
+            ++count;
+        }
+    }
+    if (count != 0) level.rms = std::sqrt(squares / static_cast<double>(count));
+    return level;
+}
+
+}  // namespace
+
+AudioTailTrim trim_torn_audio_tail(WavClip& clip) {
+    AudioTailTrim result;
+    if (clip.channels < 1 || clip.sample_rate <= 0) return result;
+    const auto frame_size = static_cast<std::size_t>(clip.channels) * 2;
+    const auto frames = clip.bytes.size() / frame_size;
+    const auto rate = static_cast<std::size_t>(clip.sample_rate);
+    if (frames < rate / 4) return result;  // too short to judge
+    constexpr double kFullScale = 32767.0;
+    // 1. A ragged single-sample sign flip (both sides at least 0.45 FS) in the
+    // last 200 ms. A torn buffer starts with one; real audio rarely does.
+    const auto window_start = frames - std::min(frames, rate * 2 / 10);
+    int flip_at = -1;
+    int flip_delta = 0;
+    for (std::size_t frame = window_start + 1; frame < frames; ++frame) {
+        for (int channel = 0; channel < clip.channels; ++channel) {
+            const auto previous = static_cast<int>(pcm_word(clip, frame - 1, channel));
+            const auto current = static_cast<int>(pcm_word(clip, frame, channel));
+            if ((previous > 0) == (current > 0)) continue;
+            if (std::abs(previous) < 0.45 * kFullScale) continue;
+            if (std::abs(current) < 0.45 * kFullScale) continue;
+            const int delta = std::abs(current - previous);
+            if (delta > flip_delta) {
+                flip_delta = delta;
+                flip_at = static_cast<int>(frame);
+            }
+        }
+    }
+    if (flip_at < 0) return result;
+    const auto at = static_cast<std::size_t>(flip_at);
+    // 2. Where the burst starts: the flip sits a few samples inside it, so walk
+    // back to the last 10 ms window that is quiet. No quiet lead-in means the
+    // clip simply ends loudly (a slam, music) and must be left alone.
+    const auto step = std::max<std::size_t>(1, rate / 1000);
+    const auto window = std::max<std::size_t>(1, rate / 100);
+    const auto quiet = 0.06 * kFullScale;
+    std::size_t burst_start = 0;
+    bool found = false;
+    for (std::size_t frame = at; frame > window && at - frame < rate / 5;
+         frame -= step) {
+        if (level_of(clip, frame - window, frame).rms <= quiet) {
+            burst_start = frame;
+            found = true;
+            break;
+        }
+    }
+    if (!found) return result;
+    if (frames - burst_start > rate * 15 / 100) return result;  // not a tail
+    // 3. The burst itself is near full scale and the audio before it is quiet.
+    const auto after =
+        level_of(clip, burst_start, std::min(frames, burst_start + rate * 6 / 100));
+    const auto before =
+        level_of(clip, burst_start > rate / 10 ? burst_start - rate / 10 : 0, burst_start);
+    if (after.peak < 0.90 * kFullScale || after.rms < 0.35 * kFullScale) return result;
+    if (before.peak > 0.60 * kFullScale || before.rms > 0.12 * kFullScale) return result;
+    result.at_ms = static_cast<std::uint64_t>(at) * 1000 / rate;
+    result.trimmed_at_ms = static_cast<std::uint64_t>(burst_start) * 1000 / rate;
+    result.removed_ms = static_cast<std::uint64_t>(frames - burst_start) * 1000 / rate;
+    result.peak = after.peak;
+    clip.bytes.resize(burst_start * frame_size);
+    clip.duration_ms = result.trimmed_at_ms;
+    result.trimmed = true;
+    return result;
+}
+
+AudioMixer::AudioMixer() = default;
 AudioMixer::~AudioMixer() {
     if (device_ != 0) {
         SDL_PauseAudioDevice(device_, 1);

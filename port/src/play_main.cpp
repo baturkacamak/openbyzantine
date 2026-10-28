@@ -175,6 +175,10 @@ struct Options {
     bool overlay = true;
     bool print_audio = false;
     bool audio = true;
+    // --no-audio-tail-guard: keep a clip's unmodified audio stream. Off by
+    // default only for a *torn* tail (see trim_torn_audio_tail); every trim is
+    // logged as tail_guard=….
+    bool audio_tail_guard = true;
     bool video = true;                         // --no-video disables FFmpeg decodes
     bool selftest_events = false;              // --selftest-events (see README)
     bool print_hotspots = false;               // --print-hotspots
@@ -247,6 +251,10 @@ Options parse_options(int argc, char** argv) {
         }
         if (token == "--no-audio") {
             options.audio = false;
+            continue;
+        }
+        if (token == "--no-audio-tail-guard") {
+            options.audio_tail_guard = false;
             continue;
         }
         if (token == "--no-video") {
@@ -4067,6 +4075,20 @@ ClipPlayback play_decoded_clip(Session& session, const DecodedClip& decoded,
             ++result.audio_failures;
             std::cout << tags.audio << " clip=" << clip
                       << " ERROR WAV: " << error.what() << '\n';
+        }
+    }
+    if (sound && session.options.audio_tail_guard) {
+        // A torn final buffer is not audio (NBEST1.avi: 67 ms of full-scale
+        // noise after the fade to black). Trim it and say so; the clip's video
+        // still runs its full length, only the defective tail is silent.
+        const auto guard = byzantine::trim_torn_audio_tail(*sound);
+        if (guard.trimmed) {
+            std::cout << tags.audio << " clip=" << clip
+                      << " tail_guard trimmed_at_ms=" << guard.trimmed_at_ms
+                      << " removed_ms=" << guard.removed_ms
+                      << " flip_at_ms=" << guard.at_ms
+                      << " peak=" << guard.peak
+                      << " reason=single-sample-sign-flip\n";
         }
     }
     if (sound) {

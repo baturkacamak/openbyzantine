@@ -17,6 +17,30 @@ struct WavClip {
 };
 WavClip parse_wav(const std::vector<std::uint8_t>& data, const std::string& path);
 
+// A shipped clip can carry a torn final audio buffer. NBEST1.avi (the Nargile
+// Kahvesi site video on every CD, ISO bytes verified) ends with 67 ms of
+// near-full-scale noise immediately after the picture has faded to black: the
+// last 16-bit words are not audio, they are a jagged half-scale sign flip
+// followed by a burst that runs to the clip's end. Played as PCM it is a loud
+// crack. `trim_torn_audio_tail` removes such a tail and reports it; the test is
+// deliberately narrow so ordinary loud endings (music, a slam) survive:
+//
+//  * a single-sample sign flip from <= -0.45 FS to >= +0.45 FS (or the reverse)
+//    inside the last 200 ms,
+//  * the 60 ms after it at >= 0.9 FS peak and >= 0.35 FS RMS,
+//  * the 100 ms before it quiet (peak <= 0.6 FS, RMS <= 0.12 FS).
+//
+// The caller logs the trim; nothing is removed silently. `--no-audio-tail-guard`
+// disables it for an A/B against the unmodified stream.
+struct AudioTailTrim {
+    bool trimmed = false;
+    std::uint64_t at_ms = 0;         // the detected discontinuity
+    std::uint64_t trimmed_at_ms = 0; // where the clip now ends
+    std::uint64_t removed_ms = 0;
+    int peak = 0;
+};
+AudioTailTrim trim_torn_audio_tail(WavClip& clip);
+
 // The common SDL2 audio mixer. Script sounds (0x65 records) become tagged voices:
 // `0xc4` starts/loops an ambient record without blocking the script, `0xbc`/
 // `0xcf`/`0xd0` stop it, and a `0xd1` dialogue voice is waited on only for the

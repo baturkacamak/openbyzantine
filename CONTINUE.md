@@ -40,6 +40,24 @@ Headless `--shot` paths were already free of this. Verified on the same clicks
 (`topkapi-user-before-map.png`, `topkapi-after-fix-first-frame.png`, the two
 trace slices).
 
+Follow-up 2 (same day, Nargile Kahvesi entry, user run
+`run-20261028T111107.512507Z-o5eqjnag`): the MAP frame is gone there too (last
+`NBEst1` frame at 16627 ms → `NB00` at 16857 ms), but the clip's audio popped.
+`NBEST1.avi` ends with 67 ms of near-full-scale noise (the last `01wb` chunk at
+file 3,926,718 starts at exactly 12.000 s, peak 32765, RMS ≈26000; quiet 1056
+before it; the picture fades to black over the same frames). The file is
+byte-identical on all six ISOs, so it is shipped data. New
+`byzantine::trim_torn_audio_tail` (ambient_audio.*) trims only that kind of torn
+tail — single-sample sign flip ≥0.45 FS after quiet audio, near-full-scale burst
+running to the end — and `play_decoded_clip` logs
+`video_audio clip=… tail_guard trimmed_at_ms=… removed_ms=… flip_at_ms=… peak=…
+reason=single-sample-sign-flip`. `--no-audio-tail-guard` keeps the unmodified
+stream. Real data: duration 12066→11999 ms, disk capture has 0 loud 66 ms
+windows (was one at RMS 24,865), video still writes 181 frames and NB enters;
+`audio-test` covers the torn tail plus three endings that must not be trimmed.
+Whether the original played that tail is not established. Report:
+`analysis/rea/AUDIO_TAIL_GUARD.md`.
+
 ## REA MCP toolchain repaired after the drive move (28 October 2026)
 
 The project now lives at `/media/baturkacamak/M.2/PROJECTS/Byzantine - The Betrayal`
