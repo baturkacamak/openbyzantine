@@ -74,7 +74,6 @@ const char* window_mode_name(WindowMode mode) {
     switch (mode) {
         case WindowMode::windowed: return "windowed";
         case WindowMode::borderless: return "borderless";
-        case WindowMode::exclusive: return "exclusive";
         case WindowMode::maximized: return "maximized";
     }
     return "windowed";
@@ -100,7 +99,7 @@ bool parse_window_mode(const std::string& text, WindowMode* mode) {
         return true;
     }
     if (value == "exclusive" || value == "2") {
-        *mode = WindowMode::exclusive;
+        *mode = WindowMode::borderless; // Legacy mode: never change physical display modes.
         return true;
     }
     if (value == "maximized" || value == "maximise" || value == "maximize" ||
@@ -181,7 +180,7 @@ bool Settings::load(const std::filesystem::path& path, std::string* error) {
                                     where + "): expected " + expected);
         };
         if (where == "display.mode" || where == "display.window_mode") {
-            if (!parse_window_mode(value, &window_mode)) bad("windowed|borderless|exclusive|maximized");
+            if (!parse_window_mode(value, &window_mode)) bad("windowed|borderless|maximized");
         } else if (where == "display.scale" || where == "display.scale_mode") {
             if (!parse_scale_mode(value, &scale_mode)) bad("fit|integer");
         } else if (where == "display.vsync") {

@@ -28,6 +28,8 @@
 #include "byzantine/inventory.hpp"
 #include "byzantine/jpeg.hpp"
 #include "byzantine/menu.hpp"
+#include "byzantine/window_host.hpp"
+#include "byzantine/menu_help_fade.hpp"
 #include "byzantine/menu_typeface.hpp"
 #include "byzantine/panorama.hpp"
 #include "byzantine/panorama_view.hpp"
@@ -339,7 +341,7 @@ const std::string& advanced_settings_label() {
     return label;
 }
 
-constexpr int kAdvancedGroupCount = 6;
+constexpr int kAdvancedGroupCount = 5;
 
 const char* advanced_group_name(int group) {
     switch (group) {
@@ -348,7 +350,6 @@ const char* advanced_group_name(int group) {
         case 2: return "D\xa3L";              // DİL
         case 3: return "OTURUM";
         case 4: return "TU\xa2LAR";           // TUŞLAR
-        case 5: return "OR\xa3J\xa3NAL";      // ORİJİNAL
         default: return "?";
     }
 }
@@ -470,7 +471,8 @@ Options parse_options(int argc, char** argv) {
             continue;
         }
         if (token == "--exclusive") {
-            options.settings.window_mode = byzantine::WindowMode::exclusive;
+            options.settings.window_mode = byzantine::WindowMode::borderless;
+            std::cout << "window_mode_compat requested=exclusive effective=borderless\n";
             continue;
         }
         if (token == "--maximized") {
@@ -755,7 +757,7 @@ Options parse_options(int argc, char** argv) {
             "[--compose-frames <n>] [--selftest-events] [--anim-pass-hz <hz>] "
             "[--menu <0..5>] [--menu-click-at <x>,<y> ...] [--menu-text <utf8>] "
             "[--menu-key enter|escape|backspace] [--menu-shot <ppm>] "
-            "[--config <ini>] [--windowed|--borderless|--fullscreen|--exclusive|--maximized] "
+            "[--config <ini>] [--windowed|--borderless|--fullscreen|--maximized] "
             "[--scale fit|integer] [--vsync|--no-vsync] "
             "[--volume-master|--volume-speech|--volume-ambient|--volume-effects <0..1>] "
             "[--subtitles|--no-subtitles] [--text-lang <code>] [--voice-lang <code>] "
@@ -1663,6 +1665,13 @@ struct Display {
     int windowed_y = -1;
     int logical_width = kScreenWidth;
     int logical_height = kScreenHeight;
+    bool native_aspect_constraint = false;
+    byzantine::AspectResizeSettler aspect_settler;
+    byzantine::ScaleMode requested_scale = byzantine::ScaleMode::fit;
+    byzantine::Rgb16Surface last_presented_image;
+    ScreenContent last_presented_content = ScreenContent::scene;
+    int last_presented_offset = 0;
+    std::string last_presented_tag;
     // Records the last compose drew and stepped through 0x43b216's normal pass.
     std::vector<std::uint16_t> drawn_record_ids;
     // Host diagnostics for a reported "another picture flashes for an instant":
@@ -1820,11 +1829,51 @@ struct Display {
         }
     }
 
-    void apply_scale_mode(byzantine::ScaleMode mode) {
+    void refresh_window_scale() {
         if (renderer == nullptr) return;
-        SDL_RenderSetIntegerScale(renderer,
-                                  mode == byzantine::ScaleMode::integer ? SDL_TRUE
-                                                                        : SDL_FALSE);
+        int width = 0, height = 0;
+        if (SDL_GetRendererOutputSize(renderer, &width, &height) != 0 ||
+            width <= 0 || height <= 0) return;
+        // Integer upscaling remains stepped. Below 1x, fit the entire frame
+        // instead of clipping it to a viewport larger than the small window.
+        const bool integer = window_mode != byzantine::WindowMode::windowed &&
+                             requested_scale == byzantine::ScaleMode::integer &&
+                             width >= logical_width && height >= logical_height;
+        SDL_RenderSetIntegerScale(renderer, integer ? SDL_TRUE : SDL_FALSE);
+        SDL_RenderSetLogicalSize(renderer, logical_width, logical_height);
+    }
+
+    bool constrain_window_aspect(const char* source,
+                                 std::optional<byzantine::WindowSize> origin = std::nullopt) {
+        if (window == nullptr || window_mode != byzantine::WindowMode::windowed ||
+            (SDL_GetWindowFlags(window) & (SDL_WINDOW_FULLSCREEN | SDL_WINDOW_MAXIMIZED | SDL_WINDOW_MINIMIZED))) return false;
+        int width = 0, height = 0;
+        SDL_GetWindowSize(window, &width, &height);
+        if (origin && byzantine::near_game_aspect({width,height})) return false;
+        SDL_Rect bounds{};
+        byzantine::WindowSize limit{7680,4320};
+        if (SDL_GetDisplayUsableBounds(SDL_GetWindowDisplayIndex(window), &bounds) == 0) {
+            int top=0, left=0, bottom=0, right=0;
+            SDL_GetWindowBordersSize(window, &top, &left, &bottom, &right);
+            limit = {std::max(4, bounds.w-left-right), std::max(3, bounds.h-top-bottom)};
+        }
+        const auto size = byzantine::aspect_window_size(
+            origin.value_or(byzantine::WindowSize{windowed_width,windowed_height}),
+            {width,height}, limit);
+        if (width != size.width || height != size.height) {
+            SDL_SetWindowSize(window, size.width, size.height);
+            std::cout << "window_aspect source=" << source << " requested=" << width << 'x' << height
+                      << " fitted=" << size.width << 'x' << size.height << " ratio=4:3\n";
+        }
+        // SDL's X11 size/resizable setters rewrite WM_NORMAL_HINTS, so install
+        // the aspect constraint after them, not just when creating the window.
+        native_aspect_constraint = byzantine::set_window_aspect_hint(window, true);
+        return width != size.width || height != size.height;
+    }
+
+    void apply_scale_mode(byzantine::ScaleMode mode) {
+        requested_scale = mode;
+        refresh_window_scale();
         std::cout << "window_scale mode=" << byzantine::scale_mode_name(mode)
                   << " filter=nearest\n";
     }
@@ -1842,7 +1891,8 @@ struct Display {
     // Saves the windowed geometry before entering a fullscreen mode. The
     // caller persists Settings after the mode change.
     void remember_windowed_geometry() {
-        if (window == nullptr || window_mode != byzantine::WindowMode::windowed) return;
+        if (window == nullptr || window_mode != byzantine::WindowMode::windowed ||
+            (SDL_GetWindowFlags(window) & (SDL_WINDOW_MAXIMIZED | SDL_WINDOW_FULLSCREEN))) return;
         SDL_GetWindowPosition(window, &windowed_x, &windowed_y);
         SDL_GetWindowSize(window, &windowed_width, &windowed_height);
     }
@@ -1868,22 +1918,20 @@ struct Display {
         settings.window_y = windowed_y;
     }
 
-    // Re-copies the current texture after a window/renderer change so a mode
-    // switch never flashes an unpainted backbuffer.
-    void repaint_window() {
-        if (renderer == nullptr || texture == nullptr) return;
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-        SDL_RenderClear(renderer);
-        SDL_RenderCopy(renderer, texture, nullptr, nullptr);
-        SDL_RenderPresent(renderer);
-    }
+    // Defined after ScreenContentScope. Reuses the existing image presenter
+    // with the last frame's content owner, including clips and menu fades.
+    void repaint_window(const SceneView& view, const char* reason);
 
     void apply_window_mode(byzantine::WindowMode mode) {
         if (window == nullptr) return;
         int fullscreen_result = 0;
+        aspect_settler.cancel();
+        native_aspect_constraint = byzantine::set_window_aspect_hint(window,
+            mode == byzantine::WindowMode::windowed);
         if (mode == byzantine::WindowMode::windowed) {
             remember_windowed_geometry();
             SDL_SetWindowFullscreen(window, 0);
+            SDL_RestoreWindow(window);
             SDL_SetWindowResizable(window, SDL_TRUE);
             SDL_SetWindowSize(window, windowed_width, windowed_height);
             if (windowed_x >= 0 && windowed_y >= 0) {
@@ -1892,9 +1940,6 @@ struct Display {
         } else if (mode == byzantine::WindowMode::borderless) {
             remember_windowed_geometry();
             fullscreen_result = SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN_DESKTOP);
-        } else if (mode == byzantine::WindowMode::exclusive) {
-            remember_windowed_geometry();
-            fullscreen_result = SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN);
         } else if (mode == byzantine::WindowMode::maximized) {
             remember_windowed_geometry();
             SDL_SetWindowFullscreen(window, 0);
@@ -1909,14 +1954,15 @@ struct Display {
             mode = byzantine::WindowMode::windowed;
         }
         window_mode = mode;
+        if (mode == byzantine::WindowMode::windowed) constrain_window_aspect("mode");
+        refresh_window_scale();
         int width = 0;
         int height = 0;
         SDL_GetWindowSize(window, &width, &height);
         std::cout << "window_mode mode=" << byzantine::window_mode_name(mode)
                   << " size=" << width << 'x' << height
-                  << " fullscreen=" << (mode == byzantine::WindowMode::windowed ? 0 : 1)
+                  << " fullscreen=" << ((SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) ? 1 : 0)
                   << '\n';
-        repaint_window();
     }
 
     void init(const Options& options) {
@@ -1945,6 +1991,10 @@ struct Display {
                                   windowed_y >= 0 ? windowed_y : SDL_WINDOWPOS_CENTERED,
                                   windowed_width, windowed_height, window_flags);
         if (window == nullptr) throw std::runtime_error(SDL_GetError());
+        SDL_SetWindowMinimumSize(window, 320, 240);
+        native_aspect_constraint = byzantine::set_window_aspect_hint(window,
+            window_mode == byzantine::WindowMode::windowed);
+        std::cout << "window_aspect_constraint backend=" << (native_aspect_constraint ? "native" : "SDL-fallback") << '\n';
         if (settings.monitor >= 0) {
             const int displays = SDL_GetNumVideoDisplays();
             if (settings.monitor < displays) {
@@ -1955,6 +2005,8 @@ struct Display {
                 }
             }
         }
+        constrain_window_aspect("open");
+        remember_windowed_geometry();
         Uint32 renderer_flags = SDL_RENDERER_ACCELERATED;
         if (settings.vsync) renderer_flags |= SDL_RENDERER_PRESENTVSYNC;
         renderer = SDL_CreateRenderer(window, -1, renderer_flags);
@@ -1991,6 +2043,10 @@ struct Display {
                       << " (extract setupart/inventor with port/scene.sh)\n";
         }
         load_top_bar_assets();
+        // Renderer/window backend setup may rewrite native size hints too.
+        native_aspect_constraint = byzantine::set_window_aspect_hint(window,
+            window_mode == byzantine::WindowMode::windowed);
+
 
         int window_width = 0;
         int window_height = 0;
@@ -2465,7 +2521,7 @@ struct Display {
             if (texture == nullptr) throw std::runtime_error(SDL_GetError());
             logical_width = image.width;
             logical_height = image.height;
-            SDL_RenderSetLogicalSize(renderer, logical_width, logical_height);
+            refresh_window_scale();
             int window_width = 0;
             int window_height = 0;
             int output_width = 0;
@@ -2515,6 +2571,10 @@ struct Display {
             }
         }
         SDL_RenderPresent(renderer);
+        if (&image != &last_presented_image) last_presented_image = image;
+        last_presented_content = content;
+        last_presented_offset = hotspot_offset_y;
+        last_presented_tag = tag;
         log_present(image, view, tag, draw_overlay);
         update_last_playfield(image, hotspot_offset_y, tag);
     }
@@ -3117,6 +3177,24 @@ struct ScreenContentScope {
 // ---------------------------------------------------------------------------
 // Session: the window, the audio device and the wait bookkeeping.
 // ---------------------------------------------------------------------------
+void Display::repaint_window(const SceneView& view, const char* reason) {
+    if (renderer == nullptr || last_presented_image.pixels.empty()) return;
+    refresh_window_scale();
+    int width = 0, height = 0, output_width = 0, output_height = 0;
+    SDL_GetWindowSize(window, &width, &height);
+    SDL_GetRendererOutputSize(renderer, &output_width, &output_height);
+    std::cout << "window_repaint reason=" << reason
+              << " window=" << width << 'x' << height
+              << " output=" << output_width << 'x' << output_height
+              << " logical=" << logical_width << 'x' << logical_height
+              << " scale=" << byzantine::scale_mode_name(requested_scale)
+              << " integer=" << (SDL_RenderGetIntegerScale(renderer) ? 1 : 0)
+              << " content=" << screen_content_name(last_presented_content) << '\n';
+    const auto tag = last_presented_tag; // present_image updates its cache.
+    ScreenContentScope scope(*this, last_presented_content);
+    present_image(last_presented_image, view, last_presented_offset, tag.c_str());
+}
+
 struct WaitStats {
     std::size_t frames = 0;
     std::size_t events = 0;
@@ -3259,7 +3337,17 @@ bool play_trace_videos(Session& session, const byzantine::SceneTrace& trace,
 int poll_logged_event(SDL_Event* event, const char* phase, Session& session) {
     session.display.poll_gamepad();
     const int found = SDL_PollEvent(event);
-    if (!found) return found;
+    if (!found) {
+        if (!session.display.aspect_settler.pending()) return found;
+        const bool pointer_down = (SDL_GetGlobalMouseState(nullptr, nullptr) &
+            (SDL_BUTTON_LMASK | SDL_BUTTON_MMASK | SDL_BUTTON_RMASK)) != 0;
+        const auto origin = session.display.aspect_settler.take(SDL_GetTicks64(), pointer_down);
+        if (origin && session.display.constrain_window_aspect("resize_settled", origin)) {
+            session.display.remember_windowed_geometry();
+            session.display.repaint_window(session.view, "aspect_settled");
+        }
+        return found;
+    }
     byzantine::diagnostics::write("input", [&](auto& out) {
         out << "phase=" << phase << " scene=" << session.view.name
             << " type=" << event->type << " sdl_ms=" << event->common.timestamp;
@@ -3284,6 +3372,59 @@ int poll_logged_event(SDL_Event* event, const char* phase, Session& session) {
         default: break;
         }
     });
+    // Every input owner (menus, scene, clips and waits) polls through here.
+    // SDL updates logical input mapping on resize; repaint the current frame
+    // even when no animation or pointer motion would otherwise draw anything.
+    if (event->type == SDL_WINDOWEVENT && session.display.window != nullptr &&
+        event->window.windowID == SDL_GetWindowID(session.display.window)) {
+        if (event->window.event == SDL_WINDOWEVENT_MAXIMIZED ||
+            event->window.event == SDL_WINDOWEVENT_RESTORED) {
+            const auto flags = SDL_GetWindowFlags(session.display.window);
+            if (!(flags & SDL_WINDOW_FULLSCREEN)) {
+                const auto actual = (flags & SDL_WINDOW_MAXIMIZED)
+                    ? byzantine::WindowMode::maximized : byzantine::WindowMode::windowed;
+                if (actual != session.display.window_mode) {
+                    session.display.window_mode = actual;
+                    session.options.settings.window_mode = actual;
+                    std::cout << "window_mode_sync mode="
+                              << byzantine::window_mode_name(actual) << " source=window_event\n";
+                }
+                session.display.aspect_settler.cancel();
+                session.display.native_aspect_constraint = byzantine::set_window_aspect_hint(
+                    session.display.window, actual == byzantine::WindowMode::windowed);
+                session.display.refresh_window_scale();
+                session.display.remember_windowed_geometry();
+            }
+        }
+        if (event->window.event == SDL_WINDOWEVENT_SIZE_CHANGED ||
+            event->window.event == SDL_WINDOWEVENT_RESTORED) {
+            const auto flags = SDL_GetWindowFlags(session.display.window);
+            if (session.display.window_mode == byzantine::WindowMode::windowed &&
+                !(flags & (SDL_WINDOW_FULLSCREEN | SDL_WINDOW_MAXIMIZED | SDL_WINDOW_MINIMIZED)))
+            {
+                // Repair lost native hints without issuing any resize request.
+                // The helper writes the X11 property only if it actually changed.
+                if (session.display.native_aspect_constraint)
+                    session.display.native_aspect_constraint = byzantine::set_window_aspect_hint(
+                        session.display.window, true);
+                session.display.aspect_settler.resize(
+                    {session.display.windowed_width,session.display.windowed_height},
+                    SDL_GetTicks64(), session.display.native_aspect_constraint);
+            } else session.display.aspect_settler.cancel();
+            session.display.remember_windowed_geometry();
+        }
+        switch (event->window.event) {
+            case SDL_WINDOWEVENT_SIZE_CHANGED:
+            case SDL_WINDOWEVENT_RESIZED:
+            case SDL_WINDOWEVENT_EXPOSED:
+            case SDL_WINDOWEVENT_RESTORED:
+            case SDL_WINDOWEVENT_MAXIMIZED:
+                session.display.repaint_window(session.view,
+                    event->window.event == SDL_WINDOWEVENT_EXPOSED ? "expose" : "resize");
+                break;
+            default: break;
+        }
+    }
     return found;
 }
 
@@ -6478,6 +6619,7 @@ void notebook_rule(Display& display, int x, int y, int width) {
 }
 
 struct MenuUi {
+    byzantine::MenuHelpFade help_fade;
     enum class Confirm { none, delete_slot, quit, overwrite };
 
     bool open = false;
@@ -6686,6 +6828,8 @@ struct MenuUi {
     }
 
     void open_screen(int value, Session& session) {
+        help_fade.reset();
+        advanced_hover = false;
         // A text-language change can replace setupart/*; never reuse the old
         // decoded screen for this menu opening.
         art_cache.clear();
@@ -6714,6 +6858,7 @@ struct MenuUi {
     }
 
     void close(Session& session, const char* reason) {
+        help_fade.reset();
         std::cout << "menu_close reason=" << reason << " mode=" << mode << '\n';
         open = false;
         credits = false;
@@ -7157,22 +7302,66 @@ struct MenuUi {
                              rect.x + 12, rect.y + 5, 1, 3,
                              advanced_hover ? 0xF6AC : 0x0000);
         notebook_arrow(display, rect.x + rect.w - 14, rect.y + 14, 1);
-        if (!advanced_hover) return;
-        const auto* prose = font;
-        byzantine::draw_text(display.screen, *prose,
-                             byzantine::utf8_to_turkish_game_text("AÇIKLAMA"),
-                             54, 62, 1, 3, 0xFFE0);
-        byzantine::draw_text(display.screen, *font, advanced_settings_label(),
-                             54, 89, 1, 3, 0xFF39);
-        const auto lines = wrap_dialog_text(*prose,
-            byzantine::utf8_to_turkish_game_text(
+        if (advanced_hover) {
+            draw_preference_help(session, "Gelişmiş ayarlar",
                 "Görüntü, ses, dil ve kontrol seçeneklerini düzenleyin. "
-                "Kendi sisteminize en uygun ayarları bu menüden seçebilirsiniz."), 183);
+                "Kendi sisteminize en uygun ayarları bu menüden seçebilirsiniz.");
+            return;
+        }
+        switch (hover) {
+            case 6:
+                draw_preference_help(session, "Otomatik kayıt",
+                    "Oyunun kendi kayıt noktaları için otomatik kayıt tercihini belirler. "
+                    "Sahne geçişlerinde çalışan port kaydı ayrıdır; onu Gelişmiş Ayarlar > Oturum bölümünden açabilirsiniz.");
+                break;
+            case 7:
+                draw_preference_help(session, "Video ekran boyutu",
+                    "Yarım, videoları küçük; tam, büyütülmüş olarak oynatır. "
+                    "Bu tercih oyun penceresinin boyutunu değiştirmez. "
+                    "Pencere veya tam ekran seçimi Gelişmiş Ayarlar > Görüntü bölümündedir.");
+                break;
+            case 8:
+                draw_preference_help(session, "Ses ve müzik",
+                    "Oyunun bu tercihe bağlı ses ve müziklerini açar veya kapatır. "
+                    "Sesin yüksekliğini değiştirmek için Gelişmiş Ayarlar > Ses bölümündeki genel ses ve diğer seviyeleri kullanabilirsiniz.");
+                break;
+            case 9:
+                draw_preference_help(session, "Konuşma notları",
+                    "Özgün konuşma notu davranışı henüz uygulanmadı. "
+                    "Konuşma yazıları için Gelişmiş Ayarlar > Dil > Altyazı seçeneğini kullanın. "
+                    "Konuşma geçmişini atadığınız geçmiş tuşuyla açabilirsiniz.");
+                break;
+            case 10:
+                draw_preference_help(session, "Yönlendirici görüntüler",
+                    "Oyun sırasında çağrılan yönlendirici videoların oynatılmasına izin verir. "
+                    "Açıkken bu klipler gerektiğinde gösterilir; kapalıyken yönlendirici türündeki video istekleri oynatılmaz.");
+                break;
+            case 11:
+                draw_preference_help(session, "Yer tanıtım görüntüleri",
+                    "Yerleri tanıtmak için çağrılan videoları açar veya kapatır. "
+                    "Kapalıyken yer tanıtımı türündeki klipler oynatılmaz. "
+                    "Bu tercih bütün öykü videolarını kapatan genel bir video anahtarı değildir.");
+                break;
+            default: break;
+        }
+    }
+
+    void draw_preference_help(Session& session, const std::string& title,
+                              const std::string& body) {
+        const auto& prose = *notebook_face;
+        static const auto label_face = byzantine::menu_typeface();
+        auto& screen = session.display.screen;
+        const auto encoded = [](const std::string& text) {
+            return byzantine::utf8_to_turkish_game_text(text);
+        };
+        byzantine::draw_text(screen, prose, encoded("AÇIKLAMA"), 54, 62, 1, 3, 0xFFE0);
+        byzantine::draw_text(screen, label_face, encoded(title), 54, 89, 1, 3, 0xFF39);
+        const auto lines = wrap_dialog_text(prose, encoded(body), 183);
         int y = 120;
         for (const auto& line : lines) {
-            if (y + prose->line_height > 326) break;
-            byzantine::draw_text(display.screen, *prose, line, 54, y, 1, 3, 0xFF39);
-            y += prose->line_height + 2;
+            if (y + prose.line_height > 344) break;
+            byzantine::draw_text(screen, prose, line, 54, y, 1, 3, 0xFF39);
+            y += prose.line_height + 2;
         }
     }
 
@@ -7228,6 +7417,12 @@ struct MenuUi {
 
     void present(Session& session) {
         draw(session);
+        if (mode == 0 && !editing && !hints && !credits && confirm == Confirm::none) {
+            if (help_fade.compose(session.display.screen, SDL_GetTicks64(),
+                                  session.interactive && session.options.transitions))
+                std::cout << "menu_help_fade owner=native duration_ms="
+                          << byzantine::MenuHelpFade::duration_ms << '\n';
+        } else help_fade.reset();
         ScreenContentScope content(session.display, ScreenContent::menu);
         session.display.present_image(session.display.screen, session.view, 0, "menu");
         float x = 0;
@@ -9268,6 +9463,7 @@ void load_fonts(Session& session, bool verbose) {
 // ESC returns through category, hub and preferences. Host changes are written
 // to the port INI and applied immediately where possible.
 struct SettingsUi {
+    byzantine::MenuHelpFade help_fade;
     bool open = false;
     int group = 0;
     int row = 0;
@@ -9278,6 +9474,20 @@ struct SettingsUi {
     std::optional<byzantine::Rgb16Surface> backdrop;
     std::vector<SDL_Rect> tab_rects;
     std::vector<SDL_Rect> row_rects;
+    std::vector<SDL_Rect> value_rects;
+
+    enum class LeftAction { none, quit, resume };
+    enum class ReturnTarget { previous, scene, preferences };
+    LeftAction left_hover = LeftAction::none;
+
+    static LeftAction left_action_at(int x, int y) {
+        // Comfortable host hit rows around the baked left-page lettering.
+        // This helper owns both hover and click, including the blank padding
+        // immediately below OYUNA DEVAM that the reported click landed in.
+        if (contains({70, 365, 188, 27}, x, y)) return LeftAction::quit;
+        if (contains({70, 392, 188, 43}, x, y)) return LeftAction::resume;
+        return LeftAction::none;
+    }
 
     enum Action {
         window_mode = 0,
@@ -9302,17 +9512,10 @@ struct SettingsUi {
         key_quickload,
         key_autoload,
         key_screenshot,
-        key_hotspots,
-        original_autosave,
-        original_video,
-        original_audio,
-        original_notes,
-        original_tutorial,
-        original_location,
-        original_scope
+        key_hotspots
     };
 
-    enum Group { display, audio, language, session, keys, original, group_count };
+    enum Group { display, audio, language, session, keys, group_count };
 
     static const char* group_name(int value) { return advanced_group_name(value); }
 
@@ -9329,9 +9532,6 @@ struct SettingsUi {
             case keys:
                 return {key_settings, key_backlog, key_skip, key_quicksave,
                         key_quickload, key_autoload, key_screenshot, key_hotspots};
-            case original:
-                return {original_autosave, original_video, original_audio,
-                        original_notes, original_tutorial, original_location};
             default:
                 return {};
         }
@@ -9356,11 +9556,6 @@ struct SettingsUi {
         return session.display.setup_font ? &*session.display.setup_font : nullptr;
     }
 
-    static std::string scope(Action action) {
-        if (action >= original_autosave && action <= original_scope) return "OYUN";
-        return "PORT";
-    }
-
     static const char* label(Action action) {
         switch (action) {
             case window_mode: return "Pencere";
@@ -9375,9 +9570,9 @@ struct SettingsUi {
             case effects: return "Efektler";
             case subtitles: return "Altyaz\xaa";
             case hotspots: return "Hotspot";
-            case autosave: return "Port oto kayd\xaa";
-            case skip_seen: return "G\xadr\xaclen sat\xaar";
-            case gamepad: return "Gamepad";
+            case autosave: return "Port oto kay\xaat";
+            case skip_seen: return "G\xadr\xac" "leni atla";
+            case gamepad: return "Kumanda";
             case key_settings: return "ayarlar";
             case key_backlog: return "ge\xa7mi\xa8";
             case key_skip: return "atlama";
@@ -9386,13 +9581,6 @@ struct SettingsUi {
             case key_autoload: return "Oto y\xackle";
             case key_screenshot: return "ekran";
             case key_hotspots: return "hotspot";
-            case original_autosave: return "oto kay\xaat";
-            case original_video: return "video boyutu";
-            case original_audio: return "ses/m\xaczik";
-            case original_notes: return "konu\xa8ma notu";
-            case original_tutorial: return "y\xadnlendirici";
-            case original_location: return "yer tan\xaat\xaam\xaa";
-            case original_scope: return "tercihler";
             default: return "";
         }
     }
@@ -9426,19 +9614,54 @@ struct SettingsUi {
         }
     }
 
+    static std::string explanation(const Session& session, Action action) {
+        const auto& settings = session.options.settings;
+        if (action == window_mode) {
+            switch (settings.window_mode) {
+                case byzantine::WindowMode::windowed:
+                    return "Pencere: Oyunun 4:3 oranını koruyarak büyür ve küçülür. "
+                           "Görüntü pencereye uyum sağlar. Büyütülmüş seçeneği pencereyi masaüstündeki kullanılabilir alana yayar.";
+                case byzantine::WindowMode::maximized:
+                    return "Büyütülmüş: Pencereyi masaüstündeki kullanılabilir alana yayar. "
+                           "Başlık çubuğu kalır. Tam ekrandan farklıdır; geri küçültünce önceki pencere boyutuna dönersiniz.";
+                case byzantine::WindowMode::borderless:
+                    return "Tam ekran: Görüntüyü başlık çubuğu ve pencere kenarlıkları olmadan ekranı kaplayan bir pencerede gösterir. "
+                           "Görüntünün ne kadar büyütüleceğini Ölçekleme seçeneği belirler.";
+            }
+        }
+        if (action == scale_mode) {
+            if (settings.window_mode == byzantine::WindowMode::windowed)
+                return "Normal pencere 4:3 oranındadır; görüntü her boyutta pencereye uyum sağlar. "
+                       "Tamsayılı ölçeklemeyi tam ekran veya büyütülmüş pencerede seçebilirsiniz.";
+            if (settings.scale_mode == byzantine::ScaleMode::integer)
+                return "Tamsayı: Görüntüyü 1x, 2x, 3x gibi tam katlarla büyütür. "
+                       "2x sığmazsa 1x kalır; siyah boşluklar oluşur. Pencereye daha fazla yayılması için Oranlı seçin.";
+            return "Oranlı: Görüntüyü pencereye sığacak en büyük boyuta getirir. "
+                   "Pencereyi değiştirince görüntü de büyür veya küçülür. 4:3 oranı korunur; gerektiğinde kenarlarda siyah boşluk kalır.";
+        }
+        if (action == vsync)
+            return settings.vsync
+                ? "Açık: Görüntü yenilemesini ekranla eşler; yatay yırtılmayı azaltır. Tepki süresi biraz artabilir."
+                : "Kapalı: Görüntü yenilemesini ekranla eşlemez. Tepki daha hızlı olabilir, ancak yatay yırtılma görülebilir.";
+        if (action == cursor_scale)
+            return "Seçili boyut: " + std::to_string(settings.cursor_scale) +
+                   "x. Yalnızca oyun imlecinin büyüklüğünü değiştirir. "
+                   "1x özgün boyuttur; büyük ekranlarda daha rahat görmek için artırabilirsiniz.";
+        return description(action);
+    }
+
     std::string value(const Session& session, Action action) const {
         const auto& settings = session.options.settings;
-        const auto prefs = session.view.state.gameprefs;
         switch (action) {
             case window_mode:
                 switch (settings.window_mode) {
                     case byzantine::WindowMode::windowed: return "Pencere";
                     case byzantine::WindowMode::borderless: return "Tam ekran";
-                    case byzantine::WindowMode::exclusive: return "\xa6zel tam";
-                    case byzantine::WindowMode::maximized: return "B\xacy\xack";
+                    case byzantine::WindowMode::maximized: return "B\xacy\xact\xacl" "m\xac\xa8";
                 }
                 return {};
-            case scale_mode: return settings.scale_mode == byzantine::ScaleMode::fit ? "Oranl\xaa" : "Tamsay\xaa";
+            case scale_mode: return settings.window_mode == byzantine::WindowMode::windowed ||
+                settings.scale_mode == byzantine::ScaleMode::fit ? "Oranl\xaa" : "Tamsay\xaa";
             case vsync: return settings.vsync ? "a\xa7\xaak" : "kapal\xaa";
             case cursor_scale: return std::to_string(settings.cursor_scale) + "x";
             case master: return std::to_string(static_cast<int>(settings.master_volume * 100)) + "%";
@@ -9462,35 +9685,8 @@ struct SettingsUi {
             case key_autoload: return settings.key_autoload;
             case key_screenshot: return settings.key_screenshot;
             case key_hotspots: return settings.key_hotspots;
-            case original_autosave:
-                if (!prefs) return "bilinmiyor";
-                return (*prefs)[0] != 0 ? "a\xa7\xaak" : "kapal\xaa";
-            case original_video:
-                if (!prefs) return "bilinmiyor";
-                return (*prefs)[1] != 0 ? "tam (2x)" : "yar\xaam (1x)";
-            case original_audio:
-                if (!prefs) return "bilinmiyor";
-                return (*prefs)[2] != 0 ? "a\xa7\xaak" : "kapal\xaa";
-            case original_notes:
-                if (!prefs) return "bilinmiyor";
-                return (*prefs)[3] != 0 ? "a\xa7\xaak" : "kapal\xaa";
-            case original_tutorial:
-                if (!prefs) return "bilinmiyor";
-                return (*prefs)[4] != 0 ? "a\xa7\xaak" : "kapal\xaa";
-            case original_location:
-                if (!prefs) return "bilinmiyor";
-                return (*prefs)[5] != 0 ? "a\xa7\xaak" : "kapal\xaa";
-            case original_scope: return "TERC\xa3HLER";
             default: return {};
         }
-    }
-
-    static bool editable(Action action) {
-        return action < original_autosave || action > original_scope;
-    }
-
-    static bool is_key_action(Action action) {
-        return action >= key_settings && action <= key_hotspots;
     }
 
     void apply_audio(Session& session) {
@@ -9520,29 +9716,27 @@ struct SettingsUi {
 
     void change(Session& session, Action action, int direction) {
         auto& settings = session.options.settings;
-        if (!editable(action)) {
-            std::cout << "settings_readonly action=" << label(action) << '\n';
-            present(session);
-            return;
-        }
         switch (action) {
             case window_mode: {
                 static const byzantine::WindowMode modes[] = {
                     byzantine::WindowMode::windowed,
                     byzantine::WindowMode::borderless,
-                    byzantine::WindowMode::exclusive,
                     byzantine::WindowMode::maximized};
                 int index = 0;
-                for (int i = 0; i < 4; ++i) {
+                for (int i = 0; i < 3; ++i) {
                     if (modes[i] == settings.window_mode) index = i;
                 }
-                index = (index + (direction > 0 ? 1 : 3)) % 4;
+                index = (index + (direction > 0 ? 1 : 2)) % 3;
                 settings.window_mode = modes[index];
                 session.display.apply_window_mode(settings.window_mode);
                 settings.window_mode = session.display.window_mode;
                 break;
             }
             case scale_mode:
+                if (settings.window_mode == byzantine::WindowMode::windowed) {
+                    present(session);
+                    return;
+                }
                 settings.scale_mode =
                     settings.scale_mode == byzantine::ScaleMode::fit
                         ? byzantine::ScaleMode::integer
@@ -9709,30 +9903,15 @@ struct SettingsUi {
             case language: return "Kurulu dil paketlerinden oyun metni ve konuşma dilini seçer. Altyazıları açar veya kapatır.";
             case session: return "Otomatik kayıt, görülen konuşmaları atlama ve oyun kumandası seçeneklerini ayarlar.";
             case keys: return "Ayarlar, geçmiş, hızlı kayıt ve diğer kısayollar için bir satır seçip yeni tuşa basın.";
-            case original: return "Oyunun özgün tercihlerinin geçerli değerlerini gösterir. Değiştirmek için ana tercihler sayfasına dönün.";
             default: return "Görüntü, ses, dil ve kontrol seçeneklerini kendi tercihlerinize göre düzenleyin.";
         }
     }
 
-    static std::optional<bool> toggle_value(const Session& session, Action action) {
-        const auto& settings = session.options.settings;
-        switch (action) {
-            case vsync: return settings.vsync;
-            case subtitles: return settings.subtitles;
-            case autosave: return settings.autosave;
-            case skip_seen: return settings.skip_seen;
-            case gamepad: return settings.gamepad;
-            default: break;
-        }
-        if (action >= original_autosave && action <= original_location &&
-            action != original_video && session.view.state.gameprefs) {
-            const int index = static_cast<int>(action) - static_cast<int>(original_autosave);
-            return (*session.view.state.gameprefs)[static_cast<std::size_t>(index)] != 0;
-        }
-        return std::nullopt;
-    }
-
-    static constexpr int kSliderWidth = 70;
+    static constexpr int kSliderX = 508;
+    static constexpr int kSliderWidth = 48;
+    static constexpr int kLabelX = 388;
+    static constexpr int kValueRight = 599;
+    static constexpr std::uint16_t kMenuGold = 0xF6AC;
 
     static float volume(const Session& session, Action action) {
         const auto& settings = session.options.settings;
@@ -9762,68 +9941,62 @@ struct SettingsUi {
         };
         byzantine::draw_text(display.screen, *prose,
              group < 0 ? advanced_settings_label() : group_name(group),
-             500, 103, 1, 1, 0x0000);
+             493, 103, 1, 1, 0x0000);
         notebook_rule(display, 388, 137, 211);
         tab_rects.clear();
         row_rects.clear();
+        value_rects.clear();
         const auto actions = actions_for(group);
         const int count = group < 0 ? group_count : static_cast<int>(actions.size());
-        // Two-line choices need the full font height, shadow and padding.
-        // The same rectangle owns the frame, hover and click target. Keep six
-        // such rows above GERİ; single-line category/key rows stay compact.
-        const bool two_line_rows = std::any_of(actions.begin(), actions.end(),
-            [&](Action action) { return toggle_value(session, action).has_value(); });
-        const int step = two_line_rows ? 42 : (count > 6 ? 28 : 39);
-        const int first_y = two_line_rows ? 158 : 163;
-        const int choice_height = 17 + face->line_height + 1; // includes shadow
+        // One row, two columns: labels start at the paper margin, while
+        // the current value ends at the opposite margin on every page.
+        const int step = count > 6 ? 28 : 39;
+        const int first_y = 163;
+        const auto fitted = [&](std::string caption, int width) {
+            const std::string ellipsis = "...";
+            if (byzantine::text_width(*face, caption) <= width) return caption;
+            while (!caption.empty() &&
+                   byzantine::text_width(*face, caption + ellipsis) > width)
+                caption.pop_back(); // Host captions use single-byte game encoding.
+            return caption + ellipsis;
+        };
         for (int i = 0; i < count; ++i) {
             const int y = first_y + i * step;
-            SDL_Rect rect{380, y - (two_line_rows ? 4 : 5), 226,
-                          two_line_rows ? choice_height + 6 : step - 4};
+            SDL_Rect rect{380, y - 5, 226, step - 4};
             if (group < 0) tab_rects.push_back(rect);
             else row_rects.push_back(rect);
             const bool selected = row == i;
-            if (selected) notebook_frame(display, rect, true);
-            const auto color = selected ? 0xF6AC : 0x0000;
+            const auto color = selected ? kMenuGold : 0x0000;
             if (group < 0) {
-                text(std::string("> ") + group_name(i), 387, y + 2, color);
-                notebook_arrow(display, 593, y + 9, 1);
+                text(group_name(i), kLabelX, y, color);
                 continue;
             }
             const auto action = actions[static_cast<std::size_t>(i)];
-            const auto toggle = toggle_value(session, action);
-            if (toggle) {
-                text(std::string("> ") + menu_uppercase(label(action)), 493, y, color, 1);
-                text("a\xa7", 477, y + 17, *toggle ? 0xF6AC : 0x0000);
-                text("/", 498, y + 17, 0x0000);
-                text("kapat", 509, y + 17, *toggle ? 0x0000 : 0xF6AC);
-                continue;
-            }
-            std::string row_label = label(action);
-            while (!row_label.empty() && byzantine::text_width(*face, row_label) > 88)
-                row_label.pop_back();
-            text(row_label, 387, y + 2, color);
-            if (action >= master && action <= effects) {
-                const int sy = y + 10;
-                display.fill_rect(492, sy, kSliderWidth, 2, 0x39C6);
-                display.fill_rect(492, sy, static_cast<int>(kSliderWidth * volume(session, action)), 2, 0xEDAA);
-                const int knob = 492 + static_cast<int>(kSliderWidth * volume(session, action));
+            const bool slider = action >= master && action <= effects;
+            const auto caption = fitted(capturing && capture_action == action ? "..." : value(session, action), 87);
+            value_rects.push_back({kValueRight - byzantine::text_width(*face, caption) - 4,
+                                   rect.y, byzantine::text_width(*face, caption) + 8, rect.h});
+            const int label_width = (slider ? kSliderX :
+                kValueRight - byzantine::text_width(*face, caption)) - kLabelX - 12;
+            text(fitted(menu_uppercase(label(action)), label_width), kLabelX, y, color);
+            if (slider) {
+                const int sy = y + 9;
+                display.fill_rect(kSliderX, sy, kSliderWidth, 2, 0x39C6);
+                display.fill_rect(kSliderX, sy, static_cast<int>(kSliderWidth * volume(session, action)), 2, 0xEDAA);
+                const int knob = kSliderX + static_cast<int>(kSliderWidth * volume(session, action));
                 display.fill_rect(knob - 2, sy - 3, 5, 7, 0xD526);
                 display.fill_rect(knob - 1, sy - 2, 3, 4, 0xFF39);
-                text(std::to_string(static_cast<int>(std::lround(volume(session, action) * 100))),
-                     589, y + 2, 0xEDAA, 2);
+                text(std::to_string(static_cast<int>(std::lround(volume(session, action) * 100))) + "%",
+                     kValueRight, y, kMenuGold, 2);
             } else {
-                // Constrain long language-pack names and key labels to their
-                // column instead of allowing them to overwrite the row label.
-                auto caption = value(session, action);
-                while (!caption.empty() && byzantine::text_width(*face, caption) > 87)
-                    caption.pop_back();
-                text(capturing && capture_action == action ? "..." : caption,
-                     549, y + 2, selected && editable(action) ? 0xF6AC : 0x0000, 1);
+                text(caption, kValueRight, y, kMenuGold, 2);
             }
-            if (editable(action)) {
-                notebook_arrow(display, 480, y + 10, -1);
-                notebook_arrow(display, 595, y + 10, 1);
+        }
+        if (left_hover != LeftAction::none) {
+            const int control = left_hover == LeftAction::quit ? 4 : 5;
+            if (control < static_cast<int>(display.roll_frames.size())) {
+                const auto& frame = display.roll_frames[static_cast<std::size_t>(control)];
+                display.blit_ui(frame, frame.x, frame.y);
             }
         }
         notebook_frame(display, back_rect());
@@ -9835,7 +10008,7 @@ struct SettingsUi {
                 std::string(label(actions[static_cast<std::size_t>(row)]));
             text(title, 54, 92, 0xFF39);
             const auto desc = group < 0 ? group_description(row) :
-                description(actions[static_cast<std::size_t>(row)]);
+                explanation(session, actions[static_cast<std::size_t>(row)]);
             const auto lines = wrap_dialog_text(*prose,
                 byzantine::utf8_to_turkish_game_text(desc), 183);
             int y = 122;
@@ -9845,7 +10018,7 @@ struct SettingsUi {
                 y += prose->line_height + 2;
             }
         }
-        if (capturing) text("Yeni tu\xa8: ESC iptal", 390, 393, 0xFFE0);
+        if (capturing) text("Yeni tu\xa8: ESC iptal", 54, 334, 0xFF39);
     }
 
     void back(Session& session) {
@@ -9858,12 +10031,23 @@ struct SettingsUi {
 
     void present(Session& session) {
         draw(session);
+        if (help_fade.compose(session.display.screen, SDL_GetTicks64(),
+                              session.interactive && session.options.transitions))
+            std::cout << "menu_help_fade owner=settings duration_ms="
+                      << byzantine::MenuHelpFade::duration_ms << '\n';
         ScreenContentScope content(session.display, ScreenContent::menu);
         session.display.present_image(session.display.screen, session.view, 0, "settings");
+        byzantine::CursorChoice cursor;
+        cursor.id = left_hover != LeftAction::none || row >= 0 ? 0x1e : 0;
+        session.display.set_cursor(session.view, cursor);
+
     }
 
     void open_overlay(Session& session, bool native_entry = false,
                       int initial_group = -1) {
+        help_fade.reset();
+        left_hover = LeftAction::none;
+        quit_requested = false;
         open = true;
         from_prefs = native_entry;
         backdrop.reset();
@@ -9877,15 +10061,18 @@ struct SettingsUi {
         present(session);
     }
 
-    void close(Session& session) {
+    void close(Session& session, ReturnTarget target = ReturnTarget::previous) {
+        help_fade.reset();
+        left_hover = LeftAction::none;
         open = false;
         capturing = false;
         session.display.store_window_settings(session.options.settings);
         save_port_settings(session.options, true);
         std::cout << "settings_close from_prefs=" << (from_prefs ? 1 : 0) << '\n';
-        session.reopen_prefs = from_prefs;
+        session.reopen_prefs = target == ReturnTarget::preferences ||
+            (target == ReturnTarget::previous && from_prefs);
         from_prefs = false;
-        session.display.present(session.view);
+        if (!session.reopen_prefs) session.display.present(session.view);
     }
 
     bool key(Session& session, const SDL_KeyboardEvent& event) {
@@ -9964,7 +10151,7 @@ struct SettingsUi {
     int slider_drag = -1;
 
     void set_slider(Session& session, Action action, int x) {
-        const float target = std::clamp((x - 492) / static_cast<float>(kSliderWidth), 0.0f, 1.0f);
+        const float target = std::clamp((x - kSliderX) / static_cast<float>(kSliderWidth), 0.0f, 1.0f);
         auto& settings = session.options.settings;
         switch (action) {
             case master: settings.master_volume = target; break;
@@ -9979,21 +10166,24 @@ struct SettingsUi {
     }
 
     bool mouse_button(Session& session, int x, int y) {
-        if (!open || capturing) return false;
+        if (!open) return false;
         slider_drag = -1;
-        if (contains(back_rect(), x, y)) { back(session); return true; }
-        // The baked left-page actions stay live on every notebook page.
-        if (contains({72, 394, 183, 24}, x, y)) {
-            close(session);
-            session.reopen_prefs = false;
+        const auto left = left_action_at(x, y);
+        std::cout << "settings_click x=" << x << " y=" << y << " group=" << group
+                  << " capture=" << (capturing ? 1 : 0) << '\n';
+        if (left == LeftAction::resume) {
+            std::cout << "settings_left_action action=resume\n";
+            close(session, ReturnTarget::scene);
             return true;
         }
-        if (contains({72, 367, 183, 27}, x, y)) {
-            close(session);
-            session.reopen_prefs = true;
+        if (left == LeftAction::quit) {
+            std::cout << "settings_left_action action=quit_confirm\n";
             quit_requested = true;
+            close(session, ReturnTarget::preferences);
             return true;
         }
+        if (contains(back_rect(), x, y)) { capturing = false; back(session); return true; }
+        if (capturing) return true;
         for (std::size_t i = 0; i < tab_rects.size(); ++i) {
             if (!contains(tab_rects[i], x, y)) continue;
             group = static_cast<int>(i);
@@ -10006,25 +10196,30 @@ struct SettingsUi {
             if (!contains(row_rects[i], x, y)) continue;
             row = static_cast<int>(i);
             const auto action = actions[i];
-            const auto toggle = toggle_value(session, action);
-            if (toggle && y >= row_rects[i].y + 20 && x >= 471 && x < 548) {
-                const bool wanted = x < 500;
-                if (editable(action) && wanted != *toggle) change(session, action, wanted ? 1 : -1);
-                else present(session);
-                return true;
-            }
-            if (action >= master && action <= effects && x >= 492 && x <= 574) {
-                slider_drag = action;
-                set_slider(session, action, x);
-            } else if (x >= 477) change(session, action, x < 492 ? -1 : 1);
-            else present(session);
+            if (action >= master && action <= effects) {
+                if (x >= kSliderX - 4 && x <= kSliderX + kSliderWidth + 4) {
+                    slider_drag = action;
+                    set_slider(session, action, x);
+                } else present(session);
+            } else if (contains(value_rects[i], x, y)) {
+                // Only the displayed current value is clickable; a heading
+                // selects its explanation. Keyboard left/right still adjusts.
+                change(session, action, 1);
+            } else present(session);
             return true;
         }
         return true;
     }
 
     bool mouse_motion(Session& session, int x, int y, bool left_down = false) {
-        if (!open || capturing) return false;
+        if (!open) return false;
+        const auto next_left = left_action_at(x, y);
+        const bool left_changed = next_left != left_hover;
+        left_hover = next_left;
+        if (capturing) {
+            if (left_changed) present(session);
+            return true;
+        }
         if (slider_drag >= 0 && left_down) {
             set_slider(session, static_cast<Action>(slider_drag), x);
             return true;
@@ -10035,7 +10230,7 @@ struct SettingsUi {
         for (std::size_t i = 0; i < rects.size(); ++i) {
             if (contains(rects[i], x, y)) { next = static_cast<int>(i); break; }
         }
-        if (row != next) { row = next; present(session); }
+        if (row != next || left_changed) { row = next; present(session); }
         return true;
     }
 
@@ -10049,6 +10244,20 @@ struct SettingsUi {
 
 };
 
+// A settings exit has the same destination in window and headless paths.
+void settle_settings_exit(Session& session, MenuUi& menu, SettingsUi& settings) {
+    if (settings.open || !session.reopen_prefs) return;
+    session.reopen_prefs = false;
+    menu.open_screen(0, session);
+    if (settings.quit_requested) {
+        settings.quit_requested = false;
+        const auto* button = byzantine::menu_control_rect(4);
+        if (!button) throw std::runtime_error("missing native quit control");
+        menu.click(session, (button->left + button->right) / 2,
+                           (button->top + button->bottom) / 2);
+    }
+}
+
 // Deterministic notebook navigation uses the same handlers as SDL input.
 void apply_headless_menu_input(Session& session, MenuUi& menu, const Options& options,
                                SettingsUi& settings) {
@@ -10057,14 +10266,7 @@ void apply_headless_menu_input(Session& session, MenuUi& menu, const Options& op
             session.open_port_settings = false;
             settings.open_overlay(session, true, session.port_settings_group);
         }
-        if (session.reopen_prefs) {
-            session.reopen_prefs = false;
-            menu.open_screen(0, session);
-            if (settings.quit_requested) {
-                settings.quit_requested = false;
-                menu.click(session, 120, 380);
-            }
-        }
+        settle_settings_exit(session, menu, settings);
     };
     for (const auto& point : options.menu_clicks) {
         if (settings.open) settings.mouse_button(session, point.first, point.second);
@@ -10682,17 +10884,18 @@ int main(int argc, char** argv) {
                                 (event.motion.state & SDL_BUTTON_LMASK) != 0);
                         } else if (event.type == SDL_MOUSEBUTTONUP) {
                             settings_ui.slider_drag = -1;
+                        } else if (event.type == SDL_WINDOWEVENT &&
+                                   (event.window.event == SDL_WINDOWEVENT_LEAVE ||
+                                    event.window.event == SDL_WINDOWEVENT_FOCUS_LOST)) {
+                            settings_ui.mouse_motion(session, -1, -1);
+                        } else if (event.type == SDL_WINDOWEVENT &&
+                                   (event.window.event == SDL_WINDOWEVENT_MAXIMIZED ||
+                                    event.window.event == SDL_WINDOWEVENT_RESTORED)) {
+                            settings_ui.present(session);
                         } else if (event.type == SDL_MOUSEWHEEL) {
                             settings_ui.wheel(session, event.wheel.y);
                         }
-                        if (!settings_ui.open && session.reopen_prefs) {
-                            session.reopen_prefs = false;
-                            menu.open_screen(0, session);
-                            if (settings_ui.quit_requested) {
-                                settings_ui.quit_requested = false;
-                                menu.click(session, 120, 380);
-                            }
-                        }
+                        settle_settings_exit(session, menu, settings_ui);
                         continue;
                     }
                     if (event.type == SDL_KEYDOWN &&
@@ -10769,9 +10972,9 @@ int main(int argc, char** argv) {
                         (event.key.keysym.mod & KMOD_ALT) && !menu.open) {
                         auto& settings = session.options.settings;
                         settings.window_mode =
-                            settings.window_mode == byzantine::WindowMode::exclusive
+                            settings.window_mode == byzantine::WindowMode::borderless
                                 ? byzantine::WindowMode::windowed
-                                : byzantine::WindowMode::exclusive;
+                                : byzantine::WindowMode::borderless;
                         session.display.apply_window_mode(settings.window_mode);
                         settings.window_mode = session.display.window_mode;
                         save_port_settings(session.options, true);
@@ -10992,6 +11195,7 @@ int main(int argc, char** argv) {
                     settings_ui.open_overlay(session, true, session.port_settings_group);
                 }
                 if (settings_ui.open) {
+                    if (settings_ui.help_fade.active()) settings_ui.present(session);
                     pass_clock.skip_to(now_ms);
                     pacer.consumed(now_ms, 1);
                     if (const auto wait = pacer.wait_ms(SDL_GetTicks64()); wait != 0) {
@@ -11000,6 +11204,7 @@ int main(int argc, char** argv) {
                     continue;
                 }
                 if (menu.open) {
+                    if (menu.help_fade.active()) menu.present(session);
                     // 0x41e289 owns the screen; the scene keeps its state but
                     // does not animate behind it.
                     pass_clock.skip_to(now_ms);

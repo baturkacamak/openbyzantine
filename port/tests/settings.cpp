@@ -1,3 +1,6 @@
+#include <array>
+#include <vector>
+#include "byzantine/window_host.hpp"
 #include "byzantine/settings.hpp"
 
 #include <cmath>
@@ -116,12 +119,40 @@ int main() {
         require(!repaired.subtitles, "subtitles parsed");
         require(repaired.text_language == "en", "language parsed after invalid lines");
 
+        for (const auto& test : std::vector<std::array<int, 6>>{
+                {800,600,1000,600,1000,750}, {800,600,800,750,1000,750},
+                {800,600,480,360,480,360}, {800,600,1001,600,1000,750},
+                {800,600,100,100,320,240}}) {
+            const auto size = aspect_window_size({test[0],test[1]}, {test[2],test[3]});
+            require(size.width == test[4] && size.height == test[5], "4:3 resize edge and minimum");
+        }
+        const auto bounded = aspect_window_size({800,600}, {2000,600}, {1200,800});
+        require(bounded.width == 1064 && bounded.height == 798, "aspect fit within usable bounds");
+        require(near_game_aspect({1086,814}) && near_game_aspect({1135,851}) &&
+                near_game_aspect({1145,859}), "reported native rounding must not trigger snapping");
+        require(!near_game_aspect({1100,675}), "genuinely free-aspect fallback needs fitting");
+        AspectResizeSettler settle;
+        settle.resize({800,600}, 0, true);
+        require(!settle.take(1000, false), "native WM resizing never queues a correction");
+        settle.resize({800,600}, 0, false);
+        settle.resize({900,650}, 100, false);
+        require(!settle.take(279, false), "fallback waits after last resize event");
+        require(!settle.take(500, true), "held mouse blocks fallback size changes");
+        const auto origin = settle.take(501, false);
+        require(origin && origin->width == 800 && origin->height == 600,
+                "fallback uses drag start geometry only after release and quiet");
+        require(!settle.take(1000, false), "settled correction cannot queue itself repeatedly");
+        settle.resize({800,600}, 1100, false);
+        settle.cancel();
+        require(!settle.take(2000, false), "mode changes cancel pending normal resize");
         WindowMode mode = WindowMode::windowed;
         require(parse_window_mode("fullscreen", &mode) && mode == WindowMode::borderless,
                 "fullscreen alias");
-        require(parse_window_mode("2", &mode) && mode == WindowMode::exclusive,
-                "exclusive numeric");
+        require(parse_window_mode("2", &mode) && mode == WindowMode::borderless,
+                "legacy exclusive numeric migrates to desktop fullscreen");
         require(!parse_window_mode("sideways", &mode), "accepted an invalid mode");
+        require(parse_window_mode("exclusive", &mode) && mode == WindowMode::borderless,
+                "legacy exclusive string migrates to desktop fullscreen");
         ScaleMode scale = ScaleMode::fit;
         require(parse_scale_mode("pixel-perfect", &scale) && scale == ScaleMode::integer,
                 "pixel-perfect alias");

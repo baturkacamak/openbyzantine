@@ -44,7 +44,12 @@ target_link_libraries(byzantine-cc PRIVATE byzantine_formats)
 add_executable(byzantine-rle src/main.cpp)
 target_link_libraries(byzantine-rle PRIVATE byzantine_formats)
 
-add_executable(byzantine-play src/play_main.cpp)
+add_executable(byzantine-play src/play_main.cpp src/window_host.cpp)
+find_package(X11 QUIET)
+if(X11_FOUND)
+    target_compile_definitions(byzantine-play PRIVATE BYZ_HAVE_X11=1)
+    target_link_libraries(byzantine-play PRIVATE X11::X11)
+endif()
 target_link_libraries(byzantine-play PRIVATE byzantine_formats SDL2::SDL2)
 
 include(CTest)

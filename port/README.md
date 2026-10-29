@@ -102,8 +102,8 @@ tercihlerinin yalnızca mevcut durumu gösterilir; bunlar üst çubuktaki
 TERCICHLER ekranında değiştirilir. `Tab`/`Shift+Tab` grup, yukarı/aşağı satır,
 sol/sağ değer değiştirir; `ESC`/`F10` kapatır:
 
-- pencere: pencereli / çerçevesiz tam ekran / özel tam ekran / maksimize
-- ölçekleme: 4:3 fit veya tam sayı (pixel-perfect)
+- pencere: 4:3 pencereli / çerçevesiz tam ekran / büyütülmüş
+- ölçekleme: normal pencerede otomatik 4:3 fit; diğer modlarda fit veya tam sayı (pixel-perfect)
 - VSync
 - ana ses / konuşma / ambiyans / efekt ses seviyeleri
 - altyazı aç/kapat (yalnızca diyalog bandı; inceleme/defter metni gizlenmez)
@@ -113,7 +113,7 @@ sol/sağ değer değiştirir; `ESC`/`F10` kapatır:
 - otomatik kayıt, görülen satırı atlama, gamepad ve port tuşları
   (tuş satırında `Enter`, sonra yeni tuş; `ESC` iptal)
 
-`F11` pencere/çerçevesiz tam ekran, `Alt+Enter` pencere/özel tam ekran arasında
+`F11` ve `Alt+Enter` pencere/çerçevesiz tam ekran arasında
 geçer. `F5` hızlı kayıt (`savegame/quicksave.btb`), `F9` hızlı yükleme, `F8`
 otomatik kaydı yükleme (`autosave-port.btb`), `F3` diyalog geçmişi, `F4`
 görülen satırı atlama, `F12` ekran görüntüsü (`port/output/screenshots/`,

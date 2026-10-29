@@ -7,7 +7,7 @@ namespace byzantine {
 
 // Host presentation choices. These are port settings, not game state: the
 // original's savegame/gamepref_000 is never rewritten with them.
-enum class WindowMode { windowed, borderless, exclusive, maximized };
+enum class WindowMode { windowed = 0, borderless = 1, maximized = 3 };
 enum class ScaleMode { fit, integer };
 
 struct Settings {

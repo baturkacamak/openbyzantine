@@ -1,3 +1,221 @@
+## Advanced settings left-page actions (29 October 2026)
+
+User reported dead OYUNDAN ÇIK/OYUNA DEVAM in advanced settings. Pinned click
+156,429 fell below the old resume rectangle; existing center-only checks missed
+that padding and the absent hover feedback. Key-capture mode blocked exits too.
+One host helper now owns broader left-row hover/click bounds, uses native ROLL
+4/5 gold art and menu pointer, and clears on window leave/focus loss. Resume
+returns straight to scene; quit opens the original confirmation, including
+while capturing a key. Shared settle_settings_exit handles native confirmation
+handoff for real-window and headless paths. No transient scene on return to
+preferences, no native control-table/VM/presentation-ownership changes.
+
+`make -C port -j2 all test` passes. Expanded deterministic and actual isolated
+GNOME/Xephyr checks pass for hub+five categories, reported y429, label ends,
+F10/native entry, pending-key exits, quit cancel/confirm, borderless mapping and
+reopening after resume. Native hover pixels checked; --hotspots-all never
+leaks to menu frames. Evidence: `analysis/rea/SETTINGS_LEFT_ACTIONS.md`,
+`port/output/settings-left-actions/`. Private MR save/config copies; dummy
+media/audio. User run/LATEST preserved:
+`run-20261029T224358.574755Z-whgo99fq`.
+
+## Stop live-resize aspect feedback (29 October 2026)
+
+User reported repeated/ticker-like window resizing. Pinned run's aspect log
+alternates near1086x814 and1135x851; both already satisfy4:3 to pixel rounding.
+The previous per-event SDL_SetWindowSize snapping fought the WM's live grab.
+This was our host regression; the previous brief-drag validation missed it.
+
+Native WM sizing now owns live resize completely: no app size correction on
+native size events. Missing X11 aspect hints are repaired idempotently without
+resizing; setup also reapplies them after renderer initialization. Fallback
+correction waits180ms of size-event quiet and all mouse buttons released,
+retains drag-start geometry, cancels on mode changes and accepts one-pixel
+aspect rounding. Opening/explicit mode normalization remains one-shot.
+
+`make -C port -j2 all test` and fallback CMake rebuild pass. Added unit coverage
+for reported rounded sizes, native ownership, held-pointer/debounce and cancel.
+Actual GNOME/Xephyr native/fallback probes hold a real corner grab with tiny
+motions and stationary periods: zero measured size jitter while stationary
+and after release, zero live corrections; native has zero settled corrections.
+Mode/resize/input/UI tests pass; desktop-only fullscreen remains intact.
+Evidence: `analysis/rea/WINDOW_RESIZE_FEEDBACK.md`,
+`port/output/window-resize-feedback/`. User run/LATEST preserved:
+`run-20261029T223058.162357Z-3o9rwdk9`. Supersedes exact4x3 snapping during
+native drags; WM device-pixel rounding is intentional.
+
+## 4:3 normal windows; exclusive fullscreen removed (29 October 2026)
+
+User requested aspect-locked window resizing and reported a physical monitor
+losing signal while cycling display options. Pinned run records exclusive
+1280x960 after borderless2560x1440; that mode-switch path was a plausible
+trigger, not a proven driver/hardware diagnosis. Kernel time slice had no
+entries. No physical failure was reproduced.
+
+Normal client areas now resize at4:3, with the picture fitting continuously
+even from an integer profile. UI shows/explains the fixed proportional policy
+in normal windows; stored integer preference remains for maximized/fullscreen.
+Optional X11 WM aspect hints constrain native drags, with shared SDL geometry
+correction as the portable fallback. Hints are reapplied after SDL setters.
+Exclusive mode removed; three-mode cycle and both fullscreen shortcuts use
+only desktop borderless. Legacy exclusive/2 config and --exclusive migrate to
+borderless. No video-mode-changing SDL call remains. README controls updated.
+
+`make -C port -j2 all test` passes, including aspect/legacy migration checks.
+Clean CMake no-X11 build succeeds. Actual isolated GNOME/Xephyr probes pass
+for native and fallback builds: resize edges/corners, manual WM drag, filled
+integer-profile normal window, external maximize/restore, three modes and both
+shortcuts. All measured normal sizes are4:3; XRandR modes unchanged throughout.
+Private MR/30.btb copies, dummy audio/media disabled; no physical dual-monitor
+validation claim. Evidence: `analysis/rea/WINDOW_ASPECT_AND_DISPLAY_MODES.md`,
+`port/output/window-aspect/`. User run/LATEST preserved:
+`run-20261029T221445.427733Z-7ohjwdtp`.
+
+## Window-mode synchronization and selected display explanations (29 October 2026)
+
+User's small picture was integer1x in a 1260x806 window (2x needs1280x960).
+The previous redraw fix was operating; continuous fit remains Oranlı. Found
+and fixed a separate stale-mode bug: title-bar maximize/restore now syncs the
+host mode from actual SDL flags and redraws its setting. Pencere explicitly
+restores before applying normal geometry. Normal manual resize dimensions
+are remembered without overwriting them with maximized/fullscreen geometry.
+Büyük renamed Büyütülmüş; selected-value explanations now cover all display
+choices, including integer bars and fit. Current INI/scale choice unchanged.
+
+`make -C port -j2 all test` and deterministic checks pass. Actual isolated
+GNOME/Xephyr checks pass with a private MR/30.btb copy: fit/integer comparison,
+external maximize/restore, four selected modes, exact restored900x650 client.
+Help text fits. Evidence: `analysis/rea/WINDOW_MODES.md`,
+`port/output/window-modes/`. The report records and corrects an initial test
+misclick's temporary extracted preference-copy write; exact prior content
+restored, subsequent probes isolated. User run/LATEST preserved:
+`run-20261029T220300.559400Z-h0xs10v0`. Running user player left open.
+
+## Window resize redraw and complete-frame scaling (29 October 2026)
+
+User screenshot: resizing a window left its old large notebook frame clipped
+inside it. The settled settings/menu branches ignored size/expose events and
+did not repaint. Reproduced with a stationary pointer before correcting it.
+Common event polling now refreshes logical geometry and replays the last
+actually presented image through present_image, retaining its content scope,
+offset and tag. Removed the old raw repaint shortcut: present_image again has
+the only SDL_RenderPresent. No click/VM/scene-specific rule changed.
+
+Integer upscaling remains stepped; windows smaller than 1x use proportional
+fit until large enough again, without changing the preference. Drawing and
+SDL logical input share the viewport. window_repaint logs geometry, effective
+integer scale and content owner.
+
+`make -C port -j2 all test` passes. Real Xephyr/xwd before/after probes confirm
+fit/integer resizing, 480x360 fallback, expose, mapped clicks, native menu and
+scene return. Final MR/30.btb probe uses the user's actual save and asset root
+(private config; media disabled). Larger fit references match pixel-for-pixel;
+small frames pass anchor/visual checks; all 63 recorded MR menu presents have
+overlay=0. Evidence: `analysis/rea/WINDOW_RESIZE.md`,
+`port/output/window-resize/`. User run and LATEST preserved:
+`run-20261029T215303.333604Z-siozchcw`. Host fix; no new binary derivation.
+
+## Gentle notebook explanation fades (29 October 2026)
+
+User requested theme-appropriate soft transitions when explanations appear,
+disappear or change. Native and advanced menus now share MenuHelpFade: a
+220ms smoothstep RGB565 crossfade over only the left help patch. Right-page
+controls remain immediate. It composites before the existing menu presenter;
+there is no extra presenter, scene fade path, blocking wait or queued hover.
+The paced event loop redraws only while the help animation is active. Rapid
+input retargets from the displayed pixels. Closing/reopening resets the cache;
+reopening preferences also clears stale advanced-entry hover. Headless and
+--no-transitions stay immediate.
+
+`make -C port -j2 all test` passes, including synthetic-clock endpoint,
+reversal, crop-isolation and disabled/reset checks. Existing deterministic
+menu checks pass. Real Xephyr/xwd captures measure monotonic in/out on native
+and advanced pages, exact paper restoration, exact final help after rapid
+hover, usable clicks/return/resume, no stale help on return and immediate
+--no-transitions. All 177 menu trace presents have overlay=0. Dummy audio;
+no physical-input/speaker claim. Evidence: `analysis/rea/MENU_HELP_FADE.md`,
+`port/output/menu-help-fade/`. User run/LATEST preserved:
+`run-20261029T211454.070293Z-jvwka4dm`. Host UI design only; no new binary
+behavior derived.
+
+## Centered headings and native preference help (29 October 2026)
+
+User requested centered page headings, removal of the redundant ORİJİNAL
+category, and detailed explanations on the game's own preference screen.
+Advanced headings are centered again; label/value rows retain the approved
+left/right layout. Hub now has five categories; the old read-only original
+category/actions/helpers have been removed. The actual original preference
+screen and controls remain.
+
+Hovering each of the six visible native preferences now shows a title and
+wrapped explanation on the left page; moving away clears it. Advanced-entry
+help shares the renderer. Explanations distinguish movie/window sizing,
+original/port saving and original sound gates/mixer levels. Conversation-note
+help explicitly acknowledges its unimplemented original behavior and directs
+to working subtitles/history. All help text fits, including Turkish glyphs.
+
+`make -C port -j2 all test` and real-asset UI checks pass. Xephyr checks cover
+native-help hover/clear and existing sliders, toggles, navigation/resume/F10
+(dummy audio). Evidence: `analysis/rea/MENU_PREFERENCE_HELP.md`,
+`port/output/menu-preference-help/`. User run and LATEST preserved:
+`run-20261029T210746.613812Z-pw5tfz9e`. No new binary behavior derived.
+
+## Left labels and right current values in settings (29 October 2026)
+
+User rejected the centered two-line settings layout and explicitly requested
+left-aligned labels, right-aligned values, no leading > and no separate
+aç / kapat choices. All six advanced pages now use single-line rows; page
+headings and category links align left too. Only the current açık / kapalı or
+other value appears at the right. Clicking that column cycles it; heading
+clicks select the explanation. Selector triangles were removed. Audio tracks
+and percentages occupy the right column with shared draw/drag geometry.
+Labels use the available space before the measured value, avoiding needless
+truncation. Existing font/color approximation retained.
+
+`make -C port -j2 all test` and real-asset UI checks pass. Isolated Xephyr
+checks validate slider drag, subtitle/hotspot cycling, return/resume/F10
+(dummy audio). Evidence: `analysis/rea/MENU_COLUMNS.md`,
+`port/output/menu-columns/`. User run and LATEST preserved:
+`run-20261029T210135.525167Z-a9h0bkiy`.
+This supersedes MENU_NATIVE_LAYOUT.md's centered rows and direct choices.
+
+## Unified native-style advanced settings (29 October 2026)
+
+User requested making advanced preferences resemble the original menu and
+applying one consistent layout. SettingsUi now centers every uppercase heading
+with its value/control underneath, including Hotspot, sliders and key bindings.
+Rectangular shaded hover frames are removed; black idle headings and pale gold
+hover/active choices follow the native visual rule. Boolean choices are truly
+centered and Hotspot has direct kapalı / imleçte / tümü choices; repeating a
+choice is idempotent. All six categories use this arrangement. Keys fit with
+32px rows; capture guidance moved onto the left page. Existing embedded serif
+approximation retained: original artwork font is still unidentified.
+
+`make -C port -j2 all test` passes. Real-asset deterministic checks and isolated
+Xephyr window/input checks pass (dummy audio); last-row ink clears GERİ and all
+24 settings trace presents have overlay=0. Evidence:
+`analysis/rea/MENU_NATIVE_LAYOUT.md`, `port/output/menu-native-layout/`.
+User run preserved: `run-20261029T204747.852586Z-my9ylec5`; LATEST unchanged.
+This supersedes MENU_ROW_FIT.md's selection-frame geometry.
+
+## Small object-kind naming example (29 October 2026)
+
+User requested a bounded implementation and explanation of naming unexplained
+numeric values. `byzantine::object_kind` in `cc.hpp` now names `0x12` as
+`kApplyRecord`, `0x13` as `kApplyChain`, and `0x14` as `kTalkChain`. Object
+creation, item compatibility and cursor code share these byte constants.
+Names combine the normal cursor table's `apply`/`talk` strings with the
+record-versus-chain distinction in `0x42db22`/`0x407c5a`; they are descriptive
+reconstruction names, not original symbols. Values and behavior are unchanged.
+
+Target and three selected saved-export hashes match the decompile index;
+normal cursor strings were also read directly from the EXE. No new
+decompilation or gameplay session was needed. Existing tests retain numeric
+format fixtures. `make -C port -j2 all test` passes (exit 0).
+Evidence: `analysis/rea/OBJECT_KIND_NAMING.md`,
+`port/output/object-kind-naming/build-test.log`. Prior user run retained:
+`run-20261028T224030.673870Z-rlru45kf`.
+
 ## Rich README and GitHub identity (29 October 2026)
 
 The user requested a README matching the richer documentation in sibling

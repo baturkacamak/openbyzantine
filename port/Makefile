@@ -2,6 +2,9 @@ CXX ?= c++
 CXXFLAGS ?= -std=c++17 -O2 -Wall -Wextra -Wpedantic
 SDL2_CFLAGS := $(shell pkg-config --cflags sdl2)
 SDL2_LIBS := $(shell pkg-config --libs sdl2)
+X11_CFLAGS := $(shell pkg-config --cflags x11 2>/dev/null)
+X11_LIBS := $(shell pkg-config --libs x11 2>/dev/null)
+X11_DEFINES := $(if $(X11_LIBS),-DBYZ_HAVE_X11=1)
 
 all: byzantine-rle byzantine-all byzantine-cc byzantine-play
 
@@ -14,13 +17,13 @@ byzantine-all: src/all_main.cpp src/all.cpp include/byzantine/all.hpp
 byzantine-cc: src/cc_main.cpp src/cc.cpp src/cb.cpp src/variables.cpp src/records.cpp src/save.cpp src/anims.cpp src/compose.cpp src/jpeg.cpp src/panorama.cpp src/panorama_view.cpp src/scene_setup.cpp src/conversation.cpp include/byzantine/variables.hpp include/byzantine/cc.hpp include/byzantine/cb.hpp include/byzantine/records.hpp include/byzantine/save.hpp include/byzantine/anims.hpp include/byzantine/compose.hpp include/byzantine/jpeg.hpp include/byzantine/panorama.hpp include/byzantine/scene_setup.hpp
 	$(CXX) $(CXXFLAGS) -Iinclude src/cc_main.cpp src/cc.cpp src/cb.cpp src/variables.cpp src/records.cpp src/save.cpp src/anims.cpp src/compose.cpp src/jpeg.cpp src/panorama.cpp src/panorama_view.cpp src/scene_setup.cpp src/conversation.cpp -o $@
 
-byzantine-play: include/byzantine/menu_typeface.hpp src/play_main.cpp src/settings.cpp src/language.cpp src/cc.cpp src/cb.cpp src/anims.cpp src/compose.cpp src/jpeg.cpp src/panorama.cpp src/panorama_view.cpp src/save.cpp src/records.cpp src/variables.cpp src/scene_setup.cpp src/text.cpp src/conversation.cpp src/inventory.cpp src/ambient_audio.cpp src/cursors.cpp src/video.cpp src/menu.cpp src/rle.cpp src/transition.cpp include/byzantine/settings.hpp include/byzantine/language.hpp include/byzantine/ambient_audio.hpp include/byzantine/cursors.hpp include/byzantine/inventory.hpp include/byzantine/menu.hpp include/byzantine/rle.hpp include/byzantine/cc.hpp include/byzantine/cb.hpp include/byzantine/anims.hpp include/byzantine/compose.hpp include/byzantine/jpeg.hpp include/byzantine/panorama.hpp include/byzantine/panorama_view.hpp include/byzantine/save.hpp include/byzantine/scene_setup.hpp include/byzantine/text.hpp include/byzantine/video.hpp include/byzantine/transition.hpp
-	$(CXX) $(CXXFLAGS) $(SDL2_CFLAGS) -Iinclude src/play_main.cpp src/settings.cpp src/language.cpp src/cc.cpp src/cb.cpp src/anims.cpp src/compose.cpp src/jpeg.cpp src/panorama.cpp src/panorama_view.cpp src/save.cpp src/records.cpp src/variables.cpp src/scene_setup.cpp src/text.cpp src/conversation.cpp src/inventory.cpp src/ambient_audio.cpp src/cursors.cpp src/video.cpp src/menu.cpp src/rle.cpp src/transition.cpp $(SDL2_LIBS) -o $@
+byzantine-play: src/window_host.cpp include/byzantine/window_host.hpp include/byzantine/menu_help_fade.hpp include/byzantine/menu_typeface.hpp src/play_main.cpp src/settings.cpp src/language.cpp src/cc.cpp src/cb.cpp src/anims.cpp src/compose.cpp src/jpeg.cpp src/panorama.cpp src/panorama_view.cpp src/save.cpp src/records.cpp src/variables.cpp src/scene_setup.cpp src/text.cpp src/conversation.cpp src/inventory.cpp src/ambient_audio.cpp src/cursors.cpp src/video.cpp src/menu.cpp src/rle.cpp src/transition.cpp include/byzantine/settings.hpp include/byzantine/language.hpp include/byzantine/ambient_audio.hpp include/byzantine/cursors.hpp include/byzantine/inventory.hpp include/byzantine/menu.hpp include/byzantine/rle.hpp include/byzantine/cc.hpp include/byzantine/cb.hpp include/byzantine/anims.hpp include/byzantine/compose.hpp include/byzantine/jpeg.hpp include/byzantine/panorama.hpp include/byzantine/panorama_view.hpp include/byzantine/save.hpp include/byzantine/scene_setup.hpp include/byzantine/text.hpp include/byzantine/video.hpp include/byzantine/transition.hpp
+	$(CXX) $(CXXFLAGS) $(SDL2_CFLAGS) $(X11_CFLAGS) $(X11_DEFINES) -Iinclude src/play_main.cpp src/window_host.cpp src/settings.cpp src/language.cpp src/cc.cpp src/cb.cpp src/anims.cpp src/compose.cpp src/jpeg.cpp src/panorama.cpp src/panorama_view.cpp src/save.cpp src/records.cpp src/variables.cpp src/scene_setup.cpp src/text.cpp src/conversation.cpp src/inventory.cpp src/ambient_audio.cpp src/cursors.cpp src/video.cpp src/menu.cpp src/rle.cpp src/transition.cpp $(SDL2_LIBS) $(X11_LIBS) -o $@
 
 video-test: tests/video.cpp src/video.cpp include/byzantine/video.hpp
 	$(CXX) $(CXXFLAGS) -Iinclude tests/video.cpp src/video.cpp -o $@
 
-settings-test: tests/settings.cpp src/settings.cpp include/byzantine/settings.hpp
+settings-test: include/byzantine/window_host.hpp tests/settings.cpp src/settings.cpp include/byzantine/settings.hpp
 	$(CXX) $(CXXFLAGS) -Iinclude tests/settings.cpp src/settings.cpp -o $@
 
 language-test: tests/language.cpp src/language.cpp include/byzantine/language.hpp
@@ -71,7 +74,7 @@ inventory-test: tests/inventory.cpp src/inventory.cpp include/byzantine/inventor
 cursor-test: tests/cursors.cpp src/cursors.cpp src/inventory.cpp include/byzantine/cursors.hpp include/byzantine/inventory.hpp include/byzantine/cc.hpp
 	$(CXX) $(CXXFLAGS) -Iinclude tests/cursors.cpp src/cursors.cpp src/inventory.cpp -o $@
 
-menu-test: tests/menu.cpp src/menu.cpp include/byzantine/menu.hpp
+menu-test: include/byzantine/menu_help_fade.hpp tests/menu.cpp src/menu.cpp include/byzantine/menu.hpp
 	$(CXX) $(CXXFLAGS) -Iinclude tests/menu.cpp src/menu.cpp -o $@
 
 transition-test: tests/transition.cpp src/transition.cpp include/byzantine/transition.hpp include/byzantine/compose.hpp

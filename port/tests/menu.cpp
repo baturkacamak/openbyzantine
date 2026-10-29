@@ -1,4 +1,5 @@
 #include "byzantine/menu.hpp"
+#include "byzantine/menu_help_fade.hpp"
 
 #include <cstdio>
 #include <cstdlib>
@@ -105,6 +106,52 @@ int main() {
     check_equal(kesif_row_at(0x1de, 0x74, 0x34), -1, "second row needs status");
     check_equal(kesif_row_at(0x100, 0x4b, 0x3a), -1, "keşif x outside");
     check_equal(kesif_row_at(0x1de, 0x164, 0x3a), -1, "keşif below the last row");
+
+    // Host help fades must preserve input continuity and leave all controls
+    // outside the help patch unchanged. Use a synthetic clock, never sleeps.
+    MenuHelpFade fade;
+    Rgb16Surface blank{640, 480, std::vector<std::uint16_t>(640 * 480, 0)};
+    auto bright = blank;
+    bright.at(60, 70) = 0xffff;
+    bright.at(500, 170) = 0x1234;
+    auto frame = blank;
+    fade.compose(frame, 0, true);
+    frame = bright;
+    check(fade.compose(frame, 100, true), "help fade starts on change");
+    check_equal(frame.at(60, 70), 0, "help starts at previous pixels");
+    check_equal(frame.at(500, 170), 0x1234, "right-page control stays immediate");
+    frame = bright;
+    fade.compose(frame, 210, true);
+    check_equal(frame.at(60, 70), 0x8410, "help midpoint blends RGB565 channels");
+    frame = bright;
+    fade.compose(frame, 320, true);
+    check_equal(frame.at(60, 70), 0xffff, "same target does not restart fade");
+    check(!fade.active(), "help settles at exact endpoint");
+    frame = blank;
+    fade.compose(frame, 400, true);
+    frame = blank;
+    fade.compose(frame, 510, true);
+    const auto midway = frame.at(60, 70);
+    frame = bright;
+    fade.compose(frame, 510, true);
+    check_equal(frame.at(60, 70), midway, "rapid reversal keeps displayed pixels");
+    frame = bright;
+    fade.compose(frame, 730, true);
+    check_equal(frame.at(60, 70), 0xffff, "latest hovered help wins");
+    frame = blank;
+    fade.compose(frame, 800, true);
+    frame = blank;
+    fade.compose(frame, 1020, true);
+    check_equal(frame.at(60, 70), 0, "fade out restores exact paper");
+    check(!fade.active(), "fade out finishes");
+    frame = bright;
+    fade.compose(frame, 1100, false);
+    check_equal(frame.at(60, 70), 0xffff, "disabled/headless help is immediate");
+    check(!fade.active(), "disabled animation schedules no ticks");
+    fade.reset();
+    frame = blank;
+    fade.compose(frame, 1200, true);
+    check_equal(frame.at(60, 70), 0, "reopening never inherits prior help");
 
     if (failures != 0) {
         std::fprintf(stderr, "%d menu check(s) failed\n", failures);

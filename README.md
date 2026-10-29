@@ -40,7 +40,7 @@ eşdeğer davranış iddiası yoktur.
 | **Konuşmalar ve filmler** | Diyalogları, cevap seçeneklerini, altyazıları ve oyun içi AVI kliplerini takip edin. Konuşma geçmişini açın; önceden gördüğünüz satırları atlamayı seçin. |
 | **Envanter ve defter** | Eşyaları inceleyin ve kullanın; üst çubuktan notlara, temas listesine, keşif ekranına ve ipuçlarına erişin. |
 | **Kayıt ve devam** | Oyun içi kayıt/yükleme ekranını, hızlı kaydı ve sahne geçişlerinden sonra yazılan otomatik kaydı kullanın. Otomatik kayda komut satırından da dönebilirsiniz. |
-| **Görüntü** | Pencereli, çerçevesiz tam ekran, özel tam ekran veya maksimize görünümü seçin. 4:3 oranını koruyan ölçekleme, tam sayı ölçekleme, VSync ve imleç boyutu ayarlarını değiştirin. |
+| **Görüntü** | 4:3 oranında yeniden boyutlanan pencere, çerçevesiz tam ekran veya büyütülmüş pencere seçin. Normal pencerede görüntü boyuta uyum sağlar; diğer modlarda oranlı veya tam sayı ölçekleme, VSync ve imleç boyutu ayarları kullanılabilir. |
 | **Ses** | Ana ses, konuşma, ambiyans ve efekt seviyelerini ayrı ayarlayın. Pencere odağı kaybolduğunda sesi otomatik kapatmayı açıp kapatın. |
 | **Kontroller** | Fare ve klavyeyi kullanın; port kısayollarını yeniden atayın. Gamepad ile imleci taşıyın, tıklayın ve ayarları açın. |
 | **Dil altyapısı** | Kurulu paketlerden metin ve ses dilini ayrı seçin. Hazırlanmış yerelleştirilmiş veri ağaçlarından fark tabanlı dil paketleri üretin. Diğer dillerin gerçek paketleri henüz dağıtılmıyor. |
@@ -192,7 +192,7 @@ Otomatik kayıt, ilgili ayar açıkken sahne geçişlerinden sonra yazılır.
 | `F8` | Otomatik kaydı yükleme |
 | `F10` | Gelişmiş ayarlar |
 | `F11` | Pencereli / çerçevesiz tam ekran geçişi |
-| `Alt+Enter` | Pencereli / özel tam ekran geçişi |
+| `Alt+Enter` | Pencereli / çerçevesiz tam ekran geçişi |
 | `F12` | Ekran görüntüsü alma |
 | `H` | Hotspot tanılama çizgilerini açma/kapatma |
 | `Esc` | Açık ekranı kapatma veya oyuncunun o bağlamdaki geri/çıkış işlemi |
