@@ -148,13 +148,15 @@ bool item_use_compatible(const SceneState& state, const SceneObjectState& object
     case 0x1d:
     case 0x1e:
         return false;
-    case 0x12:
-    case 0x13:
-    case 0x14:
+    case object_kind::kApplyRecord:
+    case object_kind::kApplyChain:
+    case object_kind::kTalkChain:
         if (name_id == kNoName) return false;
         // 0x13/0x14 name a dialogue chain whose records may contain the item;
         // 0x12 names the record directly and falls through to the compare.
-        if (object.kind != 0x12) return chain_contains(state, name_id, selected);
+        if (object.kind != object_kind::kApplyRecord) {
+            return chain_contains(state, name_id, selected);
+        }
         break;
     case 0x18:
     case 0x19:

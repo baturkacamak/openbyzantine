@@ -1062,7 +1062,8 @@ static SceneTrace trace_scene_from(const std::vector<CcInstruction>& script,
                             if (name_argument.type == 2 &&
                                 name_argument.encoded_value.size() == 2) {
                                 const auto name_id = encoded_word(name_argument);
-                                if (object.kind == 0x13 || object.kind == 0x14) {
+                                if (object.kind == object_kind::kApplyChain ||
+                                    object.kind == object_kind::kTalkChain) {
                                     object.name_id = name_id;
                                 } else if (state.dialogue_tables.scene_names_known &&
                                            name_id <

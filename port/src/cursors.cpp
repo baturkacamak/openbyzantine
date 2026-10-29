@@ -42,9 +42,9 @@ constexpr std::array<CursorAsset, kCursorCount> kNormalCursors{{
     {15, "mouseoff", 0, 0},
     {16, "video", 16, 16},
     {17, "timer", 16, 16},
-    {18, "apply", 11, 11},
-    {19, "apply", 11, 11},
-    {20, "talk", 16, 16},
+    {object_kind::kApplyRecord, "apply", 11, 11},
+    {object_kind::kApplyChain, "apply", 11, 11},
+    {object_kind::kTalkChain, "talk", 16, 16},
     {21, "info", 24, 20},
     {22, "diminfo", 24, 20},
     {23, "default", 24, 24},
@@ -81,9 +81,9 @@ constexpr std::array<CursorAsset, kCursorCount> kKlioCursors{{
     {15, "mouseoff", 0, 0},
     {16, nullptr, 16, 16},
     {17, "timer", 11, 13},
-    {18, "apply", 24, 24},
-    {19, "apply", 24, 24},
-    {20, nullptr, 16, 16},
+    {object_kind::kApplyRecord, "apply", 24, 24},
+    {object_kind::kApplyChain, "apply", 24, 24},
+    {object_kind::kTalkChain, nullptr, 16, 16},
     {21, "info", 19, 19},
     {22, "diminfo", 19, 19},
     {23, "default", 24, 24},
@@ -164,7 +164,8 @@ CursorChoice hover_cursor(const SceneState& state, const SceneObjectState* objec
         // `if (DAT_0045d1c8 != 0)` use the answer.
         const bool compatible = item_use_compatible(state, *object, selected);
         if (!compatible) return item_choice(*selected, false);
-        if (kind == 0x12 || kind == 0x13 || kind == 0x14) {
+        if (kind == object_kind::kApplyRecord || kind == object_kind::kApplyChain ||
+            kind == object_kind::kTalkChain) {
             // 0x407bd7(1): the held item's hotitem art over a use hotspot.
             return item_choice(*selected, true);
         }

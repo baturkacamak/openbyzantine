@@ -223,6 +223,16 @@ struct SceneDialogueTables {
     bool scene_channels_known = false;
 };
 
+// Recovered names for a subset of the object's +0x09 kind byte. The normal
+// cursor table (0x45dbe8) supplies "apply"/"talk"; 0x42db22 case 0x72 and
+// 0x407c5a establish whether +0x10 names one record or a dialogue chain.
+// Keep raw byte values for script/save compatibility and unnamed kinds.
+namespace object_kind {
+constexpr std::uint8_t kApplyRecord = 0x12;
+constexpr std::uint8_t kApplyChain = 0x13;
+constexpr std::uint8_t kTalkChain = 0x14;
+}  // namespace object_kind
+
 // One DAT_00464300 object record restored from a save (block 18). The layout
 // comes from 0x42db22 case 0x72; only the fields an opcode reads are modelled.
 // +0x0a is deliberately absent: it has no recovered writer and 0x72 allocates
