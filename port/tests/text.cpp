@@ -1,4 +1,5 @@
 #include "byzantine/text.hpp"
+#include "byzantine/menu_typeface.hpp"
 
 #include <algorithm>
 #include <array>
@@ -77,10 +78,31 @@ int main() {
         fs::create_directories(root);
 
         // MESSAGES.TXT is CP1254; the font uses the shipped game bytes.
+        // The bundled UI face must cover every Turkish letter. Missing glyphs
+        // previously left language labels blank or borrowed mismatched shapes.
+        for (bool heading : {false, true}) {
+            const auto face = byzantine::menu_typeface(heading);
+            for (const auto ch : byzantine::utf8_to_turkish_game_text("ÇŞİĞÜÖçşığüö")) {
+                const auto* glyph = face.glyph(ch);
+                require(glyph && glyph->advance && glyph->height, "menu Turkish metrics");
+                bool covered = false;
+                for (int y = 0; y < glyph->height; ++y)
+                    for (int x = 0; x < glyph->advance; ++x)
+                        covered |= face.gr[(glyph->y + y) * face.atlas_width + glyph->x + x] != 0;
+                require(covered, "menu Turkish letter has no coverage");
+            }
+            require(byzantine::text_width(face,
+                byzantine::utf8_to_turkish_game_text("GELİŞMİŞ AYARLAR")) < 200,
+                "menu heading exceeds native banner");
+        }
+
         const std::string turkish_cp1254 =
             "\xc7\xde\xdd\xd0\xdc\xd6\xe7\xfe\xfd\xf0\xfc\xf6";
         const std::string turkish_game =
             "\xa1\xa2\xa3\xa4\xa5\xa6\xa7\xa8\xaa\xab\xac\xad";
+        require(byzantine::utf8_to_turkish_game_text("ÇŞİĞÜÖ çşığüö") ==
+                    "\xa1\xa2\xa3\xa4\xa5\xa6 \xa7\xa8\xaa\xab\xac\xad",
+                "UTF-8 Turkish mapping mismatch");
         require(byzantine::cp1254_to_game_text(turkish_cp1254) == turkish_game,
                 "CP1254 Turkish letters map to the game font bytes");
         require(byzantine::cp1254_to_game_text("EVET / TAMAM") == "EVET / TAMAM",

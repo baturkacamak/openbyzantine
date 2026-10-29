@@ -9,10 +9,12 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_library(byzantine_formats STATIC
     src/all.cpp
+    src/ambient_audio.cpp
     src/anims.cpp
     src/cb.cpp
     src/cc.cpp
     src/compose.cpp
+    src/conversation.cpp
     src/cursors.cpp
     src/inventory.cpp
     src/jpeg.cpp
@@ -23,9 +25,15 @@ add_library(byzantine_formats STATIC
     src/records.cpp
     src/save.cpp
     src/scene_setup.cpp
+    src/settings.cpp
+    src/language.cpp
+    src/text.cpp
+    src/transition.cpp
     src/variables.cpp
+    src/video.cpp
 )
 target_include_directories(byzantine_formats PUBLIC include)
+target_link_libraries(byzantine_formats PUBLIC SDL2::SDL2)
 
 add_executable(byzantine-all src/all_main.cpp)
 target_link_libraries(byzantine-all PRIVATE byzantine_formats)
@@ -76,6 +84,12 @@ if(BUILD_TESTING)
     add_test(NAME inventory COMMAND inventory-test)
     add_executable(jpeg-test tests/jpeg.cpp)
     target_link_libraries(jpeg-test PRIVATE byzantine_formats)
+    add_executable(settings-test tests/settings.cpp)
+    target_link_libraries(settings-test PRIVATE byzantine_formats)
+    add_test(NAME settings COMMAND settings-test)
+    add_executable(language-test tests/language.cpp)
+    target_link_libraries(language-test PRIVATE byzantine_formats)
+    add_test(NAME language COMMAND language-test)
     add_test(NAME jpeg COMMAND jpeg-test
         ${CMAKE_CURRENT_SOURCE_DIR}/../analysis/rea/jpeg_sample/BCLINTEL.jpg
         ${CMAKE_CURRENT_SOURCE_DIR}/../analysis/rea/jpeg_sample/vc05.jpg)

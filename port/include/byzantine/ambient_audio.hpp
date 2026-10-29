@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -47,6 +48,8 @@ AudioTailTrim trim_torn_audio_tail(WavClip& clip);
 // interactive mode. Conversation AVI audio keeps the untagged `queue`/`queued`
 // behaviour so its drain loop is unchanged. The device callback mixes every
 // voice; there is no per-sound SDL_QueueAudio.
+enum class VoiceBus { speech, ambient, effects };
+
 class AudioMixer {
 public:
     AudioMixer();
@@ -60,19 +63,26 @@ public:
     const std::string& device_name() const { return name_; }
 
     // Conversation/voice clip: one-shot, not tagged with a script id.
-    void queue(const WavClip& clip);
+    void queue(const WavClip& clip, VoiceBus bus = VoiceBus::speech);
     // Pending bytes of untagged (queued) voices, the old `queued()` contract.
     std::uint32_t queued() const;
 
     // Script record `id`: replace any existing voice for the same id. `loop`
     // comes from DAT_00486220[id]+0x14 (0x427de1's Play(...,1)).
-    bool start(std::uint16_t id, const WavClip& clip, bool loop);
+    bool start(std::uint16_t id, const WavClip& clip, bool loop,
+               VoiceBus bus = VoiceBus::effects);
     void stop(std::uint16_t id);
     void stop_all();
     bool playing(std::uint16_t id) const;
     std::size_t active() const;
     std::size_t ambient() const;  // tagged voices
     std::string describe() const;
+
+    // Host-only gains. They scale the mixer output; they never change the
+    // script's sound state or the queued-byte contract. Values are clamped to
+    // 0..1 and safe to call while the audio callback runs.
+    void set_volumes(float master, float speech, float ambient, float effects);
+    void set_muted(bool muted);
 
 private:
     struct Voice {
@@ -82,6 +92,7 @@ private:
         bool loop = false;
         bool tagged = false;
         bool finished = false;
+        VoiceBus bus = VoiceBus::speech;
     };
 
     static void callback(void* user, std::uint8_t* stream, int length);
@@ -94,6 +105,11 @@ private:
     int channels_ = 2;
     std::string name_ = "closed";
     std::vector<Voice> voices_;
+    std::atomic<float> master_gain_{1.0f};
+    std::atomic<float> speech_gain_{1.0f};
+    std::atomic<float> ambient_gain_{1.0f};
+    std::atomic<float> effects_gain_{1.0f};
+    std::atomic<bool> muted_{false};
 };
 
 }  // namespace byzantine

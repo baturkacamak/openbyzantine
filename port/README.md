@@ -1,4 +1,4 @@
-# Byzantine taşınabilir kaynak kodu: ilk parça
+# OpenByzantine — taşınabilir C++17 oyun motoru
 
 Güncel kısa devam kaydı: [`../CONTINUE.md`](../CONTINUE.md).
 
@@ -43,6 +43,19 @@ farklı içerikleri olabilir; seçilen diskin dosyaları ortak çıkarılmış k
 `--anims-overlay <disk-klasoru>` aynı önceliği sağlar. Oturum içindeki disk
 isteme komutları henüz otomatik disk değiştirme uygulamaz.
 
+## Tam kurulum (CD istemeyen oynatma)
+
+Normal `scene.sh` akışı eksik bir diyalog filmini gerektiğinde ISO'dan çıkarır.
+Bunu bir kere yapıp diskleri oynatma sırasında hiç istememek için:
+
+```sh
+./port/full_install.sh "<oyun-klasörü>" /tmp/byz-scene
+```
+
+Altı diskin `dialog/`, `video/` ve `avi/` ağaçlarını hazırlanmış veri
+klasörüne kopyalar; `scene.sh`'in `--media-isos` manifesti yerinde kalabilir,
+dosyalar zaten bulunduğu için ek çıkarma yapılmaz.
+
 ## Her açılış için otomatik log
 
 Normal `./port/scene.sh ...` komutu, hazırlık aşaması dahil her denemeyi
@@ -71,6 +84,76 @@ Bu kayıtlar oyun kaydı veya otomatik tekrar oynatma dosyası değildir. Her ç
 karesinin piksel verisini, kaçırılmış fiziksel girişleri veya hoparlör çıkışını
 kaydetmez. Normal çıkış ve yönlendirilen SIGTERM/SIGINT özete yazılır; kayıt
 süreci SIGKILL ile öldürülürse özet `running` kalabilir, yazılmış log korunur.
+
+
+## Gelişmiş ayarlar (TERCİHLER / F10) ve dil paketleri
+
+Portun kendi ayar ekranına iki yol vardır: üst çubuk → `TERCICHLER` →
+`GELİŞMİŞ AYARLAR` alt çekmecesi (native giriş; altı grup kısayolu, varsayılan
+açık, `ESC`/ayar tuşu TERCICHLER'e döner) ve sahneden `F10` kısayolu. Orijinal tercih ekranına ve `gamepref_000` dosyasına
+dokunulmaz. Ekran sekmelere ayrılmıştır: `GÖRÜNTÜ`,
+`SES`, `DİL`, `OTURUM`, `TUŞLAR` ve salt-okunur `ORİJİNAL`. Native sayfada
+arka plan `PREFFS.JPG`, `F10` sayfasında karartılmış `CREDBK.JPG`; çerçeve ve
+vurgular oyunun altın/deri paletini kullanır. Native sayfada açıklamalar sol
+defter sayfasına, `F10` sayfasında sağ paneledir. `PORT` bu uygulamanın ayarı,
+`OYUN` ise orijinal `gamepref`/TERCICHLER değeridir. `ORİJİNAL` sekmesinde orijinal
+oto kayıt, video boyutu, ses/müzik, konuşma notu, yönlendirici ve yer tanıtım
+tercihlerinin yalnızca mevcut durumu gösterilir; bunlar üst çubuktaki
+TERCICHLER ekranında değiştirilir. `Tab`/`Shift+Tab` grup, yukarı/aşağı satır,
+sol/sağ değer değiştirir; `ESC`/`F10` kapatır:
+
+- pencere: pencereli / çerçevesiz tam ekran / özel tam ekran / maksimize
+- ölçekleme: 4:3 fit veya tam sayı (pixel-perfect)
+- VSync
+- ana ses / konuşma / ambiyans / efekt ses seviyeleri
+- altyazı aç/kapat (yalnızca diyalog bandı; inceleme/defter metni gizlenmez)
+- hotspot tanılaması (kapalı / imleç / tümü)
+- metin dili ve seslendirme dili (bulunan dil paketleri)
+- imleç ölçeği (1x..4x), odak kaybında sessize alma
+- otomatik kayıt, görülen satırı atlama, gamepad ve port tuşları
+  (tuş satırında `Enter`, sonra yeni tuş; `ESC` iptal)
+
+`F11` pencere/çerçevesiz tam ekran, `Alt+Enter` pencere/özel tam ekran arasında
+geçer. `F5` hızlı kayıt (`savegame/quicksave.btb`), `F9` hızlı yükleme, `F8`
+otomatik kaydı yükleme (`autosave-port.btb`), `F3` diyalog geçmişi, `F4`
+görülen satırı atlama, `F12` ekran görüntüsü (`port/output/screenshots/`,
+`BYZ_SCREENSHOT_DIR` ile değişir).
+
+Gamepad: sol çubuk imleci taşır, A tıklar, B `Esc`, Start ayarlar, X geçmiş,
+Y görülen-satır atlama.
+
+Diyalog geçmişi son 400 satırı tutar; `seen_dialogue.txt` (INI'nin yanında)
+görülen satır anahtarlarını saklar. `F4` açıkken daha önce görülmüş satırlar
+metin ve AVI olarak atlanır; ilk kez görülen satır atlanmaz. Otomatik kayıt her
+sahne geçişinden sonra `autosave-port.btb` yazar. Bunlar port özellikleridir;
+orijinal kayıt/tercih dosyalarına karışmaz. Oyun kapalıyken otomatik kayda
+dönmek için `./port/continue.sh "<oyun-klasörü>"` kullanılabilir; kaydın sahne
+adını `SHOW.LCC` üzerinden çözüp normal başlatıcıyı o save ile açar.
+
+Ayarlar `--config <ini>`, yoksa `$BYZ_CONFIG`, yoksa çalışma dizinindeki
+`byzantine.ini` dosyasına yazılır; `scene.sh` varsayılan olarak
+`port/byzantine.ini` geçirir. `--no-config` yükleme/kaydı kapatır. Oyun hâlâ
+640x480 mantıksal çözünürlükte çizilir; 16:9 ekranda 4:3 görüntü siyah
+bantlarla gösterilir, gerilmez.
+
+Dil paketleri `--text-lang <kod>`, `--voice-lang <kod>` ve `--languages <dir>`
+ile seçilir. `port/language_pack.py`, hazırlanmış bir yerelleştirilmiş veri
+ağacını taban ağaçla hash bazında karşılaştırıp yalnızca farklı dosyaları
+`<base>/lang/<kod>/` altına kopyalar; tek tek resim tespiti/OCR yapmaz. Metin
+ve ses ayrı seçilebilir; filmlerde ayrı altyazı izi olmadığı için film dili ses
+paketini izler. `port/language_audit.py`, hazırlanmış taban ve dil ağaçlarını
+karşılaştırıp dil işareti, farklı dosya sayıları, BYZ/CCF/CE satır uyumu ve
+boyut raporu üretir; hiçbir şey yazmaz:
+
+```sh
+./port/language_audit.py --base /tmp/byz-scene \
+    --pack en=/tmp/byz-scene-en --pack de=/tmp/byz-scene-de
+```
+
+Kurulu paketleri ve dil işaretlerini görmek için
+`./port/byzantine-play --list-languages --backgrounds /tmp/byz-scene` (veya
+`--languages <dir>`) kullanılabilir. Ayrıntı:
+[`../analysis/rea/PORT_SETTINGS.md`](../analysis/rea/PORT_SETTINGS.md).
 
 ### Sunulan kare izi (`present`)
 

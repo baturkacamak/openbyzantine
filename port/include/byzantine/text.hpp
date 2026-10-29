@@ -41,6 +41,10 @@ struct SfnFont {
     // Fill colour the registry passes to 0x405e7e for this slot, and whether
     // the slot uses the shadow mask (0x4067e2 always blends the bk mask with 0).
     std::uint16_t fill = 0xffff;
+    // 0x406cbf sets DAT_0045d0ac when MESSAGES.TXT line 0x3e contains
+    // "English"; 0x4061e7 then indexes high bytes directly (byte-0x20) instead
+    // of the non-English byte-0x41 path. The pack resolver selects this.
+    bool english_high_bytes = false;
 
     const SfnGlyph* glyph(char code) const;
 };
@@ -62,6 +66,11 @@ SfnFont load_sfn_font_single_atlas(const std::string& sfn_path,
 // message table (menu text/labels) draws with the game font instead of
 // dropping them. ASCII passes through unchanged.
 std::string cp1254_to_game_text(const std::string& text);
+
+// UTF-8 -> the game font's Turkish byte encoding (Ç/Ş/İ/Ğ/Ü/Ö and their
+// lowercase forms). Used for port-written Turkish UI strings, which live in
+// UTF-8 source files rather than the shipped CP1254/game data.
+std::string utf8_to_turkish_game_text(const std::string& text);
 
 // 0x4063e0: draws `text` with `font` into `surface` at (x, y), one line per
 // '\n', at most `max_lines` lines. `alignment` follows the original: 1 centres

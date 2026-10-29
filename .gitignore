@@ -24,6 +24,8 @@ port/byzantine-rle
 port/byzantine-all
 port/byzantine-cc
 port/byzantine-play
+port/settings-test
+port/language-test
 port/scene-state-test
 port/variable-metadata-test
 port/panorama-test
@@ -46,3 +48,12 @@ port/cursor-test
 port/video-test
 port/menu-test
 port/transition-test
+
+# Per-user port settings (display/audio/language), not game data.
+port/byzantine.ini
+port/seen_dialogue.txt
+port/output/
+
+# Direct CLI runs default to ./byzantine.ini.
+byzantine.ini
+seen_dialogue.txt

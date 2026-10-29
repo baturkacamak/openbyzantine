@@ -14,14 +14,20 @@ byzantine-all: src/all_main.cpp src/all.cpp include/byzantine/all.hpp
 byzantine-cc: src/cc_main.cpp src/cc.cpp src/cb.cpp src/variables.cpp src/records.cpp src/save.cpp src/anims.cpp src/compose.cpp src/jpeg.cpp src/panorama.cpp src/panorama_view.cpp src/scene_setup.cpp src/conversation.cpp include/byzantine/variables.hpp include/byzantine/cc.hpp include/byzantine/cb.hpp include/byzantine/records.hpp include/byzantine/save.hpp include/byzantine/anims.hpp include/byzantine/compose.hpp include/byzantine/jpeg.hpp include/byzantine/panorama.hpp include/byzantine/scene_setup.hpp
 	$(CXX) $(CXXFLAGS) -Iinclude src/cc_main.cpp src/cc.cpp src/cb.cpp src/variables.cpp src/records.cpp src/save.cpp src/anims.cpp src/compose.cpp src/jpeg.cpp src/panorama.cpp src/panorama_view.cpp src/scene_setup.cpp src/conversation.cpp -o $@
 
-byzantine-play: src/play_main.cpp src/cc.cpp src/cb.cpp src/anims.cpp src/compose.cpp src/jpeg.cpp src/panorama.cpp src/panorama_view.cpp src/save.cpp src/records.cpp src/variables.cpp src/scene_setup.cpp src/text.cpp src/conversation.cpp src/inventory.cpp src/ambient_audio.cpp src/cursors.cpp src/video.cpp src/menu.cpp src/rle.cpp src/transition.cpp include/byzantine/ambient_audio.hpp include/byzantine/cursors.hpp include/byzantine/inventory.hpp include/byzantine/menu.hpp include/byzantine/rle.hpp include/byzantine/cc.hpp include/byzantine/cb.hpp include/byzantine/anims.hpp include/byzantine/compose.hpp include/byzantine/jpeg.hpp include/byzantine/panorama.hpp include/byzantine/panorama_view.hpp include/byzantine/save.hpp include/byzantine/scene_setup.hpp include/byzantine/text.hpp include/byzantine/video.hpp include/byzantine/transition.hpp
-	$(CXX) $(CXXFLAGS) $(SDL2_CFLAGS) -Iinclude src/play_main.cpp src/cc.cpp src/cb.cpp src/anims.cpp src/compose.cpp src/jpeg.cpp src/panorama.cpp src/panorama_view.cpp src/save.cpp src/records.cpp src/variables.cpp src/scene_setup.cpp src/text.cpp src/conversation.cpp src/inventory.cpp src/ambient_audio.cpp src/cursors.cpp src/video.cpp src/menu.cpp src/rle.cpp src/transition.cpp $(SDL2_LIBS) -o $@
+byzantine-play: include/byzantine/menu_typeface.hpp src/play_main.cpp src/settings.cpp src/language.cpp src/cc.cpp src/cb.cpp src/anims.cpp src/compose.cpp src/jpeg.cpp src/panorama.cpp src/panorama_view.cpp src/save.cpp src/records.cpp src/variables.cpp src/scene_setup.cpp src/text.cpp src/conversation.cpp src/inventory.cpp src/ambient_audio.cpp src/cursors.cpp src/video.cpp src/menu.cpp src/rle.cpp src/transition.cpp include/byzantine/settings.hpp include/byzantine/language.hpp include/byzantine/ambient_audio.hpp include/byzantine/cursors.hpp include/byzantine/inventory.hpp include/byzantine/menu.hpp include/byzantine/rle.hpp include/byzantine/cc.hpp include/byzantine/cb.hpp include/byzantine/anims.hpp include/byzantine/compose.hpp include/byzantine/jpeg.hpp include/byzantine/panorama.hpp include/byzantine/panorama_view.hpp include/byzantine/save.hpp include/byzantine/scene_setup.hpp include/byzantine/text.hpp include/byzantine/video.hpp include/byzantine/transition.hpp
+	$(CXX) $(CXXFLAGS) $(SDL2_CFLAGS) -Iinclude src/play_main.cpp src/settings.cpp src/language.cpp src/cc.cpp src/cb.cpp src/anims.cpp src/compose.cpp src/jpeg.cpp src/panorama.cpp src/panorama_view.cpp src/save.cpp src/records.cpp src/variables.cpp src/scene_setup.cpp src/text.cpp src/conversation.cpp src/inventory.cpp src/ambient_audio.cpp src/cursors.cpp src/video.cpp src/menu.cpp src/rle.cpp src/transition.cpp $(SDL2_LIBS) -o $@
 
 video-test: tests/video.cpp src/video.cpp include/byzantine/video.hpp
 	$(CXX) $(CXXFLAGS) -Iinclude tests/video.cpp src/video.cpp -o $@
 
+settings-test: tests/settings.cpp src/settings.cpp include/byzantine/settings.hpp
+	$(CXX) $(CXXFLAGS) -Iinclude tests/settings.cpp src/settings.cpp -o $@
+
+language-test: tests/language.cpp src/language.cpp include/byzantine/language.hpp
+	$(CXX) $(CXXFLAGS) -Iinclude tests/language.cpp src/language.cpp -o $@
+
 clean:
-	rm -f byzantine-rle byzantine-all byzantine-cc byzantine-play scene-state-test inventory-test variable-metadata-test panorama-test panorama-view-test records-test save-test anims-test compose-test jpeg-test text-test conversation-test input-test audio-test cursor-test video-test menu-test transition-test
+	rm -f byzantine-rle byzantine-all byzantine-cc byzantine-play settings-test language-test scene-state-test inventory-test variable-metadata-test panorama-test panorama-view-test records-test save-test anims-test compose-test jpeg-test text-test conversation-test input-test audio-test cursor-test video-test menu-test transition-test
 
 scene-state-test: tests/scene_state.cpp src/cc.cpp src/cb.cpp src/variables.cpp src/anims.cpp include/byzantine/cc.hpp include/byzantine/anims.hpp include/byzantine/compose.hpp include/byzantine/frame_pacing.hpp
 	$(CXX) $(CXXFLAGS) -Iinclude tests/scene_state.cpp src/cc.cpp src/cb.cpp src/variables.cpp src/anims.cpp src/compose.cpp -o $@
@@ -47,7 +53,7 @@ compose-test: tests/compose.cpp src/compose.cpp src/anims.cpp include/byzantine/
 jpeg-test: tests/jpeg.cpp src/jpeg.cpp include/byzantine/jpeg.hpp
 	$(CXX) $(CXXFLAGS) -Iinclude tests/jpeg.cpp src/jpeg.cpp -o $@
 
-text-test: tests/text.cpp src/text.cpp src/compose.cpp include/byzantine/text.hpp include/byzantine/compose.hpp
+text-test: include/byzantine/menu_typeface.hpp tests/text.cpp src/text.cpp src/compose.cpp include/byzantine/text.hpp include/byzantine/compose.hpp
 	$(CXX) $(CXXFLAGS) -Iinclude tests/text.cpp src/text.cpp src/compose.cpp -o $@
 
 conversation-test: tests/conversation.cpp src/conversation.cpp src/all.cpp src/cc.cpp src/cb.cpp src/variables.cpp src/anims.cpp src/compose.cpp include/byzantine/conversation.hpp include/byzantine/all.hpp include/byzantine/cc.hpp include/byzantine/anims.hpp include/byzantine/compose.hpp
@@ -74,8 +80,12 @@ transition-test: tests/transition.cpp src/transition.cpp include/byzantine/trans
 save-test: tests/save.cpp src/save.cpp src/cc.cpp src/cb.cpp src/variables.cpp src/anims.cpp include/byzantine/save.hpp include/byzantine/cc.hpp include/byzantine/cb.hpp include/byzantine/anims.hpp include/byzantine/compose.hpp
 	$(CXX) $(CXXFLAGS) -Iinclude tests/save.cpp src/save.cpp src/cc.cpp src/cb.cpp src/variables.cpp src/anims.cpp src/compose.cpp -o $@
 
-test: scene-state-test variable-metadata-test panorama-test panorama-view-test records-test save-test anims-test compose-test jpeg-test text-test conversation-test input-test inventory-test audio-test cursor-test video-test menu-test transition-test
+test: settings-test language-test scene-state-test variable-metadata-test panorama-test panorama-view-test records-test save-test anims-test compose-test jpeg-test text-test conversation-test input-test inventory-test audio-test cursor-test video-test menu-test transition-test
 	python3 tests/logging.py
+	python3 tests/language_pack.py
+	python3 tests/language_audit.py
+	./settings-test
+	./language-test
 	./scene-state-test output/cc_all/EA output/cb_all/EA output/cc_all/STAR output/cb_all/STAR output/co_all/EA
 	./variable-metadata-test ../analysis/rea/engine_sample/copy2hd/engine output/cc_all/EA output/cb_all/EA
 	./panorama-test
@@ -98,6 +108,6 @@ test: scene-state-test variable-metadata-test panorama-test panorama-view-test r
 .PHONY: all clean test
 
 # Shared host-only diagnostics; changing it must rebuild every consumer.
-byzantine-cc byzantine-play scene-state-test variable-metadata-test save-test conversation-test: include/byzantine/diagnostics.hpp
+byzantine-cc byzantine-play settings-test language-test scene-state-test variable-metadata-test save-test conversation-test: include/byzantine/diagnostics.hpp
 
 byzantine-cc byzantine-play conversation-test: include/byzantine/conversation.hpp

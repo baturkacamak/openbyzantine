@@ -28,11 +28,14 @@
 #include "byzantine/inventory.hpp"
 #include "byzantine/jpeg.hpp"
 #include "byzantine/menu.hpp"
+#include "byzantine/menu_typeface.hpp"
 #include "byzantine/panorama.hpp"
 #include "byzantine/panorama_view.hpp"
 #include "byzantine/scene_setup.hpp"
 #include "byzantine/text.hpp"
 #include "byzantine/transition.hpp"
+#include "byzantine/settings.hpp"
+#include "byzantine/language.hpp"
 #include "byzantine/video.hpp"
 #include "byzantine/rle.hpp"
 
@@ -79,6 +82,13 @@ constexpr int kScreenBandTop = 0x1a4;
 std::string lower_ascii(std::string value) {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char character) {
         return static_cast<char>(std::tolower(character));
+    });
+    return value;
+}
+
+std::string upper_ascii(std::string value) {
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char character) {
+        return static_cast<char>(std::toupper(character));
     });
     return value;
 }
@@ -148,6 +158,13 @@ struct Options {
     std::filesystem::path dialog;              // dialog/<conversation>/<clip>.avi root
     std::filesystem::path dialog_cache;        // decoded clip cache (created on demand)
     std::filesystem::path media_isos;          // launcher manifest for lazy cross-scene AVI extraction
+    // Host settings and the language overlays resolved from them. These are
+    // port choices, never written into the original gamepref/save files.
+    byzantine::Settings settings;
+    std::filesystem::path config_path;
+    std::filesystem::path languages;           // --languages <dir> (default <backgrounds>/lang)
+    byzantine::LanguageSelection language;
+    bool list_languages = false;               // --list-languages
     std::string shot;                          // --shot <file.ppm>
     std::string conversation_shot;             // --conversation-shot <file.ppm>
     std::string conversation_video_shot;       // first decoded media frame
@@ -245,6 +262,9 @@ struct Options {
 
 const std::set<std::string> kValued = {
     "--save", "--engine", "--lcx", "--lci", "--ci", "--lcy", "--cy", "--co", "--cf",
+    "--config", "--languages", "--text-lang", "--voice-lang", "--scale",
+    "--volume-master", "--volume-speech", "--volume-ambient", "--volume-effects",
+    "--cursor-scale",
     "--ca", "--anims", "--anims-overlay", "--gameprefs", "--inventor", "--hotitems", "--cs", "--ce",
     "--backgrounds", "--cursors", "--sounds", "--shot", "--click", "--click-at", "--staged-x",
     "--fonts", "--cd", "--ccb", "--ccf", "--byz", "--messages", "--dialog",
@@ -256,23 +276,237 @@ const std::set<std::string> kValued = {
     "--panorama-yaw", "--menu", "--menu-click-at", "--menu-shot", "--bar-show",
     "--menu-text", "--menu-key", "--menu-hover", "--credits-frames",
     "--credits-shot"};
+std::filesystem::path config_path_from_arguments(int argc, char** argv) {
+    for (int index = 1; index < argc; ++index) {
+        const std::string token(argv[index]);
+        if (token == "--no-config") return {};
+        if (token != "--config" || index + 1 >= argc) continue;
+        return std::filesystem::path(argv[index + 1]);
+    }
+    if (const char* environment = std::getenv("BYZ_CONFIG"); environment != nullptr &&
+                                                              *environment != '\0') {
+        return std::filesystem::path(environment);
+    }
+    return std::filesystem::path("byzantine.ini");
+}
+
+float parse_volume(const std::string& token, const std::string& value) {
+    try {
+        std::size_t used = 0;
+        const auto parsed = std::stof(value, &used);
+        if (used != value.size() || !(parsed >= 0.0f && parsed <= 1.0f)) {
+            throw std::runtime_error("out of range");
+        }
+        return parsed;
+    } catch (const std::exception&) {
+        throw std::runtime_error(token + " expects a value in 0..1");
+    }
+}
+
+void resolve_language_selection(Options& options) {
+    const auto root = options.languages.empty() ? options.backgrounds / "lang"
+                                                : options.languages;
+    options.language = byzantine::LanguageSelection::discover(
+        options.backgrounds, root, options.settings.text_language,
+        options.settings.voice_language, &std::cerr);
+}
+
+bool save_port_settings(const Options& options, bool verbose) {
+    if (options.config_path.empty()) return false;
+    std::string error;
+    if (!options.settings.save(options.config_path, &error)) {
+        std::cout << "settings_write failed file=" << options.config_path
+                  << " error=" << error << '\n';
+        return false;
+    }
+    if (verbose) {
+        std::cout << "settings_write file=" << options.config_path
+                  << " text=" << options.settings.text_language
+                  << " voice=" << options.settings.voice_language << '\n';
+    }
+    return true;
+}
+
+// Language-aware asset lookup. The pack is tried first and the base data is the
+// fallback, so a text-only pack can leave voice/media shared and a full pack can
+// replace every localized file. `dir` is relative to the data root ("fonts",
+// "setupart", "inventor/examine", ...); the shipped copy2hd/ prefix is tried too.
+// The shipped font indexes Turkish bytes directly (see text.cpp): Ş=0xa2,
+// İ=0xa3, Ç=0xa1. Keep the visible title in the game's own encoding.
+const std::string& advanced_settings_label() {
+    static const std::string label =
+        std::string("GEL") + "\xa3" + "\xa2" + "M" + "\xa3" + "\xa2" + " AYARLAR";
+    return label;
+}
+
+constexpr int kAdvancedGroupCount = 6;
+
+const char* advanced_group_name(int group) {
+    switch (group) {
+        case 0: return "G\xa6R\xa5NT\xa5";   // GÖRÜNTÜ
+        case 1: return "SES";
+        case 2: return "D\xa3L";              // DİL
+        case 3: return "OTURUM";
+        case 4: return "TU\xa2LAR";           // TUŞLAR
+        case 5: return "OR\xa3J\xa3NAL";      // ORİJİNAL
+        default: return "?";
+    }
+}
+
+bool key_is(const byzantine::Settings& settings, const std::string& name,
+            SDL_Keycode code) {
+    (void)settings;
+    const auto bound = SDL_GetKeyFromName(name.c_str());
+    return bound != SDLK_UNKNOWN && bound == code;
+}
+
+std::optional<std::filesystem::path> find_language_child(const Options& options,
+                                                         bool voice,
+                                                         const std::string& dir,
+                                                         const std::string& name) {
+    const byzantine::LanguagePack* pack =
+        voice ? options.language.voice : options.language.text;
+    if (pack != nullptr) {
+        for (const auto& candidate : {dir, std::string("copy2hd/") + dir}) {
+            const auto directory = byzantine::find_relative(pack->root, candidate);
+            if (!directory) continue;
+            if (const auto file = find_child(*directory, name)) return file;
+        }
+    }
+    for (const auto& candidate : {dir, std::string("copy2hd/") + dir}) {
+        const auto directory = byzantine::find_relative(options.language.base, candidate);
+        if (!directory) continue;
+        if (const auto file = find_child(*directory, name)) return file;
+    }
+    return std::nullopt;
+}
+
+std::optional<std::filesystem::path> find_language_filename(const Options& options,
+                                                            bool voice,
+                                                            const std::string& dir,
+                                                            const std::string& name) {
+    const byzantine::LanguagePack* pack =
+        voice ? options.language.voice : options.language.text;
+    if (pack != nullptr) {
+        for (const auto& candidate : {dir, std::string("copy2hd/") + dir}) {
+            const auto directory = byzantine::find_relative(pack->root, candidate);
+            if (!directory) continue;
+            if (const auto file = find_filename(*directory, name)) return file;
+        }
+    }
+    for (const auto& candidate : {dir, std::string("copy2hd/") + dir}) {
+        const auto directory = byzantine::find_relative(options.language.base, candidate);
+        if (!directory) continue;
+        if (const auto file = find_filename(*directory, name)) return file;
+    }
+    return std::nullopt;
+}
+
+std::string decode_messages_line(const Options& options, const std::string& line) {
+    const auto encoding = options.language.messages_encoding();
+    if (encoding == "raw") return line;
+    if (encoding == "cp1254" || encoding == "turkish") {
+        return byzantine::cp1254_to_game_text(line);
+    }
+    // A pack that declares another encoding must ship text in its own font
+    // encoding (or a converter). Do not guess a byte map: leave the bytes and
+    // report once so the pack can be fixed without corrupting the text.
+    static std::string reported;
+    if (reported != encoding) {
+        reported = encoding;
+        std::cout << "messages encoding=" << encoding
+                  << " is not built in; using the raw pack bytes\n";
+    }
+    return line;
+}
+
 Options parse_options(int argc, char** argv) {
     Options options;
+    options.config_path = config_path_from_arguments(argc, argv);
+    std::string config_error;
+    const bool config_loaded =
+        !options.config_path.empty() && options.settings.load(options.config_path, &config_error);
+    if (!config_error.empty()) {
+        std::cerr << "settings_read " << options.config_path << ": " << config_error << '\n';
+    }
+    if (config_loaded) {
+        std::cout << "settings_read file=" << options.config_path
+                  << " mode=" << byzantine::window_mode_name(options.settings.window_mode)
+                  << " scale=" << byzantine::scale_mode_name(options.settings.scale_mode)
+                  << " text=" << options.settings.text_language
+                  << " voice=" << options.settings.voice_language << '\n';
+    }
+    // CLI hotspot flags override the file; without them the saved values apply.
+    options.overlay = options.settings.hotspots;
+    options.hotspots_all = options.settings.hotspots_all;
     std::vector<std::string> positional;
     for (int index = 1; index < argc; ++index) {
         const std::string token(argv[index]);
         if (token == "--no-hotspots") {
             options.overlay = false;
+            options.settings.hotspots = false;
             continue;
         }
         if (token == "--hotspots" || token == "--hotspots-all") {
             options.overlay = true;
             options.hotspots_all = true;
+            options.settings.hotspots = true;
+            options.settings.hotspots_all = true;
             continue;
         }
         if (token == "--hotspots-hover") {
             options.overlay = true;
             options.hotspots_all = false;
+            options.settings.hotspots = true;
+            options.settings.hotspots_all = false;
+            continue;
+        }
+        if (token == "--windowed") {
+            options.settings.window_mode = byzantine::WindowMode::windowed;
+            continue;
+        }
+        if (token == "--borderless" || token == "--fullscreen") {
+            options.settings.window_mode = byzantine::WindowMode::borderless;
+            continue;
+        }
+        if (token == "--exclusive") {
+            options.settings.window_mode = byzantine::WindowMode::exclusive;
+            continue;
+        }
+        if (token == "--maximized") {
+            options.settings.window_mode = byzantine::WindowMode::maximized;
+            continue;
+        }
+        if (token == "--vsync") {
+            options.settings.vsync = true;
+            continue;
+        }
+        if (token == "--no-vsync") {
+            options.settings.vsync = false;
+            continue;
+        }
+        if (token == "--subtitles") {
+            options.settings.subtitles = true;
+            continue;
+        }
+        if (token == "--no-subtitles") {
+            options.settings.subtitles = false;
+            continue;
+        }
+        if (token == "--mute-on-focus-loss") {
+            options.settings.mute_on_focus_loss = true;
+            continue;
+        }
+        if (token == "--no-mute-on-focus-loss") {
+            options.settings.mute_on_focus_loss = false;
+            continue;
+        }
+        if (token == "--list-languages") {
+            options.list_languages = true;
+            continue;
+        }
+        if (token == "--no-config") {
+            options.config_path.clear();
             continue;
         }
         if (token == "--print-audio") {
@@ -340,7 +574,27 @@ Options parse_options(int argc, char** argv) {
         if (kValued.count(token) != 0) {
             if (index + 1 >= argc) throw std::runtime_error(token + " needs a value");
             const std::string value(argv[++index]);
-            if (token == "--backgrounds") options.backgrounds = value;
+            if (token == "--config") { /* already read by config_path_from_arguments */ }
+            else if (token == "--languages") options.languages = value;
+            else if (token == "--text-lang") options.settings.text_language = value;
+            else if (token == "--voice-lang") options.settings.voice_language = value;
+            else if (token == "--scale") {
+                if (!byzantine::parse_scale_mode(value, &options.settings.scale_mode)) {
+                    throw std::runtime_error("--scale expects fit|integer");
+                }
+            }
+            else if (token == "--volume-master") options.settings.master_volume = parse_volume(token, value);
+            else if (token == "--volume-speech") options.settings.speech_volume = parse_volume(token, value);
+            else if (token == "--volume-ambient") options.settings.ambient_volume = parse_volume(token, value);
+            else if (token == "--volume-effects") options.settings.effects_volume = parse_volume(token, value);
+            else if (token == "--cursor-scale") {
+                try {
+                    options.settings.cursor_scale = std::stoi(value);
+                } catch (const std::exception&) {
+                    throw std::runtime_error("--cursor-scale expects 1..4");
+                }
+            }
+            else if (token == "--backgrounds") options.backgrounds = value;
             else if (token == "--cursors") options.cursors = value;
             else if (token == "--sounds") options.sounds = value;
             else if (token == "--fonts") options.fonts = value;
@@ -471,6 +725,11 @@ Options parse_options(int argc, char** argv) {
         if (token.rfind("--", 0) == 0) throw std::runtime_error("unknown option: " + token);
         positional.push_back(token);
     }
+    if (options.list_languages && positional.empty()) {
+        options.settings.clamp();
+        resolve_language_selection(options);
+        return options;
+    }
     if (positional.size() != 3 && !(options.entry && positional.size() == 2)) {
         throw std::runtime_error(
             "usage: byzantine-play <scene.cc> <scene.cb> <label> "
@@ -495,11 +754,18 @@ Options parse_options(int argc, char** argv) {
             "[--print-objects] [--print-variables] [--print-records] "
             "[--compose-frames <n>] [--selftest-events] [--anim-pass-hz <hz>] "
             "[--menu <0..5>] [--menu-click-at <x>,<y> ...] [--menu-text <utf8>] "
-            "[--menu-key enter|escape|backspace] [--menu-shot <ppm>]");
+            "[--menu-key enter|escape|backspace] [--menu-shot <ppm>] "
+            "[--config <ini>] [--windowed|--borderless|--fullscreen|--exclusive|--maximized] "
+            "[--scale fit|integer] [--vsync|--no-vsync] "
+            "[--volume-master|--volume-speech|--volume-ambient|--volume-effects <0..1>] "
+            "[--subtitles|--no-subtitles] [--text-lang <code>] [--voice-lang <code>] "
+            "[--languages <dir>] [--list-languages]");
     }
     options.cc_path = positional[0];
     options.cb_path = positional[1];
     if (positional.size() == 3) options.label = positional[2];
+    options.settings.clamp();
+    resolve_language_selection(options);
     return options;
 }
 
@@ -648,10 +914,15 @@ std::vector<SoundEvent> sound_events(const byzantine::SceneTrace& trace) {
 }
 
 std::filesystem::path background_path(const Options& options, const std::string& entry_name) {
-    if (options.backgrounds.empty() || entry_name.size() < 2) return {};
+    if (entry_name.size() < 2) return {};
+    const auto group = lower_ascii(entry_name.substr(0, 2));
+    if (const auto file = find_language_child(options, false, "backs/" + group, entry_name)) {
+        return *file;
+    }
+    if (options.backgrounds.empty()) return {};
     auto root = options.backgrounds;
     if (std::filesystem::is_directory(root / "backs")) root /= "backs";
-    const auto found = find_child(root / lower_ascii(entry_name.substr(0, 2)), entry_name);
+    const auto found = find_child(root / group, entry_name);
     return found ? *found : std::filesystem::path{};
 }
 
@@ -661,10 +932,13 @@ std::filesystem::path background_path(const Options& options, const std::string&
 std::filesystem::path examine_background_path(const Options& options,
                                               const byzantine::SceneState& state,
                                               std::uint16_t item) {
-    if (options.backgrounds.empty()) return {};
     const auto name = byzantine::inventory_name(state, item);
     if (name.empty()) return {};
     const auto stem = byzantine::examine_image_stem(name);
+    if (const auto file = find_language_child(options, false, "inventor/examine", stem)) {
+        return *file;
+    }
+    if (options.backgrounds.empty()) return {};
     auto root = options.backgrounds;
     if (std::filesystem::is_directory(root / "inventor")) root /= "inventor";
     const auto found = find_child(root / "examine", stem);
@@ -754,10 +1028,15 @@ UiImage ui_image_from_rle(const byzantine::RleFrame& frame) {
 // 0x40186e builds "nodes\\<first two characters>\\<name>.jpg"; the shipped tree
 // mixes .JPG/.jpg, so the lookup is case-insensitive like the background one.
 std::filesystem::path node_path(const Options& options, const std::string& entry_name) {
-    if (options.backgrounds.empty() || entry_name.size() < 2) return {};
+    if (entry_name.size() < 2) return {};
+    const auto group = lower_ascii(entry_name.substr(0, 2));
+    if (const auto file = find_language_child(options, false, "nodes/" + group, entry_name)) {
+        return *file;
+    }
+    if (options.backgrounds.empty()) return {};
     auto root = options.backgrounds;
     if (std::filesystem::is_directory(root / "nodes")) root /= "nodes";
-    const auto found = find_child(root / lower_ascii(entry_name.substr(0, 2)), entry_name);
+    const auto found = find_child(root / group, entry_name);
     return found ? *found : std::filesystem::path{};
 }
 
@@ -1369,7 +1648,19 @@ struct Display {
     };
     std::optional<CursorAnimation> cursor_animation;
     SDL_Cursor* default_cursor_ = nullptr;
+    // Host gamepad bridge. It injects the same SDL mouse/key events the scene
+    // and conversation loops already understand, so game logic stays unchanged.
+    SDL_GameController* gamepad = nullptr;
+    std::array<Uint8, SDL_CONTROLLER_BUTTON_MAX> gamepad_buttons{};
+    std::uint64_t gamepad_axis_at = 0;
     std::set<std::string> missing_ui;
+    // Host window state. The gamepref[1] "fullscreen" flag used by
+    // VideoPlacement is the original 2x movie mode, not this.
+    byzantine::WindowMode window_mode = byzantine::WindowMode::windowed;
+    int windowed_width = kScreenWidth * 2;
+    int windowed_height = kScreenHeight * 2;
+    int windowed_x = -1;
+    int windowed_y = -1;
     int logical_width = kScreenWidth;
     int logical_height = kScreenHeight;
     // Records the last compose drew and stepped through 0x43b216's normal pass.
@@ -1401,6 +1692,10 @@ struct Display {
     std::set<std::uint64_t> dumped_hashes;
 
     ~Display() {
+        if (gamepad != nullptr) {
+            SDL_GameControllerClose(gamepad);
+            gamepad = nullptr;
+        }
         for (auto& entry : cursors_) {
             if (entry.second != nullptr) SDL_FreeCursor(entry.second);
         }
@@ -1420,22 +1715,258 @@ struct Display {
                   << " dumps=" << present_dumps << '\n';
     }
 
+    void close_gamepad() {
+        if (gamepad == nullptr) return;
+        SDL_GameControllerClose(gamepad);
+        gamepad = nullptr;
+        std::cout << "gamepad close\n";
+    }
+
+    void open_gamepad() {
+        if (gamepad != nullptr) return;
+        if (SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER) != 0) {
+            std::cout << "gamepad init_failed error=" << SDL_GetError() << '\n';
+            return;
+        }
+        for (int index = 0; index < SDL_NumJoysticks(); ++index) {
+            if (!SDL_IsGameController(index)) continue;
+            gamepad = SDL_GameControllerOpen(index);
+            if (gamepad == nullptr) continue;
+            SDL_GameControllerEventState(SDL_ENABLE);
+            gamepad_buttons.fill(0);
+            std::cout << "gamepad open name=" << SDL_GameControllerName(gamepad)
+                      << " index=" << index << '\n';
+            return;
+        }
+        std::cout << "gamepad none (no SDL game controller detected)\n";
+    }
+
+    void set_gamepad_enabled(bool enabled) {
+        if (enabled) open_gamepad();
+        else close_gamepad();
+    }
+
+    static void push_key_event(Uint32 type, SDL_Keycode key) {
+        SDL_Event event{};
+        event.type = type;
+        event.key.keysym.sym = key;
+        event.key.state = type == SDL_KEYDOWN ? SDL_PRESSED : SDL_RELEASED;
+        SDL_PushEvent(&event);
+    }
+
+    void push_controller_click() {
+        int x = 0;
+        int y = 0;
+        SDL_GetMouseState(&x, &y);
+        SDL_Event down{};
+        down.type = SDL_MOUSEBUTTONDOWN;
+        down.button.button = SDL_BUTTON_LEFT;
+        down.button.state = SDL_PRESSED;
+        down.button.x = x;
+        down.button.y = y;
+        SDL_PushEvent(&down);
+        SDL_Event up = down;
+        up.type = SDL_MOUSEBUTTONUP;
+        up.button.state = SDL_RELEASED;
+        SDL_PushEvent(&up);
+    }
+
+    // Axis movement is applied on the host's 16 ms frame. The mouse warp
+    // generates the normal motion event, so hover/click mapping is unchanged.
+    void poll_gamepad() {
+        if (gamepad == nullptr) return;
+        SDL_GameControllerUpdate();
+        const auto axis = [&](SDL_GameControllerAxis which) {
+            const int value = SDL_GameControllerGetAxis(gamepad, which);
+            return std::abs(value) < 10000 ? 0 : value / 32767;
+        };
+        const double dx = axis(SDL_CONTROLLER_AXIS_LEFTX);
+        const double dy = axis(SDL_CONTROLLER_AXIS_LEFTY);
+        if (dx != 0.0 || dy != 0.0) {
+            int x = 0;
+            int y = 0;
+            SDL_GetMouseState(&x, &y);
+            SDL_WarpMouseInWindow(window, x + static_cast<int>(dx * 12.0),
+                                  y + static_cast<int>(dy * 12.0));
+        }
+        const auto pressed = [&](SDL_GameControllerButton button) {
+            return SDL_GameControllerGetButton(gamepad, button) != 0;
+        };
+        const auto edge = [&](SDL_GameControllerButton button) {
+            const bool now = pressed(button);
+            const bool before = gamepad_buttons[button] != 0;
+            gamepad_buttons[button] = now ? 1 : 0;
+            return now && !before;
+        };
+        const auto push_bound = [&](const std::string& name, SDL_Keycode fallback) {
+            SDL_Keycode key = SDL_GetKeyFromName(name.c_str());
+            if (key == SDLK_UNKNOWN) key = fallback;
+            push_key_event(SDL_KEYDOWN, key);
+            push_key_event(SDL_KEYUP, key);
+        };
+        if (edge(SDL_CONTROLLER_BUTTON_A)) push_controller_click();
+        if (edge(SDL_CONTROLLER_BUTTON_B)) push_bound("Escape", SDLK_ESCAPE);
+        if (edge(SDL_CONTROLLER_BUTTON_START)) {
+            push_bound(ui_options != nullptr ? ui_options->settings.key_settings : "F10",
+                       SDLK_F10);
+        }
+        if (edge(SDL_CONTROLLER_BUTTON_X)) {
+            push_bound(ui_options != nullptr ? ui_options->settings.key_backlog : "F3",
+                       SDLK_F3);
+        }
+        if (edge(SDL_CONTROLLER_BUTTON_Y)) {
+            push_bound(ui_options != nullptr ? ui_options->settings.key_skip : "F4",
+                       SDLK_F4);
+        }
+    }
+
+    void apply_scale_mode(byzantine::ScaleMode mode) {
+        if (renderer == nullptr) return;
+        SDL_RenderSetIntegerScale(renderer,
+                                  mode == byzantine::ScaleMode::integer ? SDL_TRUE
+                                                                        : SDL_FALSE);
+        std::cout << "window_scale mode=" << byzantine::scale_mode_name(mode)
+                  << " filter=nearest\n";
+    }
+
+    void apply_vsync(bool enabled) {
+        if (renderer == nullptr) return;
+        if (SDL_RenderSetVSync(renderer, enabled ? 1 : 0) != 0) {
+            std::cout << "window_vsync unsupported requested=" << (enabled ? 1 : 0)
+                      << " error=" << SDL_GetError() << '\n';
+            return;
+        }
+        std::cout << "window_vsync enabled=" << (enabled ? 1 : 0) << '\n';
+    }
+
+    // Saves the windowed geometry before entering a fullscreen mode. The
+    // caller persists Settings after the mode change.
+    void remember_windowed_geometry() {
+        if (window == nullptr || window_mode != byzantine::WindowMode::windowed) return;
+        SDL_GetWindowPosition(window, &windowed_x, &windowed_y);
+        SDL_GetWindowSize(window, &windowed_width, &windowed_height);
+    }
+
+    void store_window_settings(byzantine::Settings& settings) const {
+        settings.window_mode = window_mode;
+        if (window_mode == byzantine::WindowMode::windowed && window != nullptr) {
+            int width = 0;
+            int height = 0;
+            int x = 0;
+            int y = 0;
+            SDL_GetWindowSize(window, &width, &height);
+            SDL_GetWindowPosition(window, &x, &y);
+            settings.window_width = width;
+            settings.window_height = height;
+            settings.window_x = x;
+            settings.window_y = y;
+            return;
+        }
+        settings.window_width = windowed_width;
+        settings.window_height = windowed_height;
+        settings.window_x = windowed_x;
+        settings.window_y = windowed_y;
+    }
+
+    // Re-copies the current texture after a window/renderer change so a mode
+    // switch never flashes an unpainted backbuffer.
+    void repaint_window() {
+        if (renderer == nullptr || texture == nullptr) return;
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_RenderClear(renderer);
+        SDL_RenderCopy(renderer, texture, nullptr, nullptr);
+        SDL_RenderPresent(renderer);
+    }
+
+    void apply_window_mode(byzantine::WindowMode mode) {
+        if (window == nullptr) return;
+        int fullscreen_result = 0;
+        if (mode == byzantine::WindowMode::windowed) {
+            remember_windowed_geometry();
+            SDL_SetWindowFullscreen(window, 0);
+            SDL_SetWindowResizable(window, SDL_TRUE);
+            SDL_SetWindowSize(window, windowed_width, windowed_height);
+            if (windowed_x >= 0 && windowed_y >= 0) {
+                SDL_SetWindowPosition(window, windowed_x, windowed_y);
+            }
+        } else if (mode == byzantine::WindowMode::borderless) {
+            remember_windowed_geometry();
+            fullscreen_result = SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN_DESKTOP);
+        } else if (mode == byzantine::WindowMode::exclusive) {
+            remember_windowed_geometry();
+            fullscreen_result = SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN);
+        } else if (mode == byzantine::WindowMode::maximized) {
+            remember_windowed_geometry();
+            SDL_SetWindowFullscreen(window, 0);
+            SDL_SetWindowResizable(window, SDL_TRUE);
+            SDL_SetWindowSize(window, windowed_width, windowed_height);
+            SDL_MaximizeWindow(window);
+        }
+        if (fullscreen_result != 0) {
+            std::cout << "window_mode_failed requested=" << byzantine::window_mode_name(mode)
+                      << " error=" << SDL_GetError() << "\n";
+            SDL_SetWindowFullscreen(window, 0);
+            mode = byzantine::WindowMode::windowed;
+        }
+        window_mode = mode;
+        int width = 0;
+        int height = 0;
+        SDL_GetWindowSize(window, &width, &height);
+        std::cout << "window_mode mode=" << byzantine::window_mode_name(mode)
+                  << " size=" << width << 'x' << height
+                  << " fullscreen=" << (mode == byzantine::WindowMode::windowed ? 0 : 1)
+                  << '\n';
+        repaint_window();
+    }
+
     void init(const Options& options) {
         ui_options = &options;
         if (SDL_Init(SDL_INIT_VIDEO) != 0) {
             throw std::runtime_error(std::string("SDL video init failed: ") + SDL_GetError());
         }
         // 640x480 at 2x: the original screen size, including the inventory
-        // strip. The conversation already uses the same geometry.
+        // strip. A saved window size/position wins; fullscreen modes still use
+        // SDL_RenderSetLogicalSize below so the 4:3 frame is letterboxed on a
+        // 16:9 monitor instead of being stretched.
+        const auto& settings = options.settings;
+        window_mode = settings.window_mode;
+        windowed_width = settings.window_width;
+        windowed_height = settings.window_height;
+        windowed_x = settings.window_x;
+        windowed_y = settings.window_y;
+        SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest");
+        Uint32 window_flags = SDL_WINDOW_SHOWN | SDL_WINDOW_ALLOW_HIGHDPI;
+        if (window_mode == byzantine::WindowMode::windowed ||
+            window_mode == byzantine::WindowMode::maximized) {
+            window_flags |= SDL_WINDOW_RESIZABLE;
+        }
         window = SDL_CreateWindow("Byzantine: The Betrayal - scene player",
-                                  SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                                  kScreenWidth * 2, kScreenHeight * 2,
-                                  SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
+                                  windowed_x >= 0 ? windowed_x : SDL_WINDOWPOS_CENTERED,
+                                  windowed_y >= 0 ? windowed_y : SDL_WINDOWPOS_CENTERED,
+                                  windowed_width, windowed_height, window_flags);
         if (window == nullptr) throw std::runtime_error(SDL_GetError());
-        renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+        if (settings.monitor >= 0) {
+            const int displays = SDL_GetNumVideoDisplays();
+            if (settings.monitor < displays) {
+                SDL_Rect bounds{};
+                if (SDL_GetDisplayBounds(settings.monitor, &bounds) == 0) {
+                    SDL_SetWindowPosition(window, bounds.x + (bounds.w - windowed_width) / 2,
+                                          bounds.y + (bounds.h - windowed_height) / 2);
+                }
+            }
+        }
+        Uint32 renderer_flags = SDL_RENDERER_ACCELERATED;
+        if (settings.vsync) renderer_flags |= SDL_RENDERER_PRESENTVSYNC;
+        renderer = SDL_CreateRenderer(window, -1, renderer_flags);
         if (renderer == nullptr) renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
         if (renderer == nullptr) throw std::runtime_error(SDL_GetError());
         SDL_RenderSetLogicalSize(renderer, kScreenWidth, kScreenHeight);
+        apply_scale_mode(settings.scale_mode);
+        apply_vsync(settings.vsync);
+        if (settings.gamepad) open_gamepad();
+        if (window_mode != byzantine::WindowMode::windowed) {
+            apply_window_mode(window_mode);
+        }
         texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB565,
                                     SDL_TEXTUREACCESS_STREAMING, kScreenWidth,
                                     kScreenHeight);
@@ -1445,7 +1976,9 @@ struct Display {
 
         auto root = options.backgrounds;
         if (std::filesystem::is_directory(root / "inventor")) root /= "inventor";
-        const auto strip = find_child(root, "instrip");
+        std::optional<std::filesystem::path> strip =
+            find_language_child(options, false, "inventor", "instrip");
+        if (!strip) strip = find_child(root, "instrip");
         if (strip) {
             bottom_bar = decode_ui_image(*strip, true, true);
             if (!bottom_bar) {
@@ -1476,32 +2009,51 @@ struct Display {
     // "setupart\\top_bar.tga" (0x45d2e8), so accept the case-insensitive child.
     // on_off.rle supplies the row markers and the preference "off" overlays
     // (0x41f94e/0x41f96e).
+    // Rebuilds the localized top bar/strip after a text-language switch. The
+    // images are cached in members, so they must be cleared first.
+    void reload_ui_assets(const Options& options) {
+        top_bar.reset();
+        bottom_bar.reset();
+        hotbar_frames.clear();
+        dwnbar_frames.clear();
+        marker_frames.clear();
+        roll_frames.clear();
+        yellow_frames.clear();
+        auto root = options.backgrounds;
+        if (std::filesystem::is_directory(root / "inventor")) root /= "inventor";
+        auto strip = find_language_child(options, false, "inventor", "instrip");
+        if (!strip) strip = find_child(root, "instrip");
+        if (strip) bottom_bar = decode_ui_image(*strip, true, true);
+        load_top_bar_assets();
+    }
+
     void load_top_bar_assets() {
-        if (ui_options == nullptr || ui_options->backgrounds.empty()) return;
-        auto root = ui_options->backgrounds;
-        std::optional<std::filesystem::path> setup_dir;
-        std::error_code error;
-        if (std::filesystem::is_directory(root / "setupart", error)) {
-            setup_dir = root / "setupart";
-        } else {
-            for (const auto& entry : std::filesystem::directory_iterator(root, error)) {
-                if (!entry.is_directory()) continue;
-                if (lower_ascii(entry.path().filename().string()) == "setupart") {
-                    setup_dir = entry.path();
-                    break;
+        if (ui_options == nullptr) return;
+        const auto setup_asset = [&](const char* stem) -> std::optional<std::filesystem::path> {
+            if (const auto file = find_language_child(*ui_options, false, "setupart", stem)) {
+                return file;
+            }
+            if (ui_options->backgrounds.empty()) return std::nullopt;
+            for (const auto& root : {ui_options->backgrounds,
+                                     ui_options->backgrounds / "copy2hd"}) {
+                std::error_code error;
+                if (std::filesystem::is_directory(root / "setupart", error)) {
+                    if (const auto file = find_child(root / "setupart", stem)) return file;
+                }
+                for (const auto& entry :
+                     std::filesystem::directory_iterator(root, error)) {
+                    if (!entry.is_directory()) continue;
+                    if (lower_ascii(entry.path().filename().string()) != "setupart") continue;
+                    if (const auto file = find_child(entry.path(), stem)) return file;
                 }
             }
-        }
-        if (!setup_dir) {
-            std::cout << "ui_asset_missing name=setupart root=" << root
-                      << " (the top bar stays hidden)\n";
-            return;
-        }
+            return std::nullopt;
+        };
         const auto load_rle_set = [&](const char* stem, std::vector<UiImage>& target) {
-            const auto file = find_child(*setup_dir, stem);
+            const auto file = setup_asset(stem);
             if (!file) {
-                std::cout << "ui_asset_missing name=setupart/" << stem
-                          << ".rle root=" << *setup_dir << '\n';
+                std::cout << "ui_asset_missing name=setupart/" << stem << ".rle"
+                          << " (top bar asset lookup failed)\n";
                 return;
             }
             try {
@@ -1515,7 +2067,7 @@ struct Display {
                           << " error=" << decode_error.what() << '\n';
             }
         };
-        const auto bar = find_child(*setup_dir, "top_bar");
+        const auto bar = setup_asset("top_bar");
         if (bar) {
             top_bar = decode_ui_image(*bar, true, true);
             if (top_bar) {
@@ -1524,8 +2076,8 @@ struct Display {
                           << '\n';
             }
         } else {
-            std::cout << "ui_asset_missing name=setupart/top_bar.tga root="
-                      << *setup_dir << '\n';
+            std::cout << "ui_asset_missing name=setupart/top_bar.tga"
+                      << " (the top bar stays hidden)\n";
         }
         load_rle_set("hotbar", hotbar_frames);
         load_rle_set("dwnbar", dwnbar_frames);
@@ -2248,12 +2800,20 @@ struct Display {
     // centred, exactly like 0x40df05's `mouse - (width >> 1)`.
     SDL_Cursor* cursor_from_image(const UiImage& image, int hot_x, int hot_y) {
         if (image.width <= 0 || image.height <= 0) return nullptr;
+        const int scale = ui_options != nullptr
+                              ? std::clamp(ui_options->settings.cursor_scale, 1, 4)
+                              : 1;
+        const int width = image.width * scale;
+        const int height = image.height * scale;
         SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormat(
-            0, image.width, image.height, 32, SDL_PIXELFORMAT_ARGB8888);
+            0, width, height, 32, SDL_PIXELFORMAT_ARGB8888);
         if (surface == nullptr) return nullptr;
-        for (int row = 0; row < image.height; ++row) {
-            for (int column = 0; column < image.width; ++column) {
-                const auto index = static_cast<std::size_t>(row) * image.width + column;
+        for (int row = 0; row < height; ++row) {
+            for (int column = 0; column < width; ++column) {
+                const int source_row = row / scale;
+                const int source_column = column / scale;
+                const auto index = static_cast<std::size_t>(source_row) * image.width +
+                                   source_column;
                 const auto pixel = image.pixels[index];
                 const auto r = static_cast<std::uint32_t>((pixel >> 11) & 0x1f);
                 const auto g = static_cast<std::uint32_t>((pixel >> 5) & 0x3f);
@@ -2268,11 +2828,20 @@ struct Display {
                 row_pixels[column] = argb;
             }
         }
-        hot_x = std::clamp(hot_x, 0, image.width - 1);
-        hot_y = std::clamp(hot_y, 0, image.height - 1);
+        hot_x = std::clamp(hot_x * scale, 0, width - 1);
+        hot_y = std::clamp(hot_y * scale, 0, height - 1);
         auto* cursor = SDL_CreateColorCursor(surface, hot_x, hot_y);
         SDL_FreeSurface(surface);
         return cursor;
+    }
+
+    void clear_cursor_cache() {
+        for (auto& entry : cursors_) {
+            if (entry.second != nullptr) SDL_FreeCursor(entry.second);
+        }
+        cursors_.clear();
+        cursor_animation.reset();
+        cursor_key_.clear();
     }
 
     // 0x40df05: resolve the choice to art, then install it. `choice.kind ==
@@ -2603,7 +3172,80 @@ struct Session {
     // The writer (FUN_00424dc0) preserves the blocks the port does not model
     // from this image and updates the ones it does.
     std::optional<byzantine::SaveGame> save_base;
+    // Port-only dialogue history and "seen" keys. They never enter a save file.
+    struct DialogueHistoryEntry {
+        std::string speaker;
+        std::string text;
+        bool answer = false;
+    };
+    std::vector<DialogueHistoryEntry> dialogue_history;
+    std::set<std::string> seen_dialogue;
+    // Native menu bridge: the TERCICHLER screen's PORT tab asks the host to
+    // open the port settings overlay; closing it returns to TERCICHLER.
+    bool open_port_settings = false;
+    bool reopen_prefs = false;
+    int port_settings_group = 0;
 };
+
+bool backlog_overlay(Session& session);
+bool write_autosave(Session& session);
+
+std::filesystem::path seen_dialogue_path(const Options& options) {
+    if (!options.config_path.empty()) {
+        return options.config_path.parent_path() / "seen_dialogue.txt";
+    }
+    if (!options.backgrounds.empty()) {
+        return options.backgrounds / "copy2hd" / "savegame" / "byzantine_seen.txt";
+    }
+    return {};
+}
+
+void load_seen_dialogue(Session& session) {
+    const auto path = seen_dialogue_path(session.options);
+    if (path.empty()) return;
+    std::ifstream input(path);
+    if (!input) return;
+    std::string line;
+    std::size_t count = 0;
+    while (std::getline(input, line) && count < 200000) {
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        if (line.empty()) continue;
+        session.seen_dialogue.insert(line);
+        ++count;
+    }
+    std::cout << "dialogue_seen file=" << path << " entries="
+              << session.seen_dialogue.size() << '\n';
+}
+
+void save_seen_dialogue(const Session& session) {
+    const auto path = seen_dialogue_path(session.options);
+    if (path.empty()) return;
+    std::error_code error;
+    if (!path.parent_path().empty()) {
+        std::filesystem::create_directories(path.parent_path(), error);
+    }
+    std::ofstream output(path, std::ios::trunc);
+    if (!output) {
+        std::cout << "dialogue_seen write_failed file=" << path << '\n';
+        return;
+    }
+    for (const auto& key : session.seen_dialogue) output << key << '\n';
+    std::cout << "dialogue_seen saved file=" << path << " entries="
+              << session.seen_dialogue.size() << '\n';
+}
+
+void append_dialogue_history(Session& session, const std::string& speaker,
+                             const std::string& text, bool answer) {
+    if (text.empty()) return;
+    session.dialogue_history.push_back({speaker, text, answer});
+    constexpr std::size_t kMaxHistory = 400;
+    if (session.dialogue_history.size() > kMaxHistory) {
+        session.dialogue_history.erase(
+            session.dialogue_history.begin(),
+            session.dialogue_history.begin() +
+                static_cast<std::ptrdiff_t>(session.dialogue_history.size() - kMaxHistory));
+    }
+}
 
 // 0xbd playback (defined after the clip decoder, below). The script runners need
 // them because the original blocks inside 0x413bdd.
@@ -2614,7 +3256,8 @@ bool play_trace_videos(Session& session, const byzantine::SceneTrace& trace,
 
 // Processed while a sound plays: the script is waiting, so a click must not
 // start another label, but the window still redraws and H/Esc keep working.
-int poll_logged_event(SDL_Event* event, const char* phase, const Session& session) {
+int poll_logged_event(SDL_Event* event, const char* phase, Session& session) {
+    session.display.poll_gamepad();
     const int found = SDL_PollEvent(event);
     if (!found) return found;
     byzantine::diagnostics::write("input", [&](auto& out) {
@@ -2661,7 +3304,9 @@ void pump_window(Session& session) {
             session.running = false;
             return;
         }
-        if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_h) {
+        if (event.type == SDL_KEYDOWN &&
+            key_is(session.options.settings, session.options.settings.key_hotspots,
+                   event.key.keysym.sym)) {
             session.options.overlay = !session.options.overlay;
             session.wait.overlay_toggled = true;
             float pointer_x = 0;
@@ -2669,6 +3314,20 @@ void pump_window(Session& session) {
             session.display.mouse_logical(&pointer_x, &pointer_y);
             session.display.set_hover_overlay(session.view, static_cast<int>(pointer_x),
                                               static_cast<int>(pointer_y));
+            continue;
+        }
+        if (event.type == SDL_KEYDOWN &&
+            key_is(session.options.settings, session.options.settings.key_backlog,
+                   event.key.keysym.sym)) {
+            backlog_overlay(session);
+            continue;
+        }
+        if (event.type == SDL_KEYDOWN &&
+            key_is(session.options.settings, session.options.settings.key_skip,
+                   event.key.keysym.sym)) {
+            session.options.settings.skip_seen = !session.options.settings.skip_seen;
+            std::cout << "dialogue_skip_seen enabled="
+                      << (session.options.settings.skip_seen ? 1 : 0) << '\n';
             continue;
         }
         if (event.type == SDL_MOUSEBUTTONDOWN) {
@@ -2749,7 +3408,11 @@ bool play_events(Session& session, const SceneView& view, const std::vector<Soun
             }
             continue;
         }
-        const auto file = sound_path(session.options.sounds, *name, view.name);
+        std::optional<std::filesystem::path> file;
+        if (session.options.language.voice != nullptr) {
+            file = sound_path(session.options.language.voice->root, *name, view.name);
+        }
+        if (!file) file = sound_path(session.options.sounds, *name, view.name);
         if (!file) {
             if (verbose) {
                 std::cout << "audio step=" << event.step << " id=" << event.id
@@ -2781,7 +3444,11 @@ bool play_events(Session& session, const SceneView& view, const std::vector<Soun
             continue;
         }
         try {
-            if (!session.audio.start(event.id, clip, event.loop)) {
+            const auto bus = event.loop || event.opcode == 0xc4
+                                 ? byzantine::VoiceBus::ambient
+                                 : (event.opcode == 0xd1 ? byzantine::VoiceBus::speech
+                                                         : byzantine::VoiceBus::effects);
+            if (!session.audio.start(event.id, clip, event.loop, bus)) {
                 if (verbose) std::cout << " skipped: mixer rejected the clip\n";
                 continue;
             }
@@ -2946,7 +3613,11 @@ void resume_ambient(Session& session, bool verbose) {
         if (id >= session.view.state.sound_records.size()) continue;
         const auto& name = session.view.state.sound_records[id].name;
         if (name.empty() || name == "endgame") continue;
-        const auto file = sound_path(session.options.sounds, name, session.view.name);
+        std::optional<std::filesystem::path> file;
+        if (session.options.language.voice != nullptr) {
+            file = sound_path(session.options.language.voice->root, name, session.view.name);
+        }
+        if (!file) file = sound_path(session.options.sounds, name, session.view.name);
         if (!file) {
             if (verbose) {
                 std::cout << "ambient_resume id=" << id << " name=" << name
@@ -2957,7 +3628,7 @@ void resume_ambient(Session& session, bool verbose) {
         }
         try {
             const auto clip = byzantine::parse_wav(read_file(*file), file->string());
-            if (session.audio.start(id, clip, true)) {
+            if (session.audio.start(id, clip, true, byzantine::VoiceBus::ambient)) {
                 ++started;
                 if (verbose) {
                     std::cout << "ambient_resume id=" << id << " name=" << name
@@ -2993,16 +3664,32 @@ void load_scene_text(Session& session, bool verbose) {
     session.scene_text.reset();
     session.view.examine_text = {};
     session.view.message_text = {};
-    const auto found = session.options.scene.find("--ce");
-    if (found == session.options.scene.end()) return;
+    std::optional<std::filesystem::path> path;
+    // The text pack's split CE record is the text-language source; the
+    // --ce path from the launcher is the base fallback.
+    const auto scene = upper_ascii(session.view.name);
+    for (const auto& relative : {std::string("ce/") + scene,
+                                 std::string("copy2hd/engine/") + scene + "ce"}) {
+        if (const auto file = session.options.language.find_text(relative)) {
+            path = *file;
+            break;
+        }
+    }
+    if (!path) {
+        const auto found = session.options.scene.find("--ce");
+        if (found == session.options.scene.end()) return;
+        path = found->second;
+    }
     try {
-        session.scene_text = byzantine::parse_scene_text(read_file(found->second));
+        session.scene_text = byzantine::parse_scene_text(read_file(*path));
         if (verbose) {
-            std::cout << "scene_text file=" << found->second
-                      << " entries=" << session.scene_text->entries.size() << '\n';
+            std::cout << "scene_text file=" << *path
+                      << " entries=" << session.scene_text->entries.size()
+                      << " text_lang=" << session.options.language.text_code_or_base()
+                      << '\n';
         }
     } catch (const std::exception& error) {
-        std::cout << "scene_text " << found->second << ": " << error.what() << '\n';
+        std::cout << "scene_text " << *path << ": " << error.what() << '\n';
     }
 }
 
@@ -3010,29 +3697,40 @@ void load_scene_text(Session& session, bool verbose) {
 // text. The file is CP1254; the font drawer uses the game byte encoding.
 void load_messages(Session& session, bool verbose) {
     session.messages.clear();
-    if (session.options.messages.empty()) return;
+    std::optional<std::filesystem::path> path;
+    for (const auto& relative : {std::string("setupart/MESSAGES.TXT"),
+                                 std::string("copy2hd/setupart/MESSAGES.TXT")}) {
+        if (const auto file = session.options.language.find_text(relative)) {
+            path = *file;
+            break;
+        }
+    }
+    if (!path && !session.options.messages.empty()) path = session.options.messages;
+    if (!path) return;
     try {
-        const auto bytes = read_file(session.options.messages);
+        const auto bytes = read_file(*path);
         std::string line;
+        const auto add = [&]() {
+            if (!line.empty() && line.back() == '\r') line.pop_back();
+            session.messages.push_back(decode_messages_line(session.options, line));
+            line.clear();
+        };
         for (const auto byte : bytes) {
-            if (byte == '\n') {
-                if (!line.empty() && line.back() == '\r') line.pop_back();
-                session.messages.push_back(byzantine::cp1254_to_game_text(line));
-                line.clear();
-            } else {
-                line.push_back(static_cast<char>(byte));
-            }
+            if (byte == '\n') add();
+            else line.push_back(static_cast<char>(byte));
         }
-        if (!line.empty()) {
-            if (line.back() == '\r') line.pop_back();
-            session.messages.push_back(byzantine::cp1254_to_game_text(line));
-        }
+        if (!line.empty()) add();
         if (verbose) {
-            std::cout << "messages file=" << session.options.messages
-                      << " lines=" << session.messages.size() << '\n';
+            std::cout << "messages file=" << *path
+                      << " lines=" << session.messages.size()
+                      << " text_lang=" << session.options.language.text_code_or_base()
+                      << " encoding=" << session.options.language.messages_encoding()
+                      << " english_font="
+                      << (session.options.language.english_font_branch() ? 1 : 0)
+                      << '\n';
         }
     } catch (const std::exception& error) {
-        std::cout << "messages " << session.options.messages << ": " << error.what()
+        std::cout << "messages " << *path << ": " << error.what()
                   << " (conversation exit dialog uses fallback labels)\n";
     }
 }
@@ -3647,6 +4345,10 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose,
               << " locals_digest=0x" << std::hex << locals_digest(session.view.state)
               << std::dec << '\n';
     warn_if_nothing_clickable(session.view, "entry");
+    if (save_path.empty() && session.interactive &&
+        session.options.settings.autosave && !entry_session_ended) {
+        write_autosave(session);
+    }
     return session.running;
 }
 
@@ -4440,6 +5142,13 @@ std::string strip_ccd(std::string file) {
 std::optional<std::filesystem::path> conversation_clip_file(
     const Options& options, const std::string& conversation, const std::string& clip) {
     const auto lookup = [&]() -> std::optional<std::filesystem::path> {
+        // The voice pack is the speech authority. Its dialog/<conversation>
+        // tree (or the flat avi/ tree) wins over the base language.
+        for (const auto& relative :
+             {std::string("dialog/") + conversation + "/" + clip + ".avi",
+              std::string("avi/") + clip + ".avi"}) {
+            if (const auto file = options.language.find_voice(relative)) return file;
+        }
         const auto directory = find_directory_child(options.dialog, conversation);
         if (directory) {
             const auto file = find_filename(*directory, clip + ".avi");
@@ -4661,7 +5370,11 @@ std::optional<DecodedClip> dialog_clip_cache(const Options& options,
     const auto cache_root = options.dialog_cache.empty() ? options.dialog / ".cache"
                                                          : options.dialog_cache;
     if (cache_root.empty()) return std::nullopt;
-    return decode_clip_cache(cache_root / lower_ascii(conversation) / lower_ascii(clip),
+    // The same conversation/clip name can carry different dubbed audio. Keep
+    // the decoded frames under the selected voice pack so switching languages
+    // never reuses the other language's AVI.
+    return decode_clip_cache(cache_root / lower_ascii(options.language.voice_code_or_base()) /
+                                 lower_ascii(conversation) / lower_ascii(clip),
                              avi, clip, kConversationClipTags, verbose);
 }
 
@@ -4732,7 +5445,7 @@ ClipPlayback play_decoded_clip(Session& session, const DecodedClip& decoded,
     }
     if (sound) {
         try {
-            session.audio.queue(*sound);
+            session.audio.queue(*sound, byzantine::VoiceBus::speech);
             std::cout << tags.audio << " clip=" << clip
                       << " wav=" << decoded.audio->filename().string()
                       << " duration_ms=" << sound->duration_ms
@@ -4810,8 +5523,24 @@ ClipPlayback play_decoded_clip(Session& session, const DecodedClip& decoded,
             // 0x413bdd's video loop has no ESC branch; ESC is 0x436b01's
             // answer-list cancel and must not terminate the player here.
             if (event_poll.type == SDL_KEYDOWN &&
-                event_poll.key.keysym.sym == SDLK_h) {
+                key_is(session.options.settings,
+                       session.options.settings.key_hotspots,
+                       event_poll.key.keysym.sym)) {
                 session.options.overlay = !session.options.overlay;
+            }
+            if (event_poll.type == SDL_KEYDOWN &&
+                key_is(session.options.settings,
+                       session.options.settings.key_backlog,
+                       event_poll.key.keysym.sym)) {
+                backlog_overlay(session);
+            }
+            if (event_poll.type == SDL_KEYDOWN &&
+                key_is(session.options.settings,
+                       session.options.settings.key_skip,
+                       event_poll.key.keysym.sym)) {
+                session.options.settings.skip_seen = !session.options.settings.skip_seen;
+                std::cout << "dialogue_skip_seen enabled="
+                          << (session.options.settings.skip_seen ? 1 : 0) << '\n';
             }
         }
     }
@@ -4910,6 +5639,7 @@ std::optional<std::filesystem::path> video_clip_file(
     }
     const auto candidates = byzantine::video_candidates(request.mode, request.name);
     for (const auto& candidate : candidates) {
+        if (const auto file = options.language.find_voice(candidate.relative)) return file;
         for (const auto& root : roots) {
             if (const auto file = byzantine::find_video_file(root, candidate.relative)) {
                 return file;
@@ -5028,7 +5758,8 @@ bool play_cf_video(Session& session, const byzantine::SceneVideoRequest& request
     const auto cache_root = session.options.dialog_cache.empty()
                                 ? session.options.backgrounds / ".cache"
                                 : session.options.dialog_cache;
-    const auto directory = cache_root / "cf" / lower_ascii(session.view.name) /
+    const auto directory = cache_root / lower_ascii(session.options.language.voice_code_or_base()) /
+                           "cf" / lower_ascii(session.view.name) /
                            lower_ascii(request.name);
     const auto decoded =
         decode_clip_cache(directory, *file, request.name, kSceneClipTags, verbose);
@@ -5688,6 +6419,64 @@ std::string utf8_to_cp1254(const std::string& text) {
 // Defined after run_conversation (0x41e002 needs the conversation runner).
 bool play_hints_conversation(Session& session);
 
+// Host captions follow the serif style baked into PREFFS/ROLL. These are
+// bundled regular-serif masks, not a reconstructed font from those images.
+std::string menu_uppercase(std::string text) {
+    for (auto& ch : text) {
+        const auto code = static_cast<unsigned char>(ch);
+        switch (code) {
+            case 0xa7: ch = static_cast<char>(0xa1); break;
+            case 0xa8: ch = static_cast<char>(0xa2); break;
+            case 0xaa: ch = 'I'; break;
+            case 0xab: ch = static_cast<char>(0xa4); break;
+            case 0xac: ch = static_cast<char>(0xa5); break;
+            case 0xad: ch = static_cast<char>(0xa6); break;
+            case 'i': ch = static_cast<char>(0xa3); break;
+            default:
+                if (code >= 'a' && code <= 'z') ch = static_cast<char>(code - 'a' + 'A');
+                break;
+        }
+    }
+    return text;
+}
+
+// Host menu decoration, drawn over the shipped notebook at logical 640x480.
+void notebook_frame(Display& display, SDL_Rect r, bool selected = false) {
+    for (int y = r.y; y < r.y + r.h; ++y)
+        for (int x = r.x; x < r.x + r.w; ++x) {
+            const auto pixel = display.screen.at(x, y);
+            display.screen.at(x, y) = byzantine::shade_pixel(pixel);
+        }
+    const std::uint16_t gold = selected ? 0xF6AC : 0xA423;
+    display.fill_rect(r.x + 3, r.y, r.w - 6, 1, gold);
+    display.fill_rect(r.x + 3, r.y + r.h - 1, r.w - 6, 1, gold);
+    display.fill_rect(r.x, r.y + 3, 1, r.h - 6, gold);
+    display.fill_rect(r.x + r.w - 1, r.y + 3, 1, r.h - 6, gold);
+    for (int dx : {0, r.w - 5}) for (int dy : {0, r.h - 5}) {
+        display.fill_rect(r.x + dx + 1, r.y + dy + 1, 3, 1, gold);
+        display.fill_rect(r.x + dx + 1, r.y + dy + 1, 1, 3, gold);
+    }
+}
+
+void notebook_arrow(Display& display, int x, int y, int direction) {
+    for (int column = 0; column < 5; ++column) {
+        const int height = direction > 0 ? 5 - column : column + 1;
+        display.fill_rect(x + column, y - height, 1, height * 2 - 1, 0xEDAA);
+    }
+}
+
+void notebook_rule(Display& display, int x, int y, int width) {
+    display.fill_rect(x, y, width, 1, 0xA423);
+    for (int center : {x + 8, x + width / 2 - 9, x + width / 2,
+                       x + width / 2 + 9, x + width - 8}) {
+        for (int d = -3; d <= 3; ++d) {
+            const int h = 3 - std::abs(d);
+            display.fill_rect(center + d, y - h, 1, 1, 0xEDAA);
+            display.fill_rect(center + d, y + h, 1, 1, 0xEDAA);
+        }
+    }
+}
+
 struct MenuUi {
     enum class Confirm { none, delete_slot, quit, overwrite };
 
@@ -5744,6 +6533,18 @@ struct MenuUi {
     }
 
     static std::optional<std::filesystem::path> setup_dir(const Options& options) {
+        // The text pack's localized menu/notebook art wins; the base tree is
+        // the fallback. A pack that omits a file falls back only when the
+        // caller uses find_language_child, not through this directory helper.
+        for (const auto& relative : {std::string("setupart"),
+                                     std::string("copy2hd/setupart")}) {
+            if (const auto directory = byzantine::find_relative(
+                    options.language.text != nullptr ? options.language.text->root
+                                                     : options.language.base,
+                    relative)) {
+                return *directory;
+            }
+        }
         if (options.backgrounds.empty()) return std::nullopt;
         std::error_code error;
         if (std::filesystem::is_directory(options.backgrounds / "setupart", error)) {
@@ -5885,6 +6686,9 @@ struct MenuUi {
     }
 
     void open_screen(int value, Session& session) {
+        // A text-language change can replace setupart/*; never reuse the old
+        // decoded screen for this menu opening.
+        art_cache.clear();
         mode = value;
         hover = -1;
         kesif_hover = -1;
@@ -5944,17 +6748,20 @@ struct MenuUi {
     const byzantine::Rgb16Surface* art(Session& session, int value) {
         const auto cached = art_cache.find(value);
         if (cached != art_cache.end()) return &cached->second;
-        const auto root = MenuUi::setup_dir(session.options);
-        if (!root) return nullptr;
         const char* names[] = {"preffs", "setup00", "setup00", "s_note00",
                                "s_note01", "s_note02", "credbk", "hints"};
         const int index = (value >= 0 && value <= 7) ? value : -1;
         if (index < 0) return nullptr;
-        const auto file = find_child(*root, names[index]);
+        std::optional<std::filesystem::path> file =
+            find_language_child(session.options, false, "setupart", names[index]);
         if (!file) {
-            std::cout << "menu_art_missing mode=" << value << " name=" << names[index]
-                      << " root=" << *root << '\n';
-            return nullptr;
+            const auto root = MenuUi::setup_dir(session.options);
+            if (root) file = find_child(*root, names[index]);
+            if (!file) {
+                std::cout << "menu_art_missing mode=" << value << " name=" << names[index]
+                          << " root=" << (root ? root->string() : std::string()) << '\n';
+                return nullptr;
+            }
         }
         try {
             const auto image = byzantine::decode_jpeg_file(file->string());
@@ -6219,7 +7026,11 @@ struct MenuUi {
                 return entry.slot == static_cast<std::uint16_t>(dialog);
             });
         if (record == session.save_base->scene_records.end()) return {};
-        const auto file = find_child(session.options.byz, record->name);
+        std::optional<std::filesystem::path> file =
+            find_language_child(session.options, false, "byz", record->name);
+        if (!file && !session.options.byz.empty()) {
+            file = find_child(session.options.byz, record->name);
+        }
         if (!file) return {};
         try {
             const auto bytes = read_file(*file);
@@ -6235,7 +7046,7 @@ struct MenuUi {
                 }
             }
             if (index != line) return {};
-            return byzantine::cp1254_to_game_text(text);
+            return decode_messages_line(session.options, text);
         } catch (const std::exception&) {
             return {};
         }
@@ -6328,6 +7139,43 @@ struct MenuUi {
         }
     }
 
+    bool advanced_hover = false;
+    std::optional<byzantine::SfnFont> notebook_face;
+
+    static SDL_Rect port_banner_rect() {
+        return SDL_Rect{380, 412, 226, 29};
+    }
+
+    void draw_port_tab(Session& session) {
+        if (!notebook_face) notebook_face = byzantine::menu_typeface(true);
+        const auto* font = &*notebook_face;
+        auto& display = session.display;
+        const auto rect = port_banner_rect();
+        if (advanced_hover) notebook_frame(display, rect, true);
+        byzantine::draw_text(display.screen, *font,
+                             std::string("> ") + advanced_settings_label(),
+                             rect.x + 12, rect.y + 5, 1, 3,
+                             advanced_hover ? 0xF6AC : 0x0000);
+        notebook_arrow(display, rect.x + rect.w - 14, rect.y + 14, 1);
+        if (!advanced_hover) return;
+        const auto* prose = font;
+        byzantine::draw_text(display.screen, *prose,
+                             byzantine::utf8_to_turkish_game_text("AÇIKLAMA"),
+                             54, 62, 1, 3, 0xFFE0);
+        byzantine::draw_text(display.screen, *font, advanced_settings_label(),
+                             54, 89, 1, 3, 0xFF39);
+        const auto lines = wrap_dialog_text(*prose,
+            byzantine::utf8_to_turkish_game_text(
+                "Görüntü, ses, dil ve kontrol seçeneklerini düzenleyin. "
+                "Kendi sisteminize en uygun ayarları bu menüden seçebilirsiniz."), 183);
+        int y = 120;
+        for (const auto& line : lines) {
+            if (y + prose->line_height > 326) break;
+            byzantine::draw_text(display.screen, *prose, line, 54, y, 1, 3, 0xFF39);
+            y += prose->line_height + 2;
+        }
+    }
+
     void draw(Session& session) {
         display_ = &session.display;
         if (editing) {
@@ -6366,7 +7214,10 @@ struct MenuUi {
         for (int id = 0; id <= 5; ++id) {
             if (control_enabled(id)) draw_marker(id);
         }
-        if (mode == 0) draw_preferences(session);
+        if (mode == 0) {
+            draw_preferences(session);
+            draw_port_tab(session);
+        }
         if (mode == 1) draw_save_slots(session);
         if (mode == 2) draw_kesif(session);
         if (mode == 4) draw_contacts(session);
@@ -6382,13 +7233,23 @@ struct MenuUi {
         float x = 0;
         float y = 0;
         session.display.mouse_logical(&x, &y);
-        const bool clickable = hit_control(static_cast<int>(x), static_cast<int>(y)) >= 0;
+        bool clickable = hit_control(static_cast<int>(x), static_cast<int>(y)) >= 0;
+        if (!clickable && mode == 0) {
+            const auto tab = port_banner_rect();
+            clickable = x >= tab.x && x < tab.x + tab.w && y >= tab.y &&
+                        y < tab.y + tab.h;
+
+        }
         byzantine::CursorChoice choice;
         choice.id = clickable ? 0x1e : 0;
         session.display.set_cursor(session.view, choice);
     }
 
     bool hover_at(Session& session, int x, int y) {
+        const bool previous_advanced = advanced_hover;
+        const auto banner = port_banner_rect();
+        advanced_hover = mode == 0 && x >= banner.x && x < banner.x + banner.w &&
+                         y >= banner.y && y < banner.y + banner.h;
         const int previous = hover;
         const int previous_kesif = kesif_hover;
         hover = hit_control(x, y);
@@ -6397,7 +7258,8 @@ struct MenuUi {
         } else {
             kesif_hover = -1;
         }
-        if (hover == previous && kesif_hover == previous_kesif) return false;
+        if (hover == previous && kesif_hover == previous_kesif &&
+            advanced_hover == previous_advanced) return false;
         if (hover >= 0) {
             std::cout << "menu_hover control=" << hover
                       << (kesif_hover >= 0 ? " row=" + std::to_string(kesif_hover) : "")
@@ -6439,6 +7301,11 @@ struct MenuUi {
             output.write(bytes, 4);
         }
         std::cout << "menu_prefs_write file=" << path << '\n';
+        // A travel loads its target setup from this path. If scene.sh initially
+        // fell back to the CD's GAMEPREF.000, switch the live option to the file
+        // we just wrote so the next scene actually sees the toggle.
+        session.options.scene["--gameprefs"] = path.string();
+        std::cout << "menu_prefs_live_path=" << path.string() << '\n';
         return static_cast<bool>(output);
     }
 
@@ -6753,8 +7620,9 @@ struct MenuUi {
         const auto cache_root = session.options.dialog_cache.empty()
                                     ? session.options.backgrounds / ".cache"
                                     : session.options.dialog_cache;
-        const auto decoded = decode_clip_cache(cache_root / "menu" / name, *file, name,
-                                               kSceneClipTags, true);
+        const auto decoded = decode_clip_cache(
+            cache_root / lower_ascii(session.options.language.voice_code_or_base()) / "menu" / name,
+            *file, name, kSceneClipTags, true);
         if (!decoded) {
             return set_notice(session, "Film cozulemedi: " + name, "movie_decode");
         }
@@ -6792,7 +7660,14 @@ struct MenuUi {
         const auto* font = menu_font(session);
         if (font == nullptr) return false;
         std::optional<std::filesystem::path> text;
-        for (const auto& candidate :
+        for (const auto& relative : {std::string("text/CREDITS.TXT"),
+                                     std::string("copy2hd/text/CREDITS.TXT")}) {
+            if (const auto file = session.options.language.find_text(relative)) {
+                text = *file;
+                break;
+            }
+        }
+        if (!text) for (const auto& candidate :
              {session.options.backgrounds / "text" / "CREDITS.TXT",
               session.options.backgrounds / "copy2hd" / "text" / "CREDITS.TXT",
               session.options.backgrounds / "setupart" / "CREDITS.TXT"}) {
@@ -6814,7 +7689,7 @@ struct MenuUi {
             const auto flush = [&]() {
                 bool heading = !line.empty() && line.front() == '$';
                 if (heading) line.erase(line.begin());
-                lines.push_back(byzantine::cp1254_to_game_text(line));
+                lines.push_back(decode_messages_line(session.options, line));
                 headings.push_back(heading);
                 line.clear();
             };
@@ -6837,7 +7712,8 @@ struct MenuUi {
             if (wav) {
                 try {
                     session.audio.queue(byzantine::parse_wav(read_file(*wav),
-                                                             wav->string()));
+                                                             wav->string()),
+                                        byzantine::VoiceBus::ambient);
                     std::cout << "menu_credits audio=" << wav->filename().string()
                               << '\n';
                 } catch (const std::exception& error) {
@@ -6980,6 +7856,17 @@ struct MenuUi {
             std::cout << "menu_credits close\n";
             present(session);
             return true;
+        }
+        if (mode == 0) {
+            const auto banner = port_banner_rect();
+            if (x >= banner.x && x < banner.x + banner.w && y >= banner.y &&
+                y < banner.y + banner.h) {
+                session.port_settings_group = -1;
+                session.open_port_settings = true;
+                open = false;
+                std::cout << "menu_port_settings open from TERCICHLER hub\n";
+                return true;
+            }
         }
         const int hit = hit_control(x, y);
         std::cout << "menu_click x=" << x << " y=" << y << " control=" << hit
@@ -7146,34 +8033,95 @@ struct MenuUi {
 // Deterministic input for --menu-click-at/--menu-text/--menu-key: the same
 // handlers the window's event loop uses, in the order the arguments appear on
 // the command line is not preserved; clicks, then text, then keys.
-void apply_headless_menu_input(Session& session, MenuUi& menu, const Options& options) {
-    for (const auto& point : options.menu_clicks) {
-        if (!menu.open) break;
-        menu.click(session, point.first, point.second);
-    }
-    for (const auto& text : options.menu_texts) {
-        if (!menu.open || !menu.editing) break;
-        menu.text_input(session, text);
-    }
-    for (const auto& name : options.menu_keys) {
-        if (!menu.open || !menu.editing) break;
-        SDL_KeyboardEvent key{};
-        key.type = SDL_KEYDOWN;
-        if (name == "enter" || name == "return") key.keysym.sym = SDLK_RETURN;
-        else if (name == "escape" || name == "esc") key.keysym.sym = SDLK_ESCAPE;
-        else if (name == "backspace") key.keysym.sym = SDLK_BACKSPACE;
-        else {
-            std::cout << "menu_key unknown=" << name << '\n';
-            continue;
-        }
-        menu.key_event(session, key);
-    }
-    for (const auto& point : options.menu_hovers) {
-        if (!menu.open || menu.editing) break;
-        menu.hover_at(session, point.first, point.second);
-    }
-}
+struct SettingsUi;
+void apply_headless_menu_input(Session&, MenuUi&, const Options&, SettingsUi&);
 
+// Port-only dialogue log. It freezes the caller (scene, text wait, clip or
+// answer list) and draws the remembered lines on the 640x480 screen. The game
+// state is untouched; closing simply returns to the caller's presenter.
+bool backlog_overlay(Session& session) {
+    const auto* font = session.display.setup_font
+                           ? &*session.display.setup_font
+                           : (session.display.dialog_font ? &*session.display.dialog_font
+                                                          : nullptr);
+    if (font == nullptr) {
+        std::cout << "backlog skipped: no DIALOG/setup font\n";
+        return false;
+    }
+    int scroll = 0;
+    const auto previous = session.display.content;
+    session.display.enter_content(ScreenContent::menu);
+    while (session.running) {
+        auto& display = session.display;
+        display.fill_rect(0, 0, kScreenWidth, kScreenHeight, 0x10a2);
+        display.fill_rect(20, 18, 600, 444, 0x0000);
+        display.fill_rect(22, 20, 596, 440, 0x0861);
+        byzantine::draw_text(display.screen, *font, "DIYALOG GECMISI", 40, 30, 1, 3,
+                             0xffff);
+        std::vector<std::string> lines;
+        std::vector<bool> answers;
+        for (const auto& entry : session.dialogue_history) {
+            std::string text;
+            if (!entry.speaker.empty()) text = entry.speaker + ": ";
+            if (entry.answer) text = "> " + text;
+            text += entry.text;
+            const auto wrapped = wrap_dialog_text(*font, text, 560);
+            for (const auto& line : wrapped) {
+                lines.push_back(line);
+                answers.push_back(entry.answer);
+            }
+        }
+        const int line_height = std::max(12, font->line_height);
+        const int visible = std::max(1, (420 - 72) / line_height);
+        const int maximum = std::max(0, static_cast<int>(lines.size()) - visible);
+        scroll = std::clamp(scroll, 0, maximum);
+        const int first = std::max(0, static_cast<int>(lines.size()) - visible - scroll);
+        int y = 72;
+        if (lines.empty()) {
+            byzantine::draw_text(display.screen, *font, "Henuz diyalog yok.", 40, y, 1,
+                                 3, 0xce79);
+        }
+        for (int index = first;
+             index < static_cast<int>(lines.size()) && y + line_height <= 420; ++index) {
+            byzantine::draw_text(display.screen, *font, lines[static_cast<std::size_t>(index)],
+                                 40, y, 1, 3,
+                                 answers[static_cast<std::size_t>(index)] ? 0x03eb
+                                                                          : 0xffff);
+            y += line_height;
+        }
+        byzantine::draw_text(display.screen, *font,
+                             "F3 / ESC kapat    yukari-asagi kaydir    tekerlek",
+                             40, 438, 1, 3, 0xce79);
+        display.present_image(display.screen, session.view, 0, "backlog");
+        SDL_Event event;
+        while (poll_logged_event(&event, "backlog", session)) {
+            if (event.type == SDL_QUIT) {
+                session.running = false;
+            } else if (event.type == SDL_KEYDOWN) {
+                const auto key = event.key.keysym.sym;
+                if (key == SDLK_ESCAPE ||
+                    key_is(session.options.settings,
+                           session.options.settings.key_backlog, key)) {
+                    session.display.restore_content(previous);
+                    session.display.present(session.view);
+                    return true;
+                }
+                if (key == SDLK_UP) ++scroll;
+                else if (key == SDLK_DOWN) --scroll;
+                else if (key == SDLK_PAGEUP) scroll += visible;
+                else if (key == SDLK_PAGEDOWN) scroll -= visible;
+                else if (key == SDLK_HOME) scroll = maximum;
+                else if (key == SDLK_END) scroll = 0;
+            } else if (event.type == SDL_MOUSEWHEEL) {
+                scroll += event.wheel.y > 0 ? 1 : -1;
+            }
+            scroll = std::clamp(scroll, 0, maximum);
+        }
+        SDL_Delay(16);
+    }
+    session.display.restore_content(previous);
+    return true;
+}
 
 bool wait_dialog_ms(Session& session, std::uint64_t milliseconds) {
     const auto start = std::chrono::steady_clock::now();
@@ -7222,8 +8170,12 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
     outcome.name = record.name;
     const auto stem = strip_ccd(record.file);
     const auto ccb = find_child(options.ccb, stem);
-    const auto ccf = find_child(options.ccf, stem);
-    const auto byz = find_child(options.byz, stem);
+    std::optional<std::filesystem::path> ccf =
+        find_language_child(options, true, "ccf", stem);
+    if (!ccf && !options.ccf.empty()) ccf = find_child(options.ccf, stem);
+    std::optional<std::filesystem::path> byz =
+        find_language_child(options, false, "byz", stem);
+    if (!byz && !options.byz.empty()) byz = find_child(options.byz, stem);
     if (!ccb || !ccf || !byz) {
         std::cout << "conversation record=" << record_index << " name=" << record.name
                   << " stopped: missing"
@@ -7241,11 +8193,24 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                   << " parse_error=" << error.what() << '\n';
         return outcome;
     }
+    if (program.clips.size() != program.texts.size()) {
+        // The CCF list comes from the voice pack and the BYZ list from the text
+        // pack, so a mixed selection can expose a translation that changed the
+        // line count. Keep the conversation runnable but name the mismatch.
+        std::cout << "conversation_pairing record=" << record_index
+                  << " name=" << record.name << " clips=" << program.clips.size()
+                  << " texts=" << program.texts.size()
+                  << " text_lang=" << options.language.text_code_or_base()
+                  << " voice_lang=" << options.language.voice_code_or_base()
+                  << " (a line may be missing in one pack)\n";
+    }
     if (verbose) {
         std::cout << "conversation record=" << record_index << " name=" << record.name
                   << " stem=" << stem << " clips=" << program.clips.size()
                   << " texts=" << program.texts.size()
                   << " trailing_bytes=" << program.trailing_bytes
+                  << " text_lang=" << options.language.text_code_or_base()
+                  << " voice_lang=" << options.language.voice_code_or_base()
                   << " object_context=" << object_context << '\n';
     }
     // DAT_00482ad0[record_index]: 0x410669 allocates it once and 0x432d6e
@@ -7311,6 +8276,12 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
     // player's line becomes the subtitle, like any other spoken line.
     const auto show_answer_line = [&](const byzantine::ConversationAnswer& answer) {
         if (!answer.show_text) return;
+        append_dialogue_history(session, std::string(), answer.text, true);
+        if (!session.options.settings.subtitles) {
+            ui.clear_caption();
+            ui.present(session);
+            return;
+        }
         ui.set_caption(answer.text);
         if (verbose) {
             std::cout << "conversation_caption source=answer line=" << answer.line
@@ -7367,15 +8338,31 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
         }
         if (event.kind == byzantine::ConversationEventKind::line) {
             ++outcome.lines;
+            const auto line_key = record.name + "#" + std::to_string(event.line.index) +
+                                  "#" + event.line.clip;
+            const bool seen_before = session.seen_dialogue.count(line_key) != 0;
+            const bool skip_line = session.options.settings.skip_seen && seen_before;
+            if (event.line.show_text) {
+                append_dialogue_history(session, event.line.speaker, event.line.text, false);
+            }
+            session.seen_dialogue.insert(line_key);
+            if (skip_line) {
+                std::cout << "conversation_skip record=" << record_index
+                          << " index=" << event.line.index
+                          << " clip=" << event.line.clip
+                          << " reason=seen_before\n";
+            }
             // 0x424780 only replaces the subtitle for a line with text; a
             // "null"/no-text line leaves the previous line visible.
-            if (event.line.show_text) {
+            if (event.line.show_text && session.options.settings.subtitles && !skip_line) {
                 ui.set_caption(event.line.text);
                 if (verbose) {
                     std::cout << "conversation_caption source=npc index="
                               << event.line.index
                               << " visual_lines=" << ui.caption.size() << '\n';
                 }
+            } else if (!session.options.settings.subtitles || skip_line) {
+                ui.clear_caption();
             }
             ui.present(session);
             if (verbose) {
@@ -7388,7 +8375,11 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                           << " group=" << event.group << '\n';
             }
             bool media_played = false;
-            if (event.line.media_allowed && options.dialog.empty()) {
+            if (skip_line) {
+                // A replayed line is skipped completely (text and AVI) when the
+                // session's skip-seen toggle is on. First-time lines are never
+                // skipped; the key is inserted only after this check.
+            } else if (event.line.media_allowed && options.dialog.empty()) {
                 std::cout << "conversation_media clip=" << event.line.clip
                           << " not configured (--dialog); text stays\n";
             } else if (event.line.media_allowed) {
@@ -7441,7 +8432,8 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                     }
                 }
             }
-            if (!media_played && event.line.show_text && session.interactive) {
+            if (!media_played && event.line.show_text && session.interactive &&
+                !skip_line) {
                 // 0x424981's reveal: roughly one second per visual line.
                 if (!wait_dialog_ms(
                         session, static_cast<std::uint64_t>(ui.caption.size()) * 700)) {
@@ -7673,8 +8665,22 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                             }
                         }
                     } else if (event_poll.type == SDL_KEYDOWN &&
-                               event_poll.key.keysym.sym == SDLK_h) {
+                               key_is(session.options.settings,
+                                      session.options.settings.key_hotspots,
+                                      event_poll.key.keysym.sym)) {
                         session.options.overlay = !session.options.overlay;
+                    } else if (event_poll.type == SDL_KEYDOWN &&
+                               key_is(session.options.settings,
+                                      session.options.settings.key_backlog,
+                                      event_poll.key.keysym.sym)) {
+                        backlog_overlay(session);
+                    } else if (event_poll.type == SDL_KEYDOWN &&
+                               key_is(session.options.settings,
+                                      session.options.settings.key_skip,
+                                      event_poll.key.keysym.sym)) {
+                        session.options.settings.skip_seen = !session.options.settings.skip_seen;
+                        std::cout << "dialogue_skip_seen enabled="
+                                  << (session.options.settings.skip_seen ? 1 : 0) << '\n';
                     } else if (event_poll.type == SDL_MOUSEBUTTONUP &&
                                event_poll.button.button == SDL_BUTTON_LEFT) {
                         // SDL_RendererEventWatch already made button.x/y logical.
@@ -7795,9 +8801,15 @@ bool play_hints_conversation(Session& session) {
     session.options.cb_path = session.view.cb_path;
     // HINTS.JPG is a 640x480 screen; the conversation compositor places the
     // playfield at row 0x14, so copy the matching rows.
-    const auto root = MenuUi::setup_dir(session.options);
-    if (root) {
-        if (const auto file = find_child(*root, "hints")) {
+    std::optional<std::filesystem::path> hints_file =
+        find_language_child(session.options, false, "setupart", "hints");
+    if (!hints_file) {
+        const auto root = MenuUi::setup_dir(session.options);
+        if (root) hints_file = find_child(*root, "hints");
+    }
+    if (hints_file) {
+        {
+            const auto& file = hints_file;
             try {
                 const auto image = byzantine::decode_jpeg_file(file->string());
                 byzantine::Rgb16Surface surface =
@@ -7868,6 +8880,11 @@ bool restart_scene(Session& session,
     fresh.script = std::move(session.view.script);
     fresh.entries = std::move(session.view.entries);
     fresh.entry_state = session.view.entry_state;
+    // A TERCICHLER toggle edits the live state; a reload must not revive the
+    // prefs snapshot taken when the scene was first entered.
+    if (session.view.state.gameprefs) {
+        fresh.entry_state.gameprefs = session.view.state.gameprefs;
+    }
     fresh.state = fresh.entry_state;
     fresh.pool_on_arrival = session.view.pool_on_arrival;
     fresh.panorama_size = session.view.panorama_size;
@@ -8090,6 +9107,1181 @@ bool execute_plan(Session& session, const ClickPlan& plan,
     return true;
 }
 
+void load_fonts(Session& session, bool verbose) {
+    auto& options = session.options;
+    session.display.examine_font.reset();
+    session.display.message_font.reset();
+    session.display.dialog_font.reset();
+    session.display.setup_font.reset();
+    session.display.caption_font.reset();
+    if (options.fonts.empty() && options.language.text == nullptr) {
+        std::cout << "fonts disabled: no --fonts and no text pack (the text windows stay blank)\n";
+        return;
+    }
+    const auto child = [&](const char* name) -> std::optional<std::filesystem::path> {
+        if (const auto file = find_language_child(options, false, "fonts", name)) return file;
+        if (!options.fonts.empty()) return find_child(options.fonts, name);
+        return std::nullopt;
+    };
+    const auto exact = [&](const char* name) -> std::optional<std::filesystem::path> {
+        if (const auto file = find_language_filename(options, false, "fonts", name)) return file;
+        if (!options.fonts.empty()) return find_filename(options.fonts, name);
+        return std::nullopt;
+    };
+    const bool english = options.language.english_font_branch();
+    const auto mark = [&](auto& font) {
+        if (font) font->english_high_bytes = english;
+    };
+
+    const auto sfn = child("klio");
+    const auto gr = child("gr_klio");
+    const auto bk = child("bk_klio");
+    if (sfn && gr && bk) {
+        try {
+            // 0x406cfe slots 1 and 3: the same klio metrics/atlas, fill
+            // 0x1b<<5 (examine) and (0xb<<11)|(0xe<<6)|2 (message).
+            session.display.examine_font = byzantine::load_sfn_font(
+                sfn->string(), gr->string(), bk->string(), 0x0360);
+            session.display.message_font = byzantine::load_sfn_font(
+                sfn->string(), gr->string(), bk->string(), 0x5b82);
+            mark(session.display.examine_font);
+            mark(session.display.message_font);
+            if (verbose) {
+                std::cout << "fonts klio glyphs="
+                          << session.display.examine_font->glyph_count
+                          << " atlas=" << session.display.examine_font->atlas_width
+                          << 'x' << session.display.examine_font->atlas_height
+                          << " line=" << session.display.examine_font->line_height
+                          << " language=" << options.language.text_code_or_base()
+                          << " english_high=" << (english ? 1 : 0) << '\n';
+            }
+        } catch (const std::exception& error) {
+            std::cout << "fonts disabled: " << error.what() << '\n';
+        }
+    } else {
+        std::cout << "fonts disabled: klio.SFN/GR_KLIO.TGA/BK_KLIO.TGA not under "
+                  << options.fonts.string() << '\n';
+    }
+
+    const auto dlg = child("dialog");
+    const auto dlg_gr = child("gr_dlg");
+    const auto dlg_bk = child("bk_dlg");
+    if (dlg && dlg_gr && dlg_bk) {
+        try {
+            // 0x406cfe slot 0: DIALOG.SFN + GR_DLG/BK_DLG, fill
+            // (0x16 << green) | (0x1c << red) = 0xe2c0 in RGB565.
+            session.display.dialog_font = byzantine::load_sfn_font(
+                dlg->string(), dlg_gr->string(), dlg_bk->string(), 0xe2c0);
+            mark(session.display.dialog_font);
+            if (verbose) {
+                std::cout << "fonts dialog glyphs="
+                          << session.display.dialog_font->glyph_count
+                          << " atlas=" << session.display.dialog_font->atlas_width
+                          << 'x' << session.display.dialog_font->atlas_height
+                          << " line=" << session.display.dialog_font->line_height
+                          << '\n';
+            }
+        } catch (const std::exception& error) {
+            std::cout << "dialog font disabled: " << error.what() << '\n';
+        }
+    } else {
+        std::cout << "dialog font disabled: DIALOG.SFN/GR_DLG.TGA/BK_DLG.TGA not under "
+                  << options.fonts.string() << '\n';
+    }
+
+    // 0x406cfe slot 2: fonts/setup.sfn + setup.tga. The menu lists
+    // (0x4202ff save slots, 0x421ffc keşif rows) draw with this slot.
+    const auto setup_sfn = exact("setup.sfn");
+    const auto setup_tga = exact("setup.tga");
+    if (setup_sfn && setup_tga) {
+        try {
+            session.display.setup_font = byzantine::load_sfn_font_single_atlas(
+                setup_sfn->string(), setup_tga->string(), 0x000f);
+            mark(session.display.setup_font);
+            if (verbose) {
+                std::cout << "fonts setup glyphs="
+                          << session.display.setup_font->glyph_count
+                          << " atlas=" << session.display.setup_font->atlas_width
+                          << 'x' << session.display.setup_font->atlas_height
+                          << " line=" << session.display.setup_font->line_height
+                          << '\n';
+            }
+        } catch (const std::exception& error) {
+            std::cout << "setup font disabled: " << error.what() << '\n';
+        }
+    } else {
+        std::cout << "setup font disabled: setup.sfn/setup.tga not under "
+                  << options.fonts << " (menu lists use DIALOG)\n";
+    }
+
+    const auto cap = exact("CAPTIONS.SFN");
+    const auto cap_tga = exact("CAPTIONS.TGA");
+    if (cap && cap_tga) {
+        try {
+            // 0x406cfe slot 4: CAPTIONS.SFN + CAPTIONS.TGA, green 0x03eb.
+            // 0x424981 draws the conversation subtitle.
+            session.display.caption_font =
+                byzantine::load_sfn_font_single_atlas(cap->string(),
+                                                      cap_tga->string(), 0x03eb);
+            mark(session.display.caption_font);
+            if (verbose) {
+                std::cout << "fonts captions glyphs="
+                          << session.display.caption_font->glyph_count
+                          << " atlas=" << session.display.caption_font->atlas_width
+                          << 'x' << session.display.caption_font->atlas_height
+                          << " line=" << session.display.caption_font->line_height
+                          << '\n';
+            }
+            // The shipped Turkish CAPTIONS.SFN/TGA carries only some Turkish
+            // glyphs. Only check that set for the non-English branch; the
+            // Turkish bytes are not meaningful in an English/font pack.
+            if (!english) {
+                const char turkish_bytes[] = {'\xa1', '\xa2', '\xa3', '\xa4',
+                                              '\xa5', '\xa6', '\xa7', '\xa8',
+                                              '\xaa', '\xab', '\xac', '\xad'};
+                std::string missing;
+                for (const char byte : turkish_bytes) {
+                    const auto* glyph = session.display.caption_font->glyph(byte);
+                    if (glyph == nullptr || glyph->advance <= 2) missing.push_back(byte);
+                }
+                if (!missing.empty() && session.display.dialog_font) {
+                    std::cout << "fonts captions: " << missing.size()
+                              << " Turkish glyph(s) are blank in CAPTIONS.SFN"
+                              << "; using DIALOG.SFN's glyph shapes for the green subtitle\n";
+                    session.display.caption_font = session.display.dialog_font;
+                }
+            }
+        } catch (const std::exception& error) {
+            std::cout << "caption font disabled: " << error.what() << '\n';
+        }
+    } else {
+        std::cout << "caption font disabled: CAPTIONS.SFN/CAPTIONS.TGA not under "
+                  << options.fonts.string()
+                  << " (conversations report an error instead of guessing)\n";
+    }
+}
+
+
+
+// Host-only settings overlay. It is deliberately separate from the original
+// original preference values. Both entry points use the shipped notebook;
+// ESC returns through category, hub and preferences. Host changes are written
+// to the port INI and applied immediately where possible.
+struct SettingsUi {
+    bool open = false;
+    int group = 0;
+    int row = 0;
+    bool capturing = false;
+    int capture_action = -1;
+    bool from_prefs = false;
+    std::optional<byzantine::SfnFont> notebook_face, notebook_prose;
+    std::optional<byzantine::Rgb16Surface> backdrop;
+    std::vector<SDL_Rect> tab_rects;
+    std::vector<SDL_Rect> row_rects;
+
+    enum Action {
+        window_mode = 0,
+        scale_mode,
+        vsync,
+        cursor_scale,
+        master,
+        speech,
+        ambient,
+        effects,
+        subtitles,
+        text_language,
+        voice_language,
+        hotspots,
+        autosave,
+        skip_seen,
+        gamepad,
+        key_settings,
+        key_backlog,
+        key_skip,
+        key_quicksave,
+        key_quickload,
+        key_autoload,
+        key_screenshot,
+        key_hotspots,
+        original_autosave,
+        original_video,
+        original_audio,
+        original_notes,
+        original_tutorial,
+        original_location,
+        original_scope
+    };
+
+    enum Group { display, audio, language, session, keys, original, group_count };
+
+    static const char* group_name(int value) { return advanced_group_name(value); }
+
+    static std::vector<Action> actions_for(int value) {
+        switch (value) {
+            case display:
+                return {window_mode, scale_mode, vsync, cursor_scale};
+            case audio:
+                return {master, speech, ambient, effects};
+            case language:
+                return {text_language, voice_language, subtitles};
+            case session:
+                return {autosave, skip_seen, hotspots, gamepad};
+            case keys:
+                return {key_settings, key_backlog, key_skip, key_quicksave,
+                        key_quickload, key_autoload, key_screenshot, key_hotspots};
+            case original:
+                return {original_autosave, original_video, original_audio,
+                        original_notes, original_tutorial, original_location};
+            default:
+                return {};
+        }
+    }
+
+    static std::vector<Action> all_actions() {
+        auto result = actions_for(display);
+        for (int g = audio; g < group_count; ++g) {
+            const auto rows = actions_for(g);
+            result.insert(result.end(), rows.begin(), rows.end());
+        }
+        return result;
+    }
+
+    static const byzantine::SfnFont* font(const Session& session) {
+        if (session.display.setup_font) return &*session.display.setup_font;
+        return session.display.dialog_font ? &*session.display.dialog_font : nullptr;
+    }
+
+    static const byzantine::SfnFont* description_font(const Session& session) {
+        if (session.display.dialog_font) return &*session.display.dialog_font;
+        return session.display.setup_font ? &*session.display.setup_font : nullptr;
+    }
+
+    static std::string scope(Action action) {
+        if (action >= original_autosave && action <= original_scope) return "OYUN";
+        return "PORT";
+    }
+
+    static const char* label(Action action) {
+        switch (action) {
+            case window_mode: return "Pencere";
+            case scale_mode: return "\xa6l" "\xa7" "ekleme";
+            case vsync: return "VSync";
+            case cursor_scale: return "\xa3mle\xa7 \xadl\xa7" "e\xabi";
+            case text_language: return "Oyun Metni";
+            case voice_language: return "Konu\xa8malar";
+            case master: return "Ana Ses";
+            case speech: return "Konu\xa8ma";
+            case ambient: return "Ambiyans";
+            case effects: return "Efektler";
+            case subtitles: return "Altyaz\xaa";
+            case hotspots: return "Hotspot";
+            case autosave: return "Port oto kayd\xaa";
+            case skip_seen: return "G\xadr\xaclen sat\xaar";
+            case gamepad: return "Gamepad";
+            case key_settings: return "ayarlar";
+            case key_backlog: return "ge\xa7mi\xa8";
+            case key_skip: return "atlama";
+            case key_quicksave: return "h\xaazl\xaa kay\xaat";
+            case key_quickload: return "H. y\xackle";
+            case key_autoload: return "Oto y\xackle";
+            case key_screenshot: return "ekran";
+            case key_hotspots: return "hotspot";
+            case original_autosave: return "oto kay\xaat";
+            case original_video: return "video boyutu";
+            case original_audio: return "ses/m\xaczik";
+            case original_notes: return "konu\xa8ma notu";
+            case original_tutorial: return "y\xadnlendirici";
+            case original_location: return "yer tan\xaat\xaam\xaa";
+            case original_scope: return "tercihler";
+            default: return "";
+        }
+    }
+
+    static std::string description(Action action) {
+        switch (action) {
+            case window_mode: return "Oyunu pencere veya tam ekran modunda çalıştırır. Pencere modu diğer uygulamalara geçmenizi kolaylaştırır.";
+            case scale_mode: return "Görüntünün en ve boy oranını korur. Tamsayı seçeneği pikselleri keskin tutar; kenarlarda siyah boşluk bırakabilir.";
+            case vsync: return "Ekrandaki yatay yırtılmayı azaltmak için görüntüyü ekran yenilemesiyle eşler.";
+            case cursor_scale: return "Oyun imlecinin boyutunu ayarlar. Büyük ekranlarda daha rahat görünmesini sağlar.";
+            case master: return "Oyun içindeki tüm seslerin genel seviyesini ayarlar. Diğer ses seviyelerini de bu menüden değiştirebilirsiniz.";
+            case speech: return "Karakterlerin konuşma seslerinin seviyesini ayarlar.";
+            case ambient: return "Bulunduğunuz ortamın arka plan seslerinin seviyesini ayarlar.";
+            case effects: return "Etkileşim ve diğer ses efektlerinin seviyesini ayarlar.";
+            case subtitles: return "Konuşmalar sırasında ekranın altındaki yazıları gösterir veya gizler.";
+            case text_language: return "Oyun metni için kurulu dil paketlerinden birini seçer. Ek dil paketleri kurulduğunda burada görünür.";
+            case voice_language: return "Konuşmalar için kurulu ses paketlerinden birini seçer. Ek ses paketleri kurulduğunda burada görünür.";
+            case hotspots: return "Etkileşim alanlarını çerçeveleyen yardımcı gösterimi açar. Normal oyun için kapalı bırakabilirsiniz.";
+            case autosave: return "Her sahne geçişinde otomatik kayıt oluşturur. Bu kaydı otomatik yükleme kısayoluyla açabilirsiniz.";
+            case skip_seen: return "Daha önce dinlediğiniz konuşmaları atlar. İlk kez karşılaştığınız konuşmalar normal oynatılır.";
+            case gamepad: return "Bağlı oyun kumandasını etkinleştirir. Sol çubuk imleci hareket ettirir; A seçer, B geri döner.";
+            case key_settings: return "Gelişmiş ayarlar menüsünü açan tuş. Yeni bir atama için seçip istediğiniz tuşa basın.";
+            case key_backlog: return "Bu oturumdaki konuşma geçmişini açan tuş.";
+            case key_skip: return "Görülen konuşmaları atlamayı açan veya kapatan tuş.";
+            case key_quicksave: return "Oyunu hızlı kayıt dosyasına kaydeden tuş.";
+            case key_quickload: return "Son hızlı kaydı yükleyen tuş.";
+            case key_autoload: return "Son otomatik kaydı yükleyen tuş.";
+            case key_screenshot: return "Ekran görüntüsü kaydeden tuş.";
+            case key_hotspots: return "Etkileşim alanlarının yardımcı çerçevelerini açan veya kapatan tuş.";
+            default: return "Oyunun özgün tercihi. Bu değer ana tercihler sayfasından değiştirilebilir. Geri düğmesiyle o sayfaya dönebilirsiniz.";
+        }
+    }
+
+    std::string value(const Session& session, Action action) const {
+        const auto& settings = session.options.settings;
+        const auto prefs = session.view.state.gameprefs;
+        switch (action) {
+            case window_mode:
+                switch (settings.window_mode) {
+                    case byzantine::WindowMode::windowed: return "Pencere";
+                    case byzantine::WindowMode::borderless: return "Tam ekran";
+                    case byzantine::WindowMode::exclusive: return "\xa6zel tam";
+                    case byzantine::WindowMode::maximized: return "B\xacy\xack";
+                }
+                return {};
+            case scale_mode: return settings.scale_mode == byzantine::ScaleMode::fit ? "Oranl\xaa" : "Tamsay\xaa";
+            case vsync: return settings.vsync ? "a\xa7\xaak" : "kapal\xaa";
+            case cursor_scale: return std::to_string(settings.cursor_scale) + "x";
+            case master: return std::to_string(static_cast<int>(settings.master_volume * 100)) + "%";
+            case speech: return std::to_string(static_cast<int>(settings.speech_volume * 100)) + "%";
+            case ambient: return std::to_string(static_cast<int>(settings.ambient_volume * 100)) + "%";
+            case effects: return std::to_string(static_cast<int>(settings.effects_volume * 100)) + "%";
+            case text_language: return byzantine::utf8_to_turkish_game_text(language_label(session, true));
+            case voice_language: return byzantine::utf8_to_turkish_game_text(language_label(session, false));
+            case subtitles: return settings.subtitles ? "a\xa7\xaak" : "kapal\xaa";
+            case hotspots:
+                if (!settings.hotspots) return "kapal\xaa";
+                return settings.hotspots_all ? "t\xacm\xac" : "imle\xa7te";
+            case autosave: return settings.autosave ? "a\xa7\xaak" : "kapal\xaa";
+            case skip_seen: return settings.skip_seen ? "a\xa7\xaak" : "kapal\xaa";
+            case gamepad: return settings.gamepad ? "a\xa7\xaak" : "kapal\xaa";
+            case key_settings: return settings.key_settings;
+            case key_backlog: return settings.key_backlog;
+            case key_skip: return settings.key_skip;
+            case key_quicksave: return settings.key_quicksave;
+            case key_quickload: return settings.key_quickload;
+            case key_autoload: return settings.key_autoload;
+            case key_screenshot: return settings.key_screenshot;
+            case key_hotspots: return settings.key_hotspots;
+            case original_autosave:
+                if (!prefs) return "bilinmiyor";
+                return (*prefs)[0] != 0 ? "a\xa7\xaak" : "kapal\xaa";
+            case original_video:
+                if (!prefs) return "bilinmiyor";
+                return (*prefs)[1] != 0 ? "tam (2x)" : "yar\xaam (1x)";
+            case original_audio:
+                if (!prefs) return "bilinmiyor";
+                return (*prefs)[2] != 0 ? "a\xa7\xaak" : "kapal\xaa";
+            case original_notes:
+                if (!prefs) return "bilinmiyor";
+                return (*prefs)[3] != 0 ? "a\xa7\xaak" : "kapal\xaa";
+            case original_tutorial:
+                if (!prefs) return "bilinmiyor";
+                return (*prefs)[4] != 0 ? "a\xa7\xaak" : "kapal\xaa";
+            case original_location:
+                if (!prefs) return "bilinmiyor";
+                return (*prefs)[5] != 0 ? "a\xa7\xaak" : "kapal\xaa";
+            case original_scope: return "TERC\xa3HLER";
+            default: return {};
+        }
+    }
+
+    static bool editable(Action action) {
+        return action < original_autosave || action > original_scope;
+    }
+
+    static bool is_key_action(Action action) {
+        return action >= key_settings && action <= key_hotspots;
+    }
+
+    void apply_audio(Session& session) {
+        const auto& settings = session.options.settings;
+        session.audio.set_volumes(settings.master_volume, settings.speech_volume,
+                                  settings.ambient_volume, settings.effects_volume);
+    }
+
+    void apply_hotspots(Session& session) {
+        session.options.overlay = session.options.settings.hotspots;
+        session.options.hotspots_all = session.options.settings.hotspots_all;
+        session.display.set_hover_overlay(session.view, -1, -1);
+    }
+
+    void reload_text(Session& session) {
+        backdrop.reset();
+        notebook_face.reset();
+        notebook_prose.reset();
+        resolve_language_selection(session.options);
+        load_messages(session, true);
+        load_scene_text(session, true);
+        load_fonts(session, true);
+        session.display.reload_ui_assets(session.options);
+        refresh_background(session.options, session.view);
+        session.display.compose(session.view, false);
+    }
+
+    void change(Session& session, Action action, int direction) {
+        auto& settings = session.options.settings;
+        if (!editable(action)) {
+            std::cout << "settings_readonly action=" << label(action) << '\n';
+            present(session);
+            return;
+        }
+        switch (action) {
+            case window_mode: {
+                static const byzantine::WindowMode modes[] = {
+                    byzantine::WindowMode::windowed,
+                    byzantine::WindowMode::borderless,
+                    byzantine::WindowMode::exclusive,
+                    byzantine::WindowMode::maximized};
+                int index = 0;
+                for (int i = 0; i < 4; ++i) {
+                    if (modes[i] == settings.window_mode) index = i;
+                }
+                index = (index + (direction > 0 ? 1 : 3)) % 4;
+                settings.window_mode = modes[index];
+                session.display.apply_window_mode(settings.window_mode);
+                settings.window_mode = session.display.window_mode;
+                break;
+            }
+            case scale_mode:
+                settings.scale_mode =
+                    settings.scale_mode == byzantine::ScaleMode::fit
+                        ? byzantine::ScaleMode::integer
+                        : byzantine::ScaleMode::fit;
+                session.display.apply_scale_mode(settings.scale_mode);
+                break;
+            case vsync:
+                settings.vsync = !settings.vsync;
+                session.display.apply_vsync(settings.vsync);
+                break;
+            case cursor_scale:
+                settings.cursor_scale = settings.cursor_scale >= 4
+                                            ? 1
+                                            : settings.cursor_scale + 1;
+                session.display.clear_cursor_cache();
+                {
+                    float x = 0;
+                    float y = 0;
+                    session.display.mouse_logical(&x, &y);
+                    session.display.update_cursor_at(session.view, static_cast<int>(x),
+                                                     static_cast<int>(y));
+                }
+                break;
+            case master:
+                settings.master_volume = std::clamp(
+                    settings.master_volume + direction * 0.1f, 0.0f, 1.0f);
+                apply_audio(session);
+                break;
+            case speech:
+                settings.speech_volume = std::clamp(
+                    settings.speech_volume + direction * 0.1f, 0.0f, 1.0f);
+                apply_audio(session);
+                break;
+            case ambient:
+                settings.ambient_volume = std::clamp(
+                    settings.ambient_volume + direction * 0.1f, 0.0f, 1.0f);
+                apply_audio(session);
+                break;
+            case effects:
+                settings.effects_volume = std::clamp(
+                    settings.effects_volume + direction * 0.1f, 0.0f, 1.0f);
+                apply_audio(session);
+                break;
+            case subtitles:
+                settings.subtitles = !settings.subtitles;
+                break;
+            case autosave:
+                settings.autosave = !settings.autosave;
+                break;
+            case skip_seen:
+                settings.skip_seen = !settings.skip_seen;
+                std::cout << "dialogue_skip_seen enabled="
+                          << (settings.skip_seen ? 1 : 0) << '\n';
+                break;
+            case gamepad:
+                settings.gamepad = !settings.gamepad;
+                session.display.set_gamepad_enabled(settings.gamepad);
+                break;
+            case hotspots:
+                if (!settings.hotspots) {
+                    settings.hotspots = true;
+                    settings.hotspots_all = false;
+                } else if (!settings.hotspots_all) {
+                    settings.hotspots_all = true;
+                } else {
+                    settings.hotspots = false;
+                    settings.hotspots_all = true;
+                }
+                apply_hotspots(session);
+                break;
+            case text_language:
+            case voice_language: {
+                const bool text = action == text_language;
+                auto codes = languages(session, text);
+                const auto current = text ? settings.text_language : settings.voice_language;
+                auto at = std::find(codes.begin(), codes.end(), current);
+                int index = at == codes.end() ? 0 : static_cast<int>(at - codes.begin());
+                index = (index + (direction > 0 ? 1 : static_cast<int>(codes.size()) - 1)) %
+                        static_cast<int>(codes.size());
+                const auto code = codes[static_cast<std::size_t>(index)];
+                if (text) settings.text_language = code;
+                else settings.voice_language = code;
+                reload_text(session);
+                break;
+            }
+            case key_settings:
+            case key_backlog:
+            case key_skip:
+            case key_quicksave:
+            case key_quickload:
+            case key_autoload:
+            case key_screenshot:
+            case key_hotspots:
+                capturing = true;
+                capture_action = action;
+                break;
+            default:
+                break;
+        }
+        settings.clamp();
+        save_port_settings(session.options, false);
+        present(session);
+    }
+
+    static std::vector<std::string> languages(const Session& session, bool text) {
+        std::vector<std::string> codes{"auto"};
+        for (const auto& pack : session.options.language.packs) {
+            if (text ? pack.text : pack.voice) codes.push_back(pack.code);
+        }
+        return codes;
+    }
+
+    static std::string language_label(const Session& session, bool text) {
+        const auto code = text ? session.options.settings.text_language
+                               : session.options.settings.voice_language;
+        if (code.empty() || code == "auto") return "Varsayılan";
+        for (const auto& pack : session.options.language.packs) {
+            if (lower_ascii(pack.code) != lower_ascii(code)) continue;
+            return pack.name.empty() ? pack.code : pack.name + " (" + pack.code + ")";
+        }
+        return code;
+    }
+
+    void load_backdrop(Session& session) {
+        if (backdrop) return;
+        const auto file = find_language_child(session.options, false, "setupart", "preffs");
+        if (!file) return;
+        try {
+            const auto image = byzantine::decode_jpeg_file(file->string());
+            if (image.width != kScreenWidth || image.height != kScreenHeight) return;
+            backdrop = byzantine::make_surface(kScreenWidth, kScreenHeight, 0);
+            backdrop->pixels = byzantine::rgb_to_rgb565(image);
+            const auto original_pixels = backdrop->pixels;
+            // Extend a clean strip of PREFFS' own gray paper over the baked
+            // preference labels. Preserve the curved upper edge, rolled sheet,
+            // pen, binding, tabs and left leather exactly from the source art.
+            for (int y = 92; y < 413; ++y) {
+                const int left = std::max(374, 474 - (y - 70));
+                for (int x = left; x < 608; ++x) {
+                    const int px = (x - 374) % 80;
+                    const int py = (y - 92) % 88;
+                    const int sx = 379 + (px < 40 ? px : 79 - px);
+                    const int sy = 185 + (py < 44 ? py : 87 - py);
+                    backdrop->at(x, y) = original_pixels[sy * kScreenWidth + sx];
+                }
+            }
+            std::cout << "settings_backdrop file=" << file->filename().string()
+                      << " paper=preffs_clean_strip\n";
+        } catch (const std::exception& error) {
+            std::cout << "settings_backdrop failed: " << error.what() << '\n';
+        }
+    }
+
+    static bool contains(SDL_Rect rect, int x, int y) {
+        return x >= rect.x && x < rect.x + rect.w && y >= rect.y && y < rect.y + rect.h;
+    }
+
+    static SDL_Rect back_rect() { return {382, 412, 224, 29}; }
+
+    static const char* group_description(int g) {
+        switch (g) {
+            case display: return "Pencere, ölçekleme, dikey senkronizasyon ve imleç boyutunu ayarlar.";
+            case audio: return "Ana ses ile konuşma, ambiyans ve efekt seviyelerini ayrı ayrı ayarlar.";
+            case language: return "Kurulu dil paketlerinden oyun metni ve konuşma dilini seçer. Altyazıları açar veya kapatır.";
+            case session: return "Otomatik kayıt, görülen konuşmaları atlama ve oyun kumandası seçeneklerini ayarlar.";
+            case keys: return "Ayarlar, geçmiş, hızlı kayıt ve diğer kısayollar için bir satır seçip yeni tuşa basın.";
+            case original: return "Oyunun özgün tercihlerinin geçerli değerlerini gösterir. Değiştirmek için ana tercihler sayfasına dönün.";
+            default: return "Görüntü, ses, dil ve kontrol seçeneklerini kendi tercihlerinize göre düzenleyin.";
+        }
+    }
+
+    static std::optional<bool> toggle_value(const Session& session, Action action) {
+        const auto& settings = session.options.settings;
+        switch (action) {
+            case vsync: return settings.vsync;
+            case subtitles: return settings.subtitles;
+            case autosave: return settings.autosave;
+            case skip_seen: return settings.skip_seen;
+            case gamepad: return settings.gamepad;
+            default: break;
+        }
+        if (action >= original_autosave && action <= original_location &&
+            action != original_video && session.view.state.gameprefs) {
+            const int index = static_cast<int>(action) - static_cast<int>(original_autosave);
+            return (*session.view.state.gameprefs)[static_cast<std::size_t>(index)] != 0;
+        }
+        return std::nullopt;
+    }
+
+    static constexpr int kSliderWidth = 70;
+
+    static float volume(const Session& session, Action action) {
+        const auto& settings = session.options.settings;
+        switch (action) {
+            case master: return settings.master_volume;
+            case speech: return settings.speech_volume;
+            case ambient: return settings.ambient_volume;
+            case effects: return settings.effects_volume;
+            default: return 0;
+        }
+    }
+
+    void draw(Session& session) {
+        auto& display = session.display;
+        load_backdrop(session);
+        if (backdrop) display.screen.pixels = backdrop->pixels;
+        else display.fill_rect(0, 0, kScreenWidth, kScreenHeight, 0x18C3);
+        if (!notebook_face) notebook_face = byzantine::menu_typeface();
+        if (!notebook_prose) notebook_prose = byzantine::menu_typeface(true);
+        const auto* face = &*notebook_face;
+        const auto* prose = &*notebook_prose;
+        const auto text = [&](const std::string& value, int x, int y,
+                              std::uint16_t color, int align = 3) {
+            if (color != 0) byzantine::draw_text(display.screen, *face, value,
+                x + 1, y + 1, 1, align, 0x0000);
+            byzantine::draw_text(display.screen, *face, value, x, y, 1, align, color);
+        };
+        byzantine::draw_text(display.screen, *prose,
+             group < 0 ? advanced_settings_label() : group_name(group),
+             500, 103, 1, 1, 0x0000);
+        notebook_rule(display, 388, 137, 211);
+        tab_rects.clear();
+        row_rects.clear();
+        const auto actions = actions_for(group);
+        const int count = group < 0 ? group_count : static_cast<int>(actions.size());
+        // Two-line choices need the full font height, shadow and padding.
+        // The same rectangle owns the frame, hover and click target. Keep six
+        // such rows above GERİ; single-line category/key rows stay compact.
+        const bool two_line_rows = std::any_of(actions.begin(), actions.end(),
+            [&](Action action) { return toggle_value(session, action).has_value(); });
+        const int step = two_line_rows ? 42 : (count > 6 ? 28 : 39);
+        const int first_y = two_line_rows ? 158 : 163;
+        const int choice_height = 17 + face->line_height + 1; // includes shadow
+        for (int i = 0; i < count; ++i) {
+            const int y = first_y + i * step;
+            SDL_Rect rect{380, y - (two_line_rows ? 4 : 5), 226,
+                          two_line_rows ? choice_height + 6 : step - 4};
+            if (group < 0) tab_rects.push_back(rect);
+            else row_rects.push_back(rect);
+            const bool selected = row == i;
+            if (selected) notebook_frame(display, rect, true);
+            const auto color = selected ? 0xF6AC : 0x0000;
+            if (group < 0) {
+                text(std::string("> ") + group_name(i), 387, y + 2, color);
+                notebook_arrow(display, 593, y + 9, 1);
+                continue;
+            }
+            const auto action = actions[static_cast<std::size_t>(i)];
+            const auto toggle = toggle_value(session, action);
+            if (toggle) {
+                text(std::string("> ") + menu_uppercase(label(action)), 493, y, color, 1);
+                text("a\xa7", 477, y + 17, *toggle ? 0xF6AC : 0x0000);
+                text("/", 498, y + 17, 0x0000);
+                text("kapat", 509, y + 17, *toggle ? 0x0000 : 0xF6AC);
+                continue;
+            }
+            std::string row_label = label(action);
+            while (!row_label.empty() && byzantine::text_width(*face, row_label) > 88)
+                row_label.pop_back();
+            text(row_label, 387, y + 2, color);
+            if (action >= master && action <= effects) {
+                const int sy = y + 10;
+                display.fill_rect(492, sy, kSliderWidth, 2, 0x39C6);
+                display.fill_rect(492, sy, static_cast<int>(kSliderWidth * volume(session, action)), 2, 0xEDAA);
+                const int knob = 492 + static_cast<int>(kSliderWidth * volume(session, action));
+                display.fill_rect(knob - 2, sy - 3, 5, 7, 0xD526);
+                display.fill_rect(knob - 1, sy - 2, 3, 4, 0xFF39);
+                text(std::to_string(static_cast<int>(std::lround(volume(session, action) * 100))),
+                     589, y + 2, 0xEDAA, 2);
+            } else {
+                // Constrain long language-pack names and key labels to their
+                // column instead of allowing them to overwrite the row label.
+                auto caption = value(session, action);
+                while (!caption.empty() && byzantine::text_width(*face, caption) > 87)
+                    caption.pop_back();
+                text(capturing && capture_action == action ? "..." : caption,
+                     549, y + 2, selected && editable(action) ? 0xF6AC : 0x0000, 1);
+            }
+            if (editable(action)) {
+                notebook_arrow(display, 480, y + 10, -1);
+                notebook_arrow(display, 595, y + 10, 1);
+            }
+        }
+        notebook_frame(display, back_rect());
+        text("< GER\xa3", 396, 420, 0xEDAA);
+        if (row >= 0 && row < count) {
+            byzantine::draw_text(display.screen, *prose,
+                byzantine::utf8_to_turkish_game_text("AÇIKLAMA"), 54, 62, 1, 3, 0xFFE0);
+            const auto title = group < 0 ? std::string(group_name(row)) :
+                std::string(label(actions[static_cast<std::size_t>(row)]));
+            text(title, 54, 92, 0xFF39);
+            const auto desc = group < 0 ? group_description(row) :
+                description(actions[static_cast<std::size_t>(row)]);
+            const auto lines = wrap_dialog_text(*prose,
+                byzantine::utf8_to_turkish_game_text(desc), 183);
+            int y = 122;
+            for (const auto& line : lines) {
+                if (y + prose->line_height > 328) break;
+                byzantine::draw_text(display.screen, *prose, line, 54, y, 1, 3, 0xFF39);
+                y += prose->line_height + 2;
+            }
+        }
+        if (capturing) text("Yeni tu\xa8: ESC iptal", 390, 393, 0xFFE0);
+    }
+
+    void back(Session& session) {
+        if (group >= 0) {
+            group = -1;
+            row = -1;
+            present(session);
+        } else close(session);
+    }
+
+    void present(Session& session) {
+        draw(session);
+        ScreenContentScope content(session.display, ScreenContent::menu);
+        session.display.present_image(session.display.screen, session.view, 0, "settings");
+    }
+
+    void open_overlay(Session& session, bool native_entry = false,
+                      int initial_group = -1) {
+        open = true;
+        from_prefs = native_entry;
+        backdrop.reset();
+        notebook_face.reset();
+        notebook_prose.reset();
+        group = std::clamp(initial_group, -1, group_count - 1);
+        row = -1;
+        capturing = false;
+        capture_action = -1;
+        std::cout << "settings_open file=" << session.options.config_path << '\n';
+        present(session);
+    }
+
+    void close(Session& session) {
+        open = false;
+        capturing = false;
+        session.display.store_window_settings(session.options.settings);
+        save_port_settings(session.options, true);
+        std::cout << "settings_close from_prefs=" << (from_prefs ? 1 : 0) << '\n';
+        session.reopen_prefs = from_prefs;
+        from_prefs = false;
+        session.display.present(session.view);
+    }
+
+    bool key(Session& session, const SDL_KeyboardEvent& event) {
+        if (!open) return false;
+        const auto key = event.keysym.sym;
+        if (capturing) {
+            if (key != SDLK_ESCAPE) {
+                const std::string name = SDL_GetKeyName(key);
+                auto& settings = session.options.settings;
+                switch (capture_action) {
+                    case key_settings: settings.key_settings = name; break;
+                    case key_backlog: settings.key_backlog = name; break;
+                    case key_skip: settings.key_skip = name; break;
+                    case key_quicksave: settings.key_quicksave = name; break;
+                    case key_quickload: settings.key_quickload = name; break;
+                    case key_autoload: settings.key_autoload = name; break;
+                    case key_screenshot: settings.key_screenshot = name; break;
+                    case key_hotspots: settings.key_hotspots = name; break;
+                    default: break;
+                }
+                std::cout << "settings_key action=" << capture_action << " name=" << name
+                          << '\n';
+                save_port_settings(session.options, false);
+            }
+            capturing = false;
+            capture_action = -1;
+            present(session);
+            return true;
+        }
+        if (key == SDLK_ESCAPE ||
+            key_is(session.options.settings, session.options.settings.key_settings, key)) {
+            if (key == SDLK_ESCAPE) back(session);
+            else close(session);
+            return true;
+        }
+        if (key == SDLK_TAB) {
+            const int direction = (event.keysym.mod & KMOD_SHIFT) ? -1 : 1;
+            group = (group + group_count + direction) % group_count;
+            row = 0;
+            present(session);
+            return true;
+        }
+        const auto actions = actions_for(group);
+        const int count = group < 0 ? group_count : static_cast<int>(actions.size());
+        if (key == SDLK_UP) {
+            row = row < 0 ? count - 1 : (row + count - 1) % count;
+            present(session);
+            return true;
+        }
+        if (key == SDLK_DOWN) {
+            row = (row + 1) % count;
+            present(session);
+            return true;
+        }
+        if (group < 0) {
+            if ((key == SDLK_RETURN || key == SDLK_KP_ENTER || key == SDLK_RIGHT) && row >= 0) {
+                group = row;
+                row = -1;
+                present(session);
+            }
+            return true;
+        }
+        if (row < 0) row = 0;
+        if (key == SDLK_LEFT) {
+            change(session, actions[static_cast<std::size_t>(row)], -1);
+            return true;
+        }
+        if (key == SDLK_RIGHT || key == SDLK_RETURN || key == SDLK_KP_ENTER) {
+            change(session, actions[static_cast<std::size_t>(row)], 1);
+            return true;
+        }
+        return true;
+    }
+
+    bool quit_requested = false;
+    int slider_drag = -1;
+
+    void set_slider(Session& session, Action action, int x) {
+        const float target = std::clamp((x - 492) / static_cast<float>(kSliderWidth), 0.0f, 1.0f);
+        auto& settings = session.options.settings;
+        switch (action) {
+            case master: settings.master_volume = target; break;
+            case speech: settings.speech_volume = target; break;
+            case ambient: settings.ambient_volume = target; break;
+            case effects: settings.effects_volume = target; break;
+            default: return;
+        }
+        apply_audio(session);
+        save_port_settings(session.options, false);
+        present(session);
+    }
+
+    bool mouse_button(Session& session, int x, int y) {
+        if (!open || capturing) return false;
+        slider_drag = -1;
+        if (contains(back_rect(), x, y)) { back(session); return true; }
+        // The baked left-page actions stay live on every notebook page.
+        if (contains({72, 394, 183, 24}, x, y)) {
+            close(session);
+            session.reopen_prefs = false;
+            return true;
+        }
+        if (contains({72, 367, 183, 27}, x, y)) {
+            close(session);
+            session.reopen_prefs = true;
+            quit_requested = true;
+            return true;
+        }
+        for (std::size_t i = 0; i < tab_rects.size(); ++i) {
+            if (!contains(tab_rects[i], x, y)) continue;
+            group = static_cast<int>(i);
+            row = -1;
+            present(session);
+            return true;
+        }
+        const auto actions = actions_for(group);
+        for (std::size_t i = 0; i < row_rects.size(); ++i) {
+            if (!contains(row_rects[i], x, y)) continue;
+            row = static_cast<int>(i);
+            const auto action = actions[i];
+            const auto toggle = toggle_value(session, action);
+            if (toggle && y >= row_rects[i].y + 20 && x >= 471 && x < 548) {
+                const bool wanted = x < 500;
+                if (editable(action) && wanted != *toggle) change(session, action, wanted ? 1 : -1);
+                else present(session);
+                return true;
+            }
+            if (action >= master && action <= effects && x >= 492 && x <= 574) {
+                slider_drag = action;
+                set_slider(session, action, x);
+            } else if (x >= 477) change(session, action, x < 492 ? -1 : 1);
+            else present(session);
+            return true;
+        }
+        return true;
+    }
+
+    bool mouse_motion(Session& session, int x, int y, bool left_down = false) {
+        if (!open || capturing) return false;
+        if (slider_drag >= 0 && left_down) {
+            set_slider(session, static_cast<Action>(slider_drag), x);
+            return true;
+        }
+        if (!left_down) slider_drag = -1;
+        const auto& rects = group < 0 ? tab_rects : row_rects;
+        int next = -1;
+        for (std::size_t i = 0; i < rects.size(); ++i) {
+            if (contains(rects[i], x, y)) { next = static_cast<int>(i); break; }
+        }
+        if (row != next) { row = next; present(session); }
+        return true;
+    }
+
+    bool wheel(Session& session, int direction) {
+        if (!open || capturing || direction == 0) return false;
+        const int count = group < 0 ? group_count : static_cast<int>(actions_for(group).size());
+        row = (row + (direction > 0 ? 1 : count - 1) + count) % count;
+        present(session);
+        return true;
+    }
+
+};
+
+// Deterministic notebook navigation uses the same handlers as SDL input.
+void apply_headless_menu_input(Session& session, MenuUi& menu, const Options& options,
+                               SettingsUi& settings) {
+    const auto settle = [&]() {
+        if (session.open_port_settings) {
+            session.open_port_settings = false;
+            settings.open_overlay(session, true, session.port_settings_group);
+        }
+        if (session.reopen_prefs) {
+            session.reopen_prefs = false;
+            menu.open_screen(0, session);
+            if (settings.quit_requested) {
+                settings.quit_requested = false;
+                menu.click(session, 120, 380);
+            }
+        }
+    };
+    for (const auto& point : options.menu_clicks) {
+        if (settings.open) settings.mouse_button(session, point.first, point.second);
+        else if (menu.open) menu.click(session, point.first, point.second);
+        else break;
+        settle();
+    }
+    for (const auto& text : options.menu_texts) {
+        if (!menu.open || !menu.editing) break;
+        menu.text_input(session, text);
+    }
+    for (const auto& name : options.menu_keys) {
+        if (!menu.open && !settings.open) break;
+        SDL_KeyboardEvent event{};
+        event.type = SDL_KEYDOWN;
+        event.keysym.sym = SDL_GetKeyFromName(name.c_str());
+        if (name == "enter" || name == "return") event.keysym.sym = SDLK_RETURN;
+        if (name == "escape" || name == "esc") event.keysym.sym = SDLK_ESCAPE;
+        if (name == "backspace") event.keysym.sym = SDLK_BACKSPACE;
+        if (settings.open) settings.key(session, event);
+        else menu.key_event(session, event);
+        settle();
+    }
+    for (const auto& point : options.menu_hovers) {
+        if (settings.open) settings.mouse_motion(session, point.first, point.second);
+        else if (menu.open && !menu.editing) menu.hover_at(session, point.first, point.second);
+    }
+}
+
+
+std::uint32_t save_disc_number(const Session& session) {
+    if (session.save_base) return session.save_base->cd_number;
+    const auto overlay = session.options.scene.find("--anims-overlay");
+    if (overlay != session.options.scene.end()) {
+        const auto folder = std::filesystem::path(overlay->second).filename().string();
+        const auto at = folder.find("cd");
+        if (at != std::string::npos) {
+            int disc = 0;
+            std::size_t index = at + 2;
+            while (index < folder.size() &&
+                   std::isdigit(static_cast<unsigned char>(folder[index]))) {
+                disc = disc * 10 + (folder[index] - '0');
+                ++index;
+            }
+            if (disc != 0) return static_cast<std::uint32_t>(disc);
+        }
+    }
+    return 1;
+}
+
+bool write_autosave(Session& session) {
+    if (!session.options.settings.autosave) return false;
+    const auto directory = savegame_directory(session.options);
+    if (directory.empty()) return false;
+    std::uint16_t scene_index = 0;
+    bool found = false;
+    if (session.metadata) {
+        for (std::size_t index = 0; index < session.metadata->scenes.size(); ++index) {
+            if (lower_ascii(session.metadata->scenes[index].scene) ==
+                lower_ascii(session.view.name)) {
+                scene_index = static_cast<std::uint16_t>(index);
+                found = true;
+                break;
+            }
+        }
+    }
+    if (!found) return false;
+    try {
+        auto save = build_save_from_state(
+            session, session.save_base ? &*session.save_base : nullptr,
+            "Otomatik kayit (port)", scene_index, save_disc_number(session));
+        const auto bytes = byzantine::write_save(save);
+        std::error_code error;
+        std::filesystem::create_directories(directory, error);
+        const auto path = directory / "autosave-port.btb";
+        const auto temporary = directory / "autosave-port.tmp";
+        std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
+        if (!output) return false;
+        output.write(reinterpret_cast<const char*>(bytes.data()),
+                     static_cast<std::streamsize>(bytes.size()));
+        if (!output) return false;
+        output.close();
+        std::filesystem::remove(path, error);
+        std::filesystem::rename(temporary, path, error);
+        if (error) {
+            std::cout << "autosave rename_failed file=" << path
+                      << " error=" << error.message() << '\n';
+            return false;
+        }
+        session.save_base = std::move(save);
+        std::cout << "autosave file=" << path << " bytes=" << bytes.size()
+                  << " scene=" << session.view.name << '\n';
+        return true;
+    } catch (const std::exception& error) {
+        std::cout << "autosave failed: " << error.what() << '\n';
+        return false;
+    }
+}
+
+bool quick_save(Session& session) {
+    const auto directory = savegame_directory(session.options);
+    if (directory.empty()) {
+        std::cout << "quicksave skipped: no savegame directory\n";
+        return false;
+    }
+    std::uint16_t scene_index = 0;
+    bool found = false;
+    if (session.metadata) {
+        for (std::size_t index = 0; index < session.metadata->scenes.size(); ++index) {
+            if (lower_ascii(session.metadata->scenes[index].scene) ==
+                lower_ascii(session.view.name)) {
+                scene_index = static_cast<std::uint16_t>(index);
+                found = true;
+                break;
+            }
+        }
+    }
+    if (!found) {
+        std::cout << "quicksave skipped: scene " << session.view.name
+                  << " is not in SHOW.LCC\n";
+        return false;
+    }
+    try {
+        auto save = build_save_from_state(
+            session, session.save_base ? &*session.save_base : nullptr, "Hizli kayit",
+            scene_index, save_disc_number(session));
+        const auto bytes = byzantine::write_save(save);
+        std::error_code error;
+        std::filesystem::create_directories(directory, error);
+        const auto path = directory / "quicksave.btb";
+        const auto temporary = directory / "quicksave.tmp";
+        {
+            std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
+            if (!output) {
+                std::cout << "quicksave open_failed file=" << temporary << '\n';
+                return false;
+            }
+            output.write(reinterpret_cast<const char*>(bytes.data()),
+                         static_cast<std::streamsize>(bytes.size()));
+            if (!output) {
+                std::cout << "quicksave write_failed file=" << temporary << '\n';
+                return false;
+            }
+        }
+        std::filesystem::remove(path, error);
+        std::filesystem::rename(temporary, path, error);
+        if (error) {
+            std::cout << "quicksave rename_failed file=" << path
+                      << " error=" << error.message() << '\n';
+            return false;
+        }
+        session.save_base = std::move(save);
+        std::cout << "quicksave file=" << path << " bytes=" << bytes.size()
+                  << " scene=" << session.view.name
+                  << " scene_index=" << scene_index
+                  << " description=Hizli kayit\n";
+        return true;
+    } catch (const std::exception& error) {
+        std::cout << "quicksave failed: " << error.what() << '\n';
+        return false;
+    }
+}
+
+bool load_save_named(Session& session, const std::string& filename, const char* tag) {
+    const auto directory = savegame_directory(session.options);
+    if (directory.empty()) return false;
+    const auto path = find_filename(directory, filename);
+    if (!path) {
+        std::cout << tag << " skipped: no " << filename << " under " << directory << '\n';
+        return false;
+    }
+    byzantine::SaveGame save;
+    try {
+        save = byzantine::parse_save(read_file(*path));
+    } catch (const std::exception& error) {
+        std::cout << tag << " parse_failed file=" << *path
+                  << " error=" << error.what() << '\n';
+        return false;
+    }
+    std::cout << tag << " file=" << *path << " scene_index=" << save.scene_index
+              << " description=" << save.description << '\n';
+    if (!travel_to(session, save.scene_index, true, path->string(), &save)) {
+        std::cout << tag << " failed: scene " << save.scene_index << " not loaded\n";
+        return false;
+    }
+    follow_switches(session, true);
+    std::cout << tag << " committed scene=" << session.view.name
+              << " hotspots=" << session.view.trace.active_hotspots.size() << '\n';
+    return true;
+}
+
+bool quick_load(Session& session) {
+    return load_save_named(session, "quicksave.btb", "quickload");
+}
+
+bool load_autosave(Session& session) {
+    return load_save_named(session, "autosave-port.btb", "autoload");
+}
+
+bool take_screenshot(Session& session) {
+    std::filesystem::path directory = "port/output/screenshots";
+    if (const char* environment = std::getenv("BYZ_SCREENSHOT_DIR");
+        environment != nullptr && *environment != '\0') {
+        directory = environment;
+    }
+    std::error_code error;
+    std::filesystem::create_directories(directory, error);
+    const auto path = directory /
+                      ("screenshot-" + std::to_string(SDL_GetTicks64()) + ".ppm");
+    if (!byzantine::write_ppm(session.display.screen, path.string())) {
+        std::cout << "screenshot failed file=" << path << '\n';
+        return false;
+    }
+    std::cout << "screenshot file=" << path << " scene=" << session.view.name << '\n';
+    return true;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -8100,6 +10292,23 @@ int main(int argc, char** argv) {
         Session session;
         session.options = parse_options(argc, argv);
         auto& options = session.options;
+        load_seen_dialogue(session);
+        if (options.list_languages) {
+            std::cout << "language_root=" << options.language.root << '\n';
+            std::cout << "base=" << options.language.base
+                      << " text=" << options.language.text_code_or_base()
+                      << " voice=" << options.language.voice_code_or_base() << '\n';
+            for (const auto& pack : options.language.packs) {
+                std::cout << "language_pack code=" << pack.code
+                          << " name=" << pack.name
+                          << " text=" << (pack.text ? 1 : 0)
+                          << " voice=" << (pack.voice ? 1 : 0)
+                          << " encoding=" << pack.messages_encoding
+                          << " english_font=" << (pack.english_font_branch ? 1 : 0)
+                          << " root=" << pack.root << '\n';
+            }
+            return 0;
+        }
         if (options.present_dump.empty()) {
             if (const char* env = std::getenv("BYZ_PRESENT_DUMP"); env && *env) {
                 options.present_dump = env;
@@ -8141,133 +10350,18 @@ int main(int argc, char** argv) {
         load_scene_text(session, false);
         load_messages(session, true);
         session.display.init(options);
-        if (!options.fonts.empty()) {
-            const auto sfn = find_child(options.fonts, "klio");
-            const auto gr = find_child(options.fonts, "gr_klio");
-            const auto bk = find_child(options.fonts, "bk_klio");
-            if (sfn && gr && bk) {
-                try {
-                    // 0x406cfe slots 1 and 3: the same klio metrics/atlas, fill
-                    // 0x1b<<5 (examine) and (0xb<<11)|(0xe<<6)|2 (message).
-                    session.display.examine_font = byzantine::load_sfn_font(
-                        sfn->string(), gr->string(), bk->string(), 0x0360);
-                    session.display.message_font = byzantine::load_sfn_font(
-                        sfn->string(), gr->string(), bk->string(), 0x5b82);
-                    std::cout << "fonts klio glyphs="
-                              << session.display.examine_font->glyph_count
-                              << " atlas=" << session.display.examine_font->atlas_width
-                              << 'x' << session.display.examine_font->atlas_height
-                              << " line=" << session.display.examine_font->line_height
-                              << '\n';
-                } catch (const std::exception& error) {
-                    std::cout << "fonts disabled: " << error.what() << '\n';
-                }
-            } else {
-                std::cout << "fonts disabled: klio.SFN/GR_KLIO.TGA/BK_KLIO.TGA not under "
-                          << options.fonts.string() << '\n';
-            }
-            const auto dlg = find_child(options.fonts, "dialog");
-            const auto dlg_gr = find_child(options.fonts, "gr_dlg");
-            const auto dlg_bk = find_child(options.fonts, "bk_dlg");
-            if (dlg && dlg_gr && dlg_bk) {
-                try {
-                    // 0x406cfe slot 0: DIALOG.SFN + GR_DLG/BK_DLG, fill
-                    // (0x16 << green) | (0x1c << red) = 0xe2c0 in RGB565.
-                    session.display.dialog_font = byzantine::load_sfn_font(
-                        dlg->string(), dlg_gr->string(), dlg_bk->string(), 0xe2c0);
-                    std::cout << "fonts dialog glyphs="
-                              << session.display.dialog_font->glyph_count
-                              << " atlas=" << session.display.dialog_font->atlas_width
-                              << 'x' << session.display.dialog_font->atlas_height
-                              << " line=" << session.display.dialog_font->line_height
-                              << '\n';
-                } catch (const std::exception& error) {
-                    std::cout << "dialog font disabled: " << error.what() << '\n';
-                }
-            } else {
-                std::cout << "dialog font disabled: DIALOG.SFN/GR_DLG.TGA/BK_DLG.TGA "
-                             "not under "
-                          << options.fonts.string() << '\n';
-            }
-            const auto cap = find_filename(options.fonts, "CAPTIONS.SFN");
-            // 0x406cfe slot 2: fonts/setup.sfn + setup.tga. The menu lists
-            // (0x4202ff save slots, 0x421ffc keşif rows) draw with this slot.
-            const auto setup_sfn = find_filename(options.fonts, "setup.sfn");
-            const auto setup_tga = find_filename(options.fonts, "setup.tga");
-            if (setup_sfn && setup_tga) {
-                try {
-                    session.display.setup_font = byzantine::load_sfn_font_single_atlas(
-                        setup_sfn->string(), setup_tga->string(), 0x000f);
-                    std::cout << "fonts setup glyphs="
-                              << session.display.setup_font->glyph_count
-                              << " atlas=" << session.display.setup_font->atlas_width
-                              << 'x' << session.display.setup_font->atlas_height
-                              << " line=" << session.display.setup_font->line_height
-                              << '\n';
-                } catch (const std::exception& error) {
-                    std::cout << "setup font disabled: " << error.what() << '\n';
-                }
-            } else {
-                std::cout << "setup font disabled: setup.sfn/setup.tga not under "
-                          << options.fonts << " (menu lists use DIALOG)\n";
-            }
-            const auto cap_tga = find_filename(options.fonts, "CAPTIONS.TGA");
-            if (cap && cap_tga) {
-                try {
-                    // 0x406cfe slot 4: CAPTIONS.SFN + CAPTIONS.TGA, green
-                    // 0x03eb. 0x424981 draws the conversation subtitle.
-                    session.display.caption_font =
-                        byzantine::load_sfn_font_single_atlas(cap->string(),
-                                                              cap_tga->string(), 0x03eb);
-                    std::cout << "fonts captions glyphs="
-                              << session.display.caption_font->glyph_count
-                              << " atlas=" << session.display.caption_font->atlas_width
-                              << 'x' << session.display.caption_font->atlas_height
-                              << " line=" << session.display.caption_font->line_height
-                              << '\n';
-                    // The shipped Turkish CAPTIONS.SFN/TGA only carries some of
-                    // the Turkish glyphs: metrics 0x62..0x66 and 0x69..0x6c are
-                    // 2-pixel blanks. Its ASCII glyphs are pixel-identical to
-                    // DIALOG's (62 of 63), so the subtitle keeps the verified
-                    // position/colour and uses DIALOG's glyph shapes rather
-                    // than dropping letters.
-                    const char turkish_bytes[] = {'\xa1', '\xa2', '\xa3', '\xa4',
-                                                  '\xa5', '\xa6', '\xa7', '\xa8',
-                                                  '\xaa', '\xab', '\xac', '\xad'};
-                    std::string missing;
-                    for (const char byte : turkish_bytes) {
-                        const auto* glyph = session.display.caption_font->glyph(byte);
-                        if (glyph == nullptr || glyph->advance <= 2) {
-                            missing.push_back(byte);
-                        }
-                    }
-                    if (!missing.empty() && session.display.dialog_font) {
-                        std::cout << "fonts captions: " << missing.size()
-                                  << " Turkish glyph(s) are blank in CAPTIONS.SFN";
-                        for (const char byte : missing) {
-                            std::cout << " 0x" << std::hex
-                                      << static_cast<int>(
-                                             static_cast<unsigned char>(byte))
-                                      << std::dec;
-                        }
-                        std::cout << "; using DIALOG.SFN's identical glyph shapes for "
-                                     "the green subtitle\n";
-                        session.display.caption_font = session.display.dialog_font;
-                    }
-                } catch (const std::exception& error) {
-                    std::cout << "caption font disabled: " << error.what() << '\n';
-                }
-            } else {
-                std::cout << "caption font disabled: CAPTIONS.SFN/CAPTIONS.TGA not under "
-                          << options.fonts.string()
-                          << " (conversations report an error instead of guessing)\n";
-            }
-        } else {
-            std::cout << "fonts disabled: no --fonts (the text windows stay blank)\n";
-        }
+        load_fonts(session, true);
         if (options.audio) {
             try {
                 session.audio.open();
+                session.audio.set_volumes(options.settings.master_volume,
+                                          options.settings.speech_volume,
+                                          options.settings.ambient_volume,
+                                          options.settings.effects_volume);
+                std::cout << "audio_gain master=" << options.settings.master_volume
+                          << " speech=" << options.settings.speech_volume
+                          << " ambient=" << options.settings.ambient_volume
+                          << " effects=" << options.settings.effects_volume << '\n';
             } catch (const std::exception& error) {
                 std::cerr << "audio disabled: " << error.what() << '\n';
             }
@@ -8547,14 +10641,16 @@ int main(int argc, char** argv) {
             // 100 ms (Sleep(100)) and then FUN_0041e289's screen opens.
             MenuUi menu;
             menu.init(session);
+            SettingsUi settings_ui;
             int pending_menu_mode = -1;
             std::uint64_t pending_menu_at = 0;
             if (options.menu_mode) {
                 menu.open_screen(*options.menu_mode, session);
             }
-            apply_headless_menu_input(session, menu, options);
-            if (!options.menu_shot.empty() && menu.open) {
-                menu.draw(session);
+            apply_headless_menu_input(session, menu, options, settings_ui);
+            if (!options.menu_shot.empty() && (menu.open || settings_ui.open)) {
+                if (settings_ui.open) settings_ui.draw(session);
+                else menu.draw(session);
                 if (byzantine::write_ppm(session.display.screen, options.menu_shot)) {
                     std::cout << "menu_shot file=" << options.menu_shot
                               << " mode=" << menu.mode << " (interactive)\n";
@@ -8573,6 +10669,115 @@ int main(int argc, char** argv) {
             while (session.running) {
                 SDL_Event event;
                 while (poll_logged_event(&event, "scene", session)) {
+                    if (settings_ui.open) {
+                        if (event.type == SDL_QUIT) {
+                            session.running = false;
+                        } else if (event.type == SDL_KEYDOWN) {
+                            settings_ui.key(session, event.key);
+                        } else if (event.type == SDL_MOUSEBUTTONDOWN &&
+                                   event.button.button == SDL_BUTTON_LEFT) {
+                            settings_ui.mouse_button(session, event.button.x, event.button.y);
+                        } else if (event.type == SDL_MOUSEMOTION) {
+                            settings_ui.mouse_motion(session, event.motion.x, event.motion.y,
+                                (event.motion.state & SDL_BUTTON_LMASK) != 0);
+                        } else if (event.type == SDL_MOUSEBUTTONUP) {
+                            settings_ui.slider_drag = -1;
+                        } else if (event.type == SDL_MOUSEWHEEL) {
+                            settings_ui.wheel(session, event.wheel.y);
+                        }
+                        if (!settings_ui.open && session.reopen_prefs) {
+                            session.reopen_prefs = false;
+                            menu.open_screen(0, session);
+                            if (settings_ui.quit_requested) {
+                                settings_ui.quit_requested = false;
+                                menu.click(session, 120, 380);
+                            }
+                        }
+                        continue;
+                    }
+                    if (event.type == SDL_KEYDOWN &&
+                        key_is(session.options.settings,
+                               session.options.settings.key_backlog,
+                               event.key.keysym.sym) && !menu.open) {
+                        backlog_overlay(session);
+                        continue;
+                    }
+                    if (event.type == SDL_KEYDOWN &&
+                        key_is(session.options.settings,
+                               session.options.settings.key_skip,
+                               event.key.keysym.sym) && !menu.open) {
+                        session.options.settings.skip_seen =
+                            !session.options.settings.skip_seen;
+                        std::cout << "dialogue_skip_seen enabled="
+                                  << (session.options.settings.skip_seen ? 1 : 0) << '\n';
+                        save_port_settings(session.options, false);
+                        session.display.present(session.view);
+                        continue;
+                    }
+                    if (event.type == SDL_KEYDOWN &&
+                        key_is(session.options.settings,
+                               session.options.settings.key_quicksave,
+                               event.key.keysym.sym) && !menu.open) {
+                        quick_save(session);
+                        continue;
+                    }
+                    if (event.type == SDL_KEYDOWN &&
+                        key_is(session.options.settings,
+                               session.options.settings.key_quickload,
+                               event.key.keysym.sym) && !menu.open) {
+                        quick_load(session);
+                        session.display.present(session.view);
+                        continue;
+                    }
+                    if (event.type == SDL_KEYDOWN &&
+                        key_is(session.options.settings,
+                               session.options.settings.key_autoload,
+                               event.key.keysym.sym) && !menu.open) {
+                        load_autosave(session);
+                        session.display.present(session.view);
+                        continue;
+                    }
+                    if (event.type == SDL_KEYDOWN &&
+                        key_is(session.options.settings,
+                               session.options.settings.key_screenshot,
+                               event.key.keysym.sym) && !menu.open) {
+                        take_screenshot(session);
+                        continue;
+                    }
+                    if (event.type == SDL_KEYDOWN &&
+                        key_is(session.options.settings,
+                               session.options.settings.key_settings,
+                               event.key.keysym.sym) && !menu.open) {
+                        settings_ui.open_overlay(session);
+                        continue;
+                    }
+                    if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_F11 &&
+                        !menu.open) {
+                        auto& settings = session.options.settings;
+                        settings.window_mode =
+                            settings.window_mode == byzantine::WindowMode::borderless
+                                ? byzantine::WindowMode::windowed
+                                : byzantine::WindowMode::borderless;
+                        session.display.apply_window_mode(settings.window_mode);
+                        settings.window_mode = session.display.window_mode;
+                        save_port_settings(session.options, true);
+                        session.display.present(session.view);
+                        continue;
+                    }
+                    if (event.type == SDL_KEYDOWN &&
+                        event.key.keysym.sym == SDLK_RETURN &&
+                        (event.key.keysym.mod & KMOD_ALT) && !menu.open) {
+                        auto& settings = session.options.settings;
+                        settings.window_mode =
+                            settings.window_mode == byzantine::WindowMode::exclusive
+                                ? byzantine::WindowMode::windowed
+                                : byzantine::WindowMode::exclusive;
+                        session.display.apply_window_mode(settings.window_mode);
+                        settings.window_mode = session.display.window_mode;
+                        save_port_settings(session.options, true);
+                        session.display.present(session.view);
+                        continue;
+                    }
                     if (menu.open) {
                         // 0x41e289's screen loop owns input until it returns:
                         // ESC closes it, clicks hit its own 0x45f548 controls.
@@ -8607,13 +10812,22 @@ int main(int argc, char** argv) {
                                 event.window.event == SDL_WINDOWEVENT_FOCUS_LOST)) {
                         // The pointer left the window (or the window lost focus),
                         // so no motion event will rewind the hover highlight.
+                        if (event.window.event == SDL_WINDOWEVENT_FOCUS_LOST &&
+                            session.options.settings.mute_on_focus_loss) {
+                            session.audio.set_muted(true);
+                        }
                         session.hover_select_slot = -1;
                         if (restore_hover_preview(session, true)) {
                             session.display.compose(session.view, false, false);
                             session.display.present(session.view);
                         }
+                    } else if (event.type == SDL_WINDOWEVENT &&
+                               event.window.event == SDL_WINDOWEVENT_FOCUS_GAINED) {
+                        session.audio.set_muted(false);
                     } else if (event.type == SDL_KEYDOWN &&
-                               event.key.keysym.sym == SDLK_h) {
+                               key_is(session.options.settings,
+                                      session.options.settings.key_hotspots,
+                                      event.key.keysym.sym)) {
                         options.overlay = !options.overlay;
                         // Turning the hover outline back on follows the live
                         // pointer; the outlined slot is not tracked while off.
@@ -8772,6 +10986,19 @@ int main(int argc, char** argv) {
                     session.display.top_bar_visible = false;
                     menu.open_screen(mode, session);
                 }
+                if (session.open_port_settings) {
+                    session.open_port_settings = false;
+                    menu.open = false;
+                    settings_ui.open_overlay(session, true, session.port_settings_group);
+                }
+                if (settings_ui.open) {
+                    pass_clock.skip_to(now_ms);
+                    pacer.consumed(now_ms, 1);
+                    if (const auto wait = pacer.wait_ms(SDL_GetTicks64()); wait != 0) {
+                        SDL_Delay(static_cast<Uint32>(wait));
+                    }
+                    continue;
+                }
                 if (menu.open) {
                     // 0x41e289 owns the screen; the scene keeps its state but
                     // does not animate behind it.
@@ -8841,6 +11068,9 @@ int main(int argc, char** argv) {
                           << '\n';
             }
             session.display.log_present_summary();
+            session.display.store_window_settings(session.options.settings);
+            save_port_settings(session.options, true);
+            save_seen_dialogue(session);
             SDL_DestroyTexture(session.display.texture);
             SDL_DestroyRenderer(session.display.renderer);
             SDL_DestroyWindow(session.display.window);
@@ -9021,10 +11251,12 @@ int main(int argc, char** argv) {
             MenuUi shot_menu;
             shot_menu.init(session);
             shot_menu.open_screen(options.menu_mode.value_or(2), session);
-            apply_headless_menu_input(session, shot_menu, options);
+            SettingsUi shot_settings;
+            apply_headless_menu_input(session, shot_menu, options, shot_settings);
             if (!options.menu_shot.empty()) {
-                if (shot_menu.open) {
-                    shot_menu.draw(session);
+                if (shot_menu.open || shot_settings.open) {
+                    if (shot_settings.open) shot_settings.draw(session);
+                    else shot_menu.draw(session);
                     if (byzantine::write_ppm(session.display.screen, options.menu_shot)) {
                         std::cout << "menu_shot file=" << options.menu_shot
                                   << " mode=" << shot_menu.mode << '\n';

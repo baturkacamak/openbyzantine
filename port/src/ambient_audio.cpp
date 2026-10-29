@@ -232,7 +232,7 @@ std::vector<std::int16_t> AudioMixer::convert(const WavClip& clip) const {
     return pcm;
 }
 
-void AudioMixer::queue(const WavClip& clip) {
+void AudioMixer::queue(const WavClip& clip, VoiceBus bus) {
     if (device_ == 0) return;
     auto pcm = convert(clip);
     if (pcm.empty()) return;
@@ -240,6 +240,7 @@ void AudioMixer::queue(const WavClip& clip) {
     voice.id = 0;
     voice.tagged = false;
     voice.loop = false;
+    voice.bus = bus;
     voice.pcm = std::move(pcm);
     SDL_LockAudioDevice(device_);
     voices_.push_back(std::move(voice));
@@ -264,7 +265,7 @@ std::size_t AudioMixer::remaining_untagged_bytes() const {
     return bytes;
 }
 
-bool AudioMixer::start(std::uint16_t id, const WavClip& clip, bool loop) {
+bool AudioMixer::start(std::uint16_t id, const WavClip& clip, bool loop, VoiceBus bus) {
     if (device_ == 0) return false;
     auto pcm = convert(clip);
     if (pcm.empty()) return false;
@@ -272,6 +273,7 @@ bool AudioMixer::start(std::uint16_t id, const WavClip& clip, bool loop) {
     voice.id = id;
     voice.tagged = true;
     voice.loop = loop;
+    voice.bus = bus;
     voice.pcm = std::move(pcm);
     SDL_LockAudioDevice(device_);
     voices_.erase(std::remove_if(voices_.begin(), voices_.end(),
@@ -339,10 +341,34 @@ std::string AudioMixer::describe() const {
     return "voices=" + std::to_string(active()) + " ambient=" + std::to_string(ambient());
 }
 
+void AudioMixer::set_volumes(float master, float speech, float ambient, float effects) {
+    const auto clamp = [](float value) { return std::clamp(value, 0.0f, 1.0f); };
+    master_gain_.store(clamp(master), std::memory_order_relaxed);
+    speech_gain_.store(clamp(speech), std::memory_order_relaxed);
+    ambient_gain_.store(clamp(ambient), std::memory_order_relaxed);
+    effects_gain_.store(clamp(effects), std::memory_order_relaxed);
+}
+
+void AudioMixer::set_muted(bool muted) {
+    muted_.store(muted, std::memory_order_relaxed);
+}
+
 void AudioMixer::mix(std::int16_t* out, int frames) {
     SDL_memset(out, 0, static_cast<std::size_t>(frames) * 2 * sizeof(std::int16_t));
+    const float master = muted_.load(std::memory_order_relaxed)
+                             ? 0.0f
+                             : master_gain_.load(std::memory_order_relaxed);
+    const float speech = speech_gain_.load(std::memory_order_relaxed);
+    const float ambient = ambient_gain_.load(std::memory_order_relaxed);
+    const float effects = effects_gain_.load(std::memory_order_relaxed);
     for (auto& voice : voices_) {
         if (voice.finished) continue;
+        float gain = master;
+        switch (voice.bus) {
+            case VoiceBus::speech: gain *= speech; break;
+            case VoiceBus::ambient: gain *= ambient; break;
+            case VoiceBus::effects: gain *= effects; break;
+        }
         for (int frame = 0; frame < frames; ++frame) {
             if (voice.position + 1 >= voice.pcm.size()) {
                 if (voice.loop && !voice.pcm.empty()) {
@@ -353,9 +379,11 @@ void AudioMixer::mix(std::int16_t* out, int frames) {
                 }
             }
             const auto left = static_cast<std::int32_t>(out[frame * 2]) +
-                              voice.pcm[voice.position];
+                              static_cast<std::int32_t>(
+                                  std::lround(voice.pcm[voice.position] * gain));
             const auto right = static_cast<std::int32_t>(out[frame * 2 + 1]) +
-                               voice.pcm[voice.position + 1];
+                               static_cast<std::int32_t>(
+                                   std::lround(voice.pcm[voice.position + 1] * gain));
             out[frame * 2] = static_cast<std::int16_t>(std::clamp(left, -32768, 32767));
             out[frame * 2 + 1] = static_cast<std::int16_t>(std::clamp(right, -32768, 32767));
             voice.position += 2;

@@ -198,6 +198,16 @@ int main() {
         mixer.stop_all();
         require(!mixer.playing(6) && mixer.active() == 0,
                 "stop_all left voices behind");
+
+        // Host gains and mute must be safe while voices exist (the actual
+        // amplitude is applied in the callback; this checks the public API).
+        mixer.set_volumes(0.5f, 0.4f, 0.3f, 0.2f);
+        require(mixer.start(7, clip, true, VoiceBus::ambient),
+                "mixer rejected a voice after setting gains");
+        mixer.set_muted(true);
+        mixer.set_muted(false);
+        mixer.set_volumes(1.0f, 1.0f, 1.0f, 1.0f);
+        mixer.stop(7);
         std::cout << "audio tests passed (" << mixer.device_name() << ")\n";
         return 0;
     } catch (const std::exception& error) {

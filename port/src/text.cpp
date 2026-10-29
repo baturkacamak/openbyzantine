@@ -7,6 +7,74 @@
 
 namespace byzantine {
 
+std::string utf8_to_turkish_game_text(const std::string& text) {
+    std::string out;
+    out.reserve(text.size());
+    for (std::size_t index = 0; index < text.size();) {
+        const auto first = static_cast<unsigned char>(text[index]);
+        if (first < 0x80) {
+            out.push_back(static_cast<char>(first));
+            ++index;
+            continue;
+        }
+        std::uint32_t codepoint = 0;
+        int length = 0;
+        if ((first & 0xe0) == 0xc0) {
+            codepoint = first & 0x1f;
+            length = 2;
+        } else if ((first & 0xf0) == 0xe0) {
+            codepoint = first & 0x0f;
+            length = 3;
+        } else if ((first & 0xf8) == 0xf0) {
+            codepoint = first & 0x07;
+            length = 4;
+        } else {
+            out.push_back('?');
+            ++index;
+            continue;
+        }
+        if (index + static_cast<std::size_t>(length) > text.size()) {
+            out.push_back('?');
+            break;
+        }
+        bool valid = true;
+        for (int offset = 1; offset < length; ++offset) {
+            const auto next = static_cast<unsigned char>(text[index + static_cast<std::size_t>(offset)]);
+            if ((next & 0xc0) != 0x80) {
+                valid = false;
+                break;
+            }
+            codepoint = (codepoint << 6) | (next & 0x3f);
+        }
+        if (!valid) {
+            out.push_back('?');
+            ++index;
+            continue;
+        }
+        switch (codepoint) {
+            case 0x00c7: out.push_back(static_cast<char>(0xa1)); break;  // Ç
+            case 0x015e: out.push_back(static_cast<char>(0xa2)); break;  // Ş
+            case 0x0130: out.push_back(static_cast<char>(0xa3)); break;  // İ
+            case 0x011e: out.push_back(static_cast<char>(0xa4)); break;  // Ğ
+            case 0x00dc: out.push_back(static_cast<char>(0xa5)); break;  // Ü
+            case 0x00d6: out.push_back(static_cast<char>(0xa6)); break;  // Ö
+            case 0x00e7: out.push_back(static_cast<char>(0xa7)); break;  // ç
+            case 0x015f: out.push_back(static_cast<char>(0xa8)); break;  // ş
+            case 0x0131: out.push_back(static_cast<char>(0xaa)); break;  // ı
+            case 0x011f: out.push_back(static_cast<char>(0xab)); break;  // ğ
+            case 0x00fc: out.push_back(static_cast<char>(0xac)); break;  // ü
+            case 0x00f6: out.push_back(static_cast<char>(0xad)); break;  // ö
+            default:
+                // The port's own UI is Turkish; unsupported scripts are not
+                // silently reinterpreted as another single-byte codepage.
+                out.push_back('?');
+                break;
+        }
+        index += static_cast<std::size_t>(length);
+    }
+    return out;
+}
+
 std::string cp1254_to_game_text(const std::string& text) {
     // CP1254 Turkish letters -> the shipped font's byte values. The mapping is
     // the inverse of the 0x406bf0 high-byte path documented in TEXT_WINDOW.md:
@@ -112,9 +180,9 @@ const SfnGlyph* SfnFont::glyph(char code) const {
     // then subtracts the usual 0x20, so the Turkish glyph index is
     // `byte - 0x41` (the shipped Turkish text bytes 0xa6..0xad land on the
     // font's 0x85..0x8c glyphs). Bytes 0x20..0x7f keep `byte - 0x20`.
-    const auto glyph_index = index > 0x7f
-                                 ? static_cast<std::size_t>(index - 0x41)
-                                 : static_cast<std::size_t>(index - 0x20);
+    const auto glyph_index =
+        index > 0x7f ? static_cast<std::size_t>(index - (english_high_bytes ? 0x20 : 0x41))
+                     : static_cast<std::size_t>(index - 0x20);
     if (glyph_index >= glyphs.size()) return nullptr;
     return &glyphs[glyph_index];
 }

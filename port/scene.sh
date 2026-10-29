@@ -3,8 +3,8 @@
 #
 #   ./port/scene.sh <game-dir> [scene] [label] [save]
 #
-#   ./port/scene.sh "/media/Backup/Byzantine - The Betrayal"           # MAP label 87
-#   ./port/scene.sh "/media/Backup/Byzantine - The Betrayal" VT 497 72.btb
+#   ./port/scene.sh "/path/to/openbyzantine"           # MAP label 87
+#   ./port/scene.sh "/path/to/openbyzantine" VT 497 72.btb
 #
 # <game-dir> is the folder that holds the six
 # "Byzantine-The-Betrayal_Win_TR_CD*" directories (or the ISOs directly).
@@ -289,6 +289,13 @@ gamepref="$data/copy2hd/savegame/gamepref_000"
 [ -f "$gamepref" ] || gamepref="$data/copy2hd/savegame/GAMEPREF.000"
 [ -f "$gamepref" ] || gamepref="$data/copy2hd/goldsave/GAMEPREF.000"
 
+config_arg=()
+if [ -n "${BYZ_CONFIG:-}" ]; then
+    config_arg+=(--config "$BYZ_CONFIG")
+elif [[ " $* " != *" --config "* && " $* " != *" --no-config "* ]]; then
+    config_arg+=(--config "$here/byzantine.ini")
+fi
+
 exec "$here/byzantine-play" "$cc" "$cb" "$label" \
     --save "$save_path" \
     --engine "$data/copy2hd/engine" \
@@ -315,5 +322,7 @@ exec "$here/byzantine-play" "$cc" "$cb" "$label" \
     --gameprefs "$gamepref" \
     --inventor "$data/inventor.txt" \
     --hotitems "$data/hotitems.txt" \
+    --languages "$data/lang" \
+    "${config_arg[@]}" \
     "${text_args[@]}" \
     "${@:5}"

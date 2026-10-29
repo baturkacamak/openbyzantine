@@ -18,7 +18,7 @@ set -- "$port/byzantine-play" "$port/output/cc_all/$scene" "$port/output/cb_all/
   --inventor "$data/inventor.txt" --hotitems "$data/hotitems.txt" \
   --fonts "$data/copy2hd/fonts" \
   --messages "$data/copy2hd/setupart/MESSAGES.TXT" \
-  --entry --no-audio --no-video "$@"
+  --entry --no-audio --no-video --no-config "$@"
 for table in ci cy cf cs ca cd ce; do
   if [ -f "$data/$table/$scene" ]; then
     set -- "$@" "--$table" "$data/$table/$scene"
