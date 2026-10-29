@@ -1,3 +1,166 @@
+## Rich README and GitHub identity (29 October 2026)
+
+The user requested a README matching the richer documentation in sibling
+projects, a GitHub description and a push using gh. The root README now has
+badges, real player screenshots, feature/status tables, build/data setup,
+controls, persistent save locations, language tools, architecture and
+contribution/evidence links. It distinguishes tested Linux/Turkish workflows
+from portability/language goals and records the absent root source licence.
+
+GitHub repository renamed to `baturkacamak/openbyzantine`; local origin updated,
+English description and seven topics set, existing PRIVATE visibility retained.
+Pending notebook/settings/language/session code was committed as `c351c4d`
+before the documentation commit so the advertised features are included.
+
+Validation: `make -C port -j2 all test` passes; clean out-of-tree CMake build
+and all 14 CTest tests pass. GitHub Markdown rendering checked: eight tables,
+seven images, two details blocks; all 16 local references and six navigation
+targets resolve. Evidence: `analysis/rea/GITHUB_README.md`,
+`port/output/github-readme/`. Previous run preserved:
+`run-20261028T224030.673870Z-rlru45kf`.
+
+## Project name and local path (29 October 2026)
+
+The user selected **OpenByzantine**; the directory/repository spelling is
+`openbyzantine`. The local root is now
+`/media/baturkacamak/M.2/PROJECTS/openbyzantine`.
+Root README added; port documentation and launcher comment examples updated.
+Historical logs/exports retain their original paths; resolve those under the
+new root when needed. GitHub origin is unchanged and nothing was pushed in
+this naming step. `make -C port -j2 all test` passes after the move.
+Evidence: `analysis/rea/PROJECT_NAMING.md`,
+`port/output/project-naming/build-test.log`.
+
+## Two-line settings frame fit (28 October 2026)
+
+User screenshot: the aç/kapat line escaped the selection border on OTURUM.
+The new typography used 17px glyph cells plus a second line at +17, while the
+old frame was only 35px high starting 5px above the heading. The renderer now
+allocates two-line pages 41px frames (including font height, shadow and padding),
+42px row spacing and a slightly higher start. Frame, hover and click still use
+the same row rectangle. All six original rows fit above GERİ; compact hub,
+audio and key rows keep their previous spacing. No game/VM behavior changed.
+
+`make -C port -j2 all test` and the existing UI checks pass. Pixel checks
+measure 4px below the choice text inside each selected boolean frame; the
+last original frame ends at y404, above GERİ at y412. Screenshots reviewed.
+Evidence: `analysis/rea/MENU_ROW_FIT.md`, `port/output/menu-row-fit/`.
+The user's run `run-20261028T223508.979736Z-kwr_312s` is preserved.
+
+## Native preference typography (28 October 2026)
+
+The user asked to use the original preference row's typography and aç/kapat
+structure in the new menu. The old DIALOG-derived miniatures have been
+replaced by embedded regular-serif masks, with black idle labels, gold hover
+and centred two-line boolean rows. Aç and kapat now choose values directly
+(repeating either word is idempotent). Category navigation, sliders and key
+capture are retained. The original main preference images/handlers are intact.
+
+The native row is baked into PREFFS/ROLL artwork; its exact original font is
+not established. The new host-only approximation is rasterized Liberation
+Serif (14/16 px), bundled under OFL as Byzantine Menu Serif. It adds no runtime
+dependency or font installation requirement. Gameplay still uses shipped SFNs.
+Regenerator: `port/generate_menu_typeface.py`; coverage header and licence are
+under `port/include/byzantine/` and `port/licenses/`.
+
+`make -C port -j2 all test` and the six-category UI checks pass. Turkish
+glyph coverage, direct repeated on/off choices and banner fit are checked; an
+isolated Xephyr run validates drag to 50%, subtitle off/on, resume and F10
+(dummy audio). All settings presentation records have `overlay=0`.
+Evidence: `analysis/rea/MENU_TYPEFACE.md`, `port/output/menu-typeface/`.
+This supersedes the reduced-DIALOG typography described in the preceding
+notebook redesign report; no new binary behavior was derived.
+
+## Reference notebook menu redesign (28 October 2026)
+
+The user supplied three notebook-menu mockups and asked for that design in the
+player. The native preferences page now has one gold **GELİŞMİŞ AYARLAR** entry;
+it opens a category hub, then separate notebook setting pages. F10 opens the
+same hub. Both use PREFFS' leather, rolled sheet, pen and gray-paper palette.
+Hover selects a gold frame and shows its explanation on the left; moving onto
+the leather clears that selection. Back/ESC returns through category -> hub ->
+preferences, while F10 closes the settings. Resume and the original quit
+confirmation work from the subpages. Audio sliders support click and drag;
+left/right arrows adjust existing real settings, and key rows capture a key.
+
+All six existing categories remain (display, sound, language, session, keys,
+original read-only preferences). The reference's resolution, brightness,
+contrast, gamma, separate music bus and WASD movement bindings have **not** been
+added or represented as working controls. No new recovered binary behavior or
+scene rules were introduced. Engine/presentation/click ownership is unchanged.
+
+`make -C port -j2 all test` passes. Real-asset deterministic checks pass; an
+isolated Xephyr window confirms slider drag to 50%, back/resume and F10.
+Every recorded settings presentation has `overlay=0`; audio used a dummy device.
+Evidence and validation: `analysis/rea/NOTEBOOK_MENU_DESIGN.md`,
+`port/output/menu-redesign/`. This supersedes the drawer/tab layout described
+in the older PORT_SETTINGS section below; its underlying settings and language
+pack implementation still applies.
+
+## Host settings, display modes and language-pack plumbing (28 October 2026)
+The user asked for features that are not in the shipped game: display modes,
+audio/subtitle choices and installable language packs. The parts that do not
+need the other localized discs are implemented; the language resolver and pack
+builder are ready for the discs but only the Turkish base is exercised here.
+
+Implemented:
+
+1. **Port settings page (native + `F10`).** The top-bar `TERCICHLER` screen
+   has a `GELİŞMİŞ AYARLAR` gold banner/drawer with six group shortcuts;
+   choosing a group opens the same page and `ESC` returns there; `F10` remains a
+   shortcut. The page is a tabbed,
+   game-styled screen
+   (`GÖRÜNTÜ`, `SES`, `DİL`, `OTURUM`, `TUŞLAR`, read-only `ORİJİNAL`) with a
+   per-row description on the left notebook page (native) or right panel (F10)
+   and explicit `PORT`/`OYUN` scope tags. The native paper page is composited
+   from `SETUP00.JPG`; visible text uses the game font's Turkish encoding. Windowed/
+   borderless/exclusive/maximized, fit/integer scaling, VSync, master/speech/
+   ambient/effects volume, subtitles, hotspot diagnostic, cursor scale, focus
+   mute, text/voice language, autosave, skip-seen, gamepad and key bindings.
+   The `ORİJİNAL` tab shows `gamepref[0..5]` read-only, so the shipped
+   TERCICHLER settings and the port settings can no longer be confused.
+   Details: `analysis/rea/PORT_SETTINGS.md`.
+2. **Display.** SDL window modes and `F11`/`Alt+Enter`; `SDL_RenderSetLogicalSize`
+   still gives 4:3 letterboxing on a 16:9 desktop. Window geometry/mode/scale/
+   cursor scale persist in `port/byzantine.ini` (or `--config`/`$BYZ_CONFIG`).
+   The original `gamepref[1]` 2x movie flag is untouched and separate.
+3. **Audio and session QoL.** `AudioMixer` voices carry a speech/ambient/effects
+   bus and apply master × bus gains in the callback. `F5`/`F9` quicksave/load,
+   `F8` loads the automatic save (`autosave-port.btb`, written after a scene
+   travel), `F12` screenshots, focus-loss mute; `port/continue.sh` resumes that
+   save from the shell. `F3` opens the current session's
+   dialogue backlog (400 lines); `F4` toggles skip-seen, with the seen keys in
+   `seen_dialogue.txt`. A gamepad bridge maps the left stick/A/B/Start/X/Y to
+   the existing mouse/key events, and the port action keys are rebindable from
+   the settings overlay (`[keys]` in the INI).
+4. **Language packs.** `byzantine::LanguageSelection` discovers
+   `<base>/lang/<code>/pack.ini` and resolves text/voice assets pack-first,
+   base-second. Integration covers MESSAGES, split CE/BYZ/CCF, fonts, localized
+   setupart/inventor/backs/nodes art, dialogue/video/sounds and per-voice cache
+   keys. The original English/non-English font branch is modelled from
+   `MESSAGES.TXT` line `0x3e`. `port/language_pack.py` builds an overlay by hash
+   comparison without OCR; `port/tests/language_pack.py` covers it.
+   `port/language_audit.py` is the read-only audit before generating a pack.
+5. **Tests.** `make -C port -j2 all test` passes; CMake build and 14 `ctest`
+   tests pass. `settings-test`/`language-test` are in the suite.
+
+Real-window evidence: `F10` opened the overlay, changing the language row
+loaded `/tmp/byz-scene/lang/en/setupart/MESSAGES.TXT` with `text_lang=en`,
+changing the window row logged `window_mode mode=borderless` and wrote
+`mode=borderless`, `F5` wrote `quicksave.btb` and `F9` reloaded MAP, and `F12`
+wrote a PPM. The user's `port/output/logs/LATEST` was not used for these probes;
+they ran with explicit config/log paths.
+
+Also added `port/full_install.sh`: after one run it copies every `dialog/`,
+`video/` and `avi/` file from the six discs into the prepared data directory, so
+runtime playback no longer needs an ISO.
+
+Not done: the real non-Turkish packs themselves and their audit (the sets are
+not mounted here). The audit and pack-builder commands are ready; once the
+prepared language roots are available, run `language_audit.py` and then
+`language_pack.py`. The startup resume is `port/continue.sh` (the in-game `F8`
+also loads the autosave).
+
 ## The three census gaps are closed: shadow draw, trail, klio pointer (28 October 2026)
 `analysis/rea/OPEN_GAPS_CENSUS.md` found three data-backed gaps; all three are now
 implemented.

@@ -692,14 +692,14 @@ genel durum henüz uygulanmadı. Kanıt: `analysis/rea/VARIABLE_METADATA.md`.
 
 ## Derleme ve kullanım
 
-Üç sistemde CMake ve C++17 derleyicisiyle:
+SDL2 ve C++17 derleyicisiyle CMake üzerinden (Linux üzerinde doğrulandı):
 
 ```bash
 cmake -S port -B port/build
 cmake --build port/build
 ```
 
-Bu makinede CMake kurulu olmadığı için bu yol henüz çalıştırılmadı. Debian'da `make` ile doğrulanan yol:
+CMake derlemesi ve 14 CTest testi 29 Ekim 2026 tarihinde geçti. Aşağıdaki `scene.sh` başlatıcısı `port/` içindeki araçları kullanır; başlatıcı için Make ile derleyin:
 
 ```bash
 cd port
