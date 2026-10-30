@@ -1055,6 +1055,28 @@ int main(int argc, char** argv) {
                 anim_state.records.at(1).anims_signature == 7 &&
                 anim_state.records.at(1).flags == 0x21,
                 "record creation from the animation asset mismatch");
+        {
+            auto restored = anim_state;
+            auto& record = restored.records.at(1);
+            record.marker = 0;
+            record.frames_known = false;
+            record.frames.clear();
+            record.x = 17;
+            record.y = 38;
+            record.current_frame = 0;
+            require(byzantine::load_save_record_assets(restored) == 1 &&
+                        record.frames_known && record.frames.size() == 1 &&
+                        record.current_frame == 0 && record.x == 17 && record.y == 38,
+                    "marker-0 saved preload lost its frame metadata or moved twice");
+            restored.actor_assets.at(1).type = 0;
+            record.frames_known = false;
+            record.frames.clear();
+            require(byzantine::load_save_record_assets(restored) == 0 && !record.frames_known,
+                    "marker-0 record invented a lazy preload");
+            record.marker = 1;
+            require(byzantine::load_save_record_assets(restored) == 1 && record.frames_known,
+                    "marker-1 lazy saved asset stopped loading");
+        }
         // Scene composition: 0x43b216 groups records by the +0x08 kind and walks
         // each group from the highest id down, drawing the current frame at the
         // record's x/y. The destination is the 640x480 scene surface, so the
@@ -1329,6 +1351,75 @@ int main(int argc, char** argv) {
                     "0x43bb77 stop-at-last mismatch");
         }
 
+        // A live record pass redirects one script pointer. Frame events happen
+        // before stepping (even frozen); end events replace it at either tail.
+        {
+            byzantine::SceneState state;
+            auto& record = state.records[7];
+            require(record.field_2c == 0xffffffffu && record.field_30 == 0xffffffffu,
+                    "record callback defaults must use the original -1 sentinel");
+            record.flags = 4;
+            record.frame_count = 3;
+            record.current_frame = 1;
+            record.extra = {{1, 100, 0}, {1, 101, 1}, {1, 102, 1}};
+            auto event = byzantine::advance_record_pass(state, {7});
+            require(event && event->record == 7 && event->label == 101 &&
+                        record.current_frame == 1 && record.extra.size() == 2,
+                    "frame callback must fire frozen and consume just the first match");
+            event = byzantine::advance_record_pass(state, {7});
+            require(event && event->label == 102 && record.extra.size() == 1,
+                    "duplicate-frame callback must wait for another pass");
+            require(!byzantine::advance_record_pass(state, {7}),
+                    "a consumed callback fired again");
+            record.flags = 0x24;
+            record.extra.push_back({1, 103, 1});
+            require(!byzantine::advance_record_pass(state, {7}) && record.extra.size() == 2,
+                    "snap/hidden records must not consume frame callbacks");
+            record.flags = 0x40;
+            require(!byzantine::advance_record_pass(state, {7}) && record.extra.size() == 2,
+                    "hidden record callback escaped its draw gate");
+            record.flags = 0;
+            record.field04 = 0;
+            record.field06 = 0;
+            record.current_frame = 2;
+            record.extra = {{1, 104, 2}};
+            record.field_2c = 105;
+            event = byzantine::advance_record_pass(state, {7});
+            require(event && event->label == 105 && record.extra.empty() &&
+                        record.field_2c == 0xffffffffu && record.current_frame == 0,
+                    "end callback must replace the frame callback and clear only itself");
+            require(!byzantine::advance_record_pass(state, {7}),
+                    "end callback was not one-shot");
+            record.flags = 2 | 8;
+            record.current_frame = 0;
+            record.field06 = 0;
+            record.field_2c = 106;
+            event = byzantine::advance_record_pass(state, {7});
+            require(event && event->label == 106 && (record.flags & 4) != 0,
+                    "reverse tail must dispatch and freeze just like forward tail");
+            record.flags = 0;
+            record.frame_count = 1;
+            record.field06 = 0;
+            record.field_2c = 107;
+            byzantine::advance_record_animation(record);
+            require(record.field_2c == 107 && record.current_frame == 0,
+                    "no script receiver must leave an end callback pending");
+            event = byzantine::advance_record_pass(state, {7});
+            require(event && event->label == 107 && record.current_frame == 0,
+                    "single-frame animation must dispatch its end callback");
+            record.flags = 4;
+            record.extra = {{1, 108, 0}};
+            auto& later = state.records[2];
+            later.flags = 0;
+            later.frame_count = 1;
+            later.current_frame = 0;
+            later.field06 = 0;
+            later.field_2c = 109;
+            event = byzantine::advance_record_pass(state, {7, 2});
+            require(event && event->record == 2 && event->label == 109 && record.extra.empty(),
+                    "the last callback in draw order must own the single script pointer");
+        }
+
         // The interactive loop must spend one 16 ms tick per record pass. The
         // pacer keeps the frame-list walk on the wall clock instead of the old
         // `compose + 16 ms` period, and drops animation debt after a stall.
@@ -1544,6 +1635,22 @@ int main(int argc, char** argv) {
         require(missing_chain.missing_dialogue_chain == 9,
                 "0xc7 accepted a missing dialogue chain");
 
+        {
+            byzantine::MorrisBoard board;board.initialize();std::uint32_t rng=0xbeef;
+            const auto response=board.play(0,rng);
+            require(response && response->computer && response->status==0 &&
+                    (board.nodes[0].flags&2) && (board.nodes[*response->computer].flags&1),
+                    "Morris valid human move did not produce computer response");
+            board.initialize();board.nodes[0].flags|=2;board.nodes[1].flags|=2;
+            const auto win=board.play(2,rng);
+            require(win && win->status==2 && win->line==0 && !win->computer,
+                    "Morris human outer top mill result/line mismatch");
+            board.initialize();board.nodes[0].flags|=1;board.nodes[1].flags|=1;
+            const auto computer_win=board.play(8,rng);
+            require(computer_win && computer_win->status==1 && computer_win->line==0 &&
+                    computer_win->computer==2,"Morris computer failed to finish mill");
+            require(!board.play(24,rng),"Morris out-of-range point accepted");
+        }
         // 0xc8 sub-commands: flags, input waits, status requests, no-ops.
         byzantine::SceneState system_state;
         system_state.variables[5] = 0x32;
@@ -1569,6 +1676,15 @@ int main(int argc, char** argv) {
             {}, system_state, 10);
         require(reseed_trace.unresolved_random,
                 "0xc8 sub 0x1e invented the time-seeded RNG stream");
+        system_state.morris_seed = 0xbeef;
+        const auto initialized_trace = byzantine::trace_scene_label(
+            {{0xe1, {word(2, 10)}}, {0xc8, {word(2, 5), word(2, 6)}}, {0x6f, {}}},
+            {}, system_state, 10);
+        require(!initialized_trace.unresolved_random && system_state.morris.initialized &&
+                system_state.random_state != 0xbeef,
+                "0xc8 sub 0x1e did not initialize board/discard CRT draw");
+        // No board exists in an isolated pure input probe; keep that failure explicit.
+        system_state.morris = byzantine::MorrisBoard{};
         system_state.variables[5] = 0x1f;
         const auto input_trace = byzantine::trace_scene_label(
             {{0xe1, {word(2, 10)}},
@@ -1577,6 +1693,20 @@ int main(int argc, char** argv) {
             {}, system_state, 10);
         require(input_trace.unresolved_system_input == 0x1f,
                 "0xc8 sub 0x1f invented input values");
+        system_state.morris.initialize();system_state.variables[6]=0;
+        const auto board_input=byzantine::trace_scene_label(
+            {{0xe1, {word(2, 10)}},
+             {0xc8, {word(2, 5), word(2, 6), word(2, 0), word(2, 1), word(2, 2)}},
+             {0x6f, {}}}, {}, system_state, 10);
+        require(!board_input.unresolved_system_input && system_state.morris.turns==1 &&
+                system_state.variables.at(1)==0 && system_state.variables.at(0)<24,
+                "0xc8 sub 0x1f board output variables not committed");
+        system_state.variables[5]=0x20;
+        byzantine::trace_scene_label(
+            {{0xe1,{word(2,10)}},{0xc8,{word(2,5),word(2,6)}},{0x6f,{}}},
+            {},system_state,10);
+        require(system_state.dialogue_input_active && !system_state.morris.initialized,
+                "0xc8 sub 0x20 did not release board");
         system_state.variables[5] = 0x21;
         const auto no_op_trace = byzantine::trace_scene_label(
             {{0xe1, {word(2, 10)}}, {0xc8, {word(2, 5), word(2, 6)}}, {0x6f, {}}},

@@ -1,3 +1,398 @@
+## Clock continuation fixed and verified (30 October 2026)
+
+Implemented shared record frame/end callbacks (43cd2c/43bb77), dispatched via
+existing VM/media/commit path; live pass clock owns all animation steps, trail
+copies never step twice. Fixed marker0 CA type2/3 saved-record frame metadata
+loss (425ab4 preloads before426b9d). Original defaults use-1 callback sentinels.
+Target +21 cached Ghidra exports hash-verified; no scene-name workaround.
+
+Final verified-stories:9/9 PASS,25 starts,136 assertions,27 milestones,
+8 fresh-process saved continuations. Clock now solves all3 gates, awards
+key25/glass26, returns to VT; saves pending hand animation and after gate2
+both resume. Actual media chain PASS (2 clips/audio queues). Old20 regressions
+PASS. Final80 all-start launches0 findings; prior160 corrected-engine launches0.
+Settings8/16/3737 PASS. make all test, Python69, CMake5/5, diffcheck PASS.
+Discovery fingerprintv6/progressv3 now retain script-bearing animation phases;
+old prefix hashes version-disabled, directed goals preserved. Test waits2500ms
+allow authored hand movement; solved exit uses actual candidate596,368 after
+reward pickups. Initial diagnostic JSON typo caught/fixed by pending-state test.
+
+Six ISO listings reconfirm mm1car01/mm1meh00/mm1car02 AVI absent; authentic
+content still required. Not an engine fix or fabricated substitution. Existing
+user run/pointers preserved, no new2000 run/commit/push. Evidence
+port/output/clock-continuation-fix/; report analysis/rea/CLOCK_CONTINUATION_FIX.md.
+
+## User campaign completed and reviewed (30 October 2026)
+
+Pinned campaign-20261030T182903-1437175 finished all6 phases,2427 starts.
+200 settings combinations/400 starts/103808 checks PASS; behavior9/37 PASS.
+Logic2000 cap reached,1411 detailed/757 progress contexts,32 scene IDs,
+58/58 save checks,0 findings. Longest executed22 actions; retained-state max21.
+Deep selection49 starts balanced19–20 each;15 actual map destinations.
+Media settings941 checks PASS;15 total playback completion events acrossmedia.
+Aggregate1 review only: known MR missing mm1car01 (log also mm1meh00/mm1car02),
+no error-severity finding. BOUNDED is budget completion, not exhaustive coverage.
+Separate newer story suite still has1 unresolved clock continuation failure,
+8 cases/7 saved continuations PASS. It was not in this older loaded campaign.
+See analysis/rea/CAMPAIGN_20261030_FINAL.md; no runs/signals/code changes in review.
+
+## Directed story/puzzle milestones added (30 October 2026)
+
+Added test_stories.py + tests/exploration/story-contracts.json,9 goal cases:
+orb/diadem, forum clues/fen, completed lintel handoff, cassette controls, full
+Morris loss/win/draw, first clock gate and intended three-gate clock solution.
+Explicit intermediate/final item/flag/board/exit checks; no invented VM state.
+Seven cases save midway, restart a separate process and complete the suffix,
+comparing saved boundary/final durable state with uninterrupted input.
+
+Actual final-suite:23 starts,115 assertions,24 milestones/21 pass. Eight cases
+and all7 saved continuations PASS. One clock continuation contract FAIL:
+after star insertion, hand alignment11/11 and gate9=1, hand hotspot0 stays
+absent; later gates cannot be reached. Public replay reproduces with player
+exit0 and harness error. Candidate shared record-extra callback gap; engine
+not changed or claimed fixed. Do not weaken the test or add scene-name fixes.
+See analysis/rea/STORY_MILESTONE_TESTS.md, evidence port/output/story-chains/.
+
+Campaign now seven phases, story after behavior; same command on NEXT launch.
+Active user six-phase campaign-20261030T182903-1437175 and LATEST untouched.
+make all test PASS, Python68, CMake5/5, diffcheck PASS. Asset story suite
+correctly returns1 for clock; no full new-game/ending or original-equivalence
+claim. No commit/push. Further early/cross-chapter/ending coverage remains.
+
+## Current user campaign inspected (30 October 2026)
+
+Pinned `campaign-20261030T182903-1437175`:200 settings cases/400 starts,103808
+checks PASS,0 findings, all32 operations. Behavior9/37 PASS. Live logic
+694/2000,522 detailed/323 progress contexts,30 scene IDs,
+depth9,23 save checks PASS,0 findings. Deep selection balanced
+across49 starts (6–7 each); actual map travel to13 destinations.
+Media phases pending. Parent report409 runs is a phase-boundary snapshot,
+not current child progress. Run untouched. Evidence in SETTINGS_FUZZING.md
+and port/output/settings-fuzz/live-campaign-inspection.json.
+
+## Random settings fault search added (30 October 2026)
+
+Campaign now has six phases: behavior, settings, logic, media-behavior,
+media-settings, media-exploration. Same `./port/explore_campaign.sh 2000`
+adds32 randomized settings cases plus two media cases, each with a fresh-process
+persistence check;2000 remains the logic cap. Increase using --settings-cases /
+--settings-seconds. Genuine SDL menu input changes23 host/seven native settings
+between existing gameplay routes; resize/focus, applied renderer/mixer state,
+rebound quicksave/load, autosave/video gates and persistence are checked.
+Private config/saves; no VM injection. Optional read-only C++ probe, normal
+snapshot format unchanged; atomic player publication protects concurrent runs.
+
+Canonical32 cases/64 starts, all32 operations,16050 checks PASS;339 final flow
+checks also pass. Final integrated flow smoke852 checks PASS. Six-phase31-start
+matrix completes; only known MR missing-media reviews. Positive public replay
+passes; deliberately wrong expected volume produces a settings_contract finding
+without a crash. make all test, Python64, CMake4/4 and diff check PASS.
+Evidence `port/output/settings-fuzz/`; report
+`analysis/rea/SETTINGS_FUZZING.md`. Dummy devices do not validate physical monitor,
+speakers/controller; only base auto language installed. Existing user campaign
+and LATEST pointers preserved; new phases start on next invocation. No commit/push.
+
+## New campaign verified on policyv3 (30 October2026)
+
+User restarted full command; pinned latest is now
+`campaign-20261030T173323-131904`, seed2029269672. At inspection: behavior9/37
+PASS; logic92/2000,84 detailed/75 progress contexts,21 scene IDs,0 findings.
+policy_metrics.version=3 confirmed;20 different starts each received1 deep
+selection. Actual map travel to AM/BC/EA/GT/HL/IU/MR/NB/SM/SP observed, plus
+EA->MAP/LINTEL->VC/NB->MAP. Maxdepth2 is early broad initialization, not a
+24-depth cap failure. Run left untouched; media phases pending after logic.
+
+## Random scene/object coverage corrected (30 October2026)
+
+User challenged one-branch concentration. Active campaign
+campaign-20261030T165906-3524352 had100/200 recent jobs from save34. It remains
+untouched with its loaded old policy. Mixed policyv3 now rotates least-used
+eligible deep starts before depth selection; weighted/random choices select
+intent then target, avoiding inventory-count bias. Kind0x17 marks observed map
+travel intent; actual transitions counted separately. No scene-name engine
+branch, state injection or ranking-based pruning. Existing positive repeat/
+view-tail discounts and depth24 ceiling retained. New processes usev3.
+
+Actual all49-start160-launch check:134 detailed/109 progress contexts,26 scene
+IDs including examine screens,0 findings. All49 get1–2 deep selections;
+last100 most-used start4 selections. Real map travel to12 destination IDs,
+IU->VC, map returns and examine entries observed. Maxdepth3 at this budget is
+the explicit breadth/depth tradeoff. See
+`analysis/rea/COVERAGE_BALANCED_RANDOM.md` and `port/output/coverage-policy/`
+(final/report.json, summary.json). make all test passes, Python54, CMake3/3.
+Original user run and pointers preserved. No C++ changes, full new2000 run,
+commit or push. Existing commands use the corrected selector on next launch.
+
+## Running full campaign inspected (30 October2026)
+
+User requested status/examples, no changes. Pinned
+`campaign-20261030T165906-3524352`: behavior9/37 PASS; current logic snapshot
+417/2000, 284 detailed/141 progress contexts,
+24 scene IDs including examine screens, depth24,0 findings,
+12 save checks all pass; media phases not started yet.
+Actual24-input MAP->NB item/examine/notebook/clue route verified in trial00133;
+recent trials also MAP->AM/SP/TK. About half of last100 jobs focus on NB branch
+variants via save34, consistent with deep lane; do not describe every trial as
+a new place or every context as story progress. Details:
+`analysis/rea/LIVE_CAMPAIGN_20261030.md`. Current run left untouched.
+
+## Four-profile exploration upgrade complete (30 October2026)
+
+User authorized deeper search, loop discounts, real-media checks and explicit
+outcome assertions. Added mixed scheduler (50% depth-biased/25% balanced/25%
+uniform after roots), positive repeat discounts and saturated-view-tail depth
+discounts; no route pruning or engine state injection. explore_random.sh now
+uses mixed/depth24; BFS/legacy random retained. Report includes path progress
+contexts, scheduling metrics and actual route replay links.
+
+New `./port/explore_campaign.sh 2000` runs9 behavior fixtures/37 assertions,
+2000-cap logic phase,2 real-media behavior routes and a smaller12-launch media
+search. Additional phases are outside the logic cap; HTML/JSON report each
+profile and total. Public wrapper publishes campaign-kind EXPLORATION_LATEST;
+direct Python can preserve it. Assertions/media coverage are replayed by CLI.
+Shared examine-return invariants also run on discovered paths. Original oracle
+remains unverified; contracts cover known outcomes, not all puzzles.
+
+Actual matched90-run comparison, same3 starts/seed1222407329/depth24 cap:
+legacy random maxdepth5, mixed24 (5 progress contexts on long path); mixed
+66 detailed/19 progress versus random69/23, documenting the breadth tradeoff.
+Full matrix validation95 launches:9 behavior PASS,80 logic0 findings,2 media
+behavior routes with3 completed media flows and1 asset-review signature,4 media
+exploration launches/2 completed flows/0 findings. Three MR AVI requests are
+absent from full listings of all6 ISOs; keep review, do not invent substitutes.
+Wrong-scene negative fixture fails despite player exit0 and public replay
+reproduces behavior_contract. make all test passes; Python50, CMake3/3, existing
+actual-asset contracts pass. No new full2000 run automatically started.
+
+Focused report: `analysis/rea/EXPLORATION_CAMPAIGN_UPGRADE.md`. Evidence:
+`port/output/search-upgrade/` (campaign-final/, mixed-final/, random-control/,
+negative-replay/, full-iso-absence-check.json, validation-summary.json).
+Existing user campaign random-20261030T144608Z-2014224 and normal game LATEST
+run-20261029T225825.927020Z-rq6cvhmb.log preserved. No C++ player changes or
+commit/push for this step. See tests/exploration/README.md for usage/budgets.
+
+## Next search-policy advice (30 October2026)
+
+User asked whether deeper steps are needed. Pinned current launch
+`random-20261030T144608Z-2014224` is still RUNNING at audit: 1521/2000 launches,
+no findings; configured depth12, deepest observed7,
+depth_frontier0. Depth cap is not yet binding; raising it alone will not help.
+49 roots and large random frontier keep most paths shallow; many last actions
+are inventory/camera changes. Recommend mixed depth-biased exploration with
+breadth/uniform quota and progress checkpoint provenance, fewer repeated
+selection cycles, smaller real-media profile and behavior assertions.
+Details: `analysis/rea/SEARCH_POLICY_AUDIT.md`. No code changes or tests launched;
+active campaign and normal logs/LATEST preserved. Counts are intermediate.
+
+## All20 campaign findings resolved (30 October 2026)
+
+User requested fixing every finding in random-20261030T130724Z-672018.
+Stable save-directory ownership now survives scene replacement. Port save
+writers add byte-bound portable .byzport companions for active camera, RNG,
+conversation, item/hover gates and examine-parent context; original BTB format
+is unchanged. Cache-only inventory differences are excluded from persistence
+comparison; dormant panorama caches are omitted from automation observations.
+Production --restore-save restores actual saved state without entry replay;
+continue.sh uses it. Companions are retained/hashed in seed/replay bundles.
+
+MORRIS0xc8/1e/1f/20 now initializes/plays/releases the hash-verified original
+24-node board, scoring, CRT ties, result/line IDs and ninth-turn draw. Pure VM
+without host seed/board still reports missing context. No scene-name branch.
+Detailed/progress keys v5/v2 include the board. Evidence: target+30 exports
+verified; same-name flag setters disambiguated with target disassembly.
+
+20/20 original public replay capsules clear; reusable20-case campaign suite
+passes with byte-identical original seeds/prefs and separate-process production
+save restores. Actual token selection/placement produces computer move, board
+persists, ordinary exit returns to usable VC. Production --shot saved-examine
+restore inspected. make all test passes (explorer26), selected CMake3/3 and
+existing asset contracts pass. Additional seeded sweep:113 launches,100 detailed
+states/76 progress contexts,21 scene IDs,10/10 save checks,0 findings; max_states.
+No second full2000 campaign or original-runtime equivalence claimed.
+
+Focused report: `analysis/rea/CAMPAIGN_2000_FIXES.md`. Evidence:
+`port/output/campaign-2000-review/` (fixed-result.json, production-regressions/,
+public-replays-final/, verification-sweep/, verified-exports.json). Re-run:
+`make -C port test-campaign DATA=/tmp/byz-scene OUTPUT=<new-directory>`.
+User campaign and both LATEST pointers preserved, original assets unchanged.
+No commit/push performed for this task.
+
+## User 2000-run campaign reviewed (30 October 2026)
+
+Pinned campaign `port/output/random-20261030T130724Z-672018/`, seed2522863484:
+2000 launches/46m44s,1922 discovery trials,31 scene IDs,1590 detailed states,
+444 progress/context signatures;17661 jobs remain. No nonzero exits/timeouts.
+20 unique findings:1 confirmed MORRIS unresolved_random blocker,19 save/replay
+review candidates. Fresh F0015 public replay confirms same issue with unchanged
+player/prefix validation.58 save checks:28 pass/30 flagged, deduplicated by issue.
+
+Critical review discovery:5 unique findings write trial-local quicksave then
+load shared private assets/savegame after travel; some load a prior trial's
+unrelated save. savegame_directory derives from mutable options.scene[--save];
+travel replaces that map. Fix directory ownership/isolation before trusting
+those comparisons. Other groups:3 inventory-loaded cache-only diffs,3 RNG
+non-rewind comparisons,1 conversation-memory reset,4 examine/return candidates,
+3 remaining interaction replay candidates. Do not report all19 as game bugs.
+No behavior changed during review; make all test passed. Focused evidence:
+`analysis/rea/CAMPAIGN_2000_REVIEW.md`,
+`port/output/campaign-2000-review/triage.json` and morris-replay/. User campaign,
+normal game LATEST and original assets preserved. Next priorities recorded there.
+
+## Progress versus interaction exploration (30 October 2026)
+
+User requested meaningful state coverage beyond camera/item-selection variants.
+Explorer now keeps detailed fingerprint v4 unchanged for dedup/replay, plus a
+separate conservative progress/context v1 projection: effective variables,
+normalized inventory status/ownership, conversation memory, scene/object gates.
+Unknown variables remain; this is not a solved-puzzle or semantic milestone
+counter. Camera, selection, scrolling and coordinates do not directly inflate
+it. Equal-progress detailed states still expand. JSON/HTML/live/launcher output
+show both counts and final-input progress versus interaction-only changes.
+
+Random scheduling keeps root initialization and seed balancing, then prefers
+children of novel progress contexts on75% of draws;25% remain uniform. No queue
+pruning by progress; BFS unchanged.24 explorer tests and make all test pass;
+actual asset contract passes. Actual launcher12-run seed20261030 smoke:
+10 detailed states,5 progress/context states,3 scenes,4 progress-change and
+6 interaction-only trials, no findings; max_runs reached,82 jobs retained.
+Evidence: `port/output/random-20261030T130439Z-664157/`,
+`port/output/progress-investigation/`; focused report:
+`analysis/rea/PROGRESS_AWARE_EXPLORATION.md`. Normal user logs/LATEST preserved
+at `run-20261029T225825.927020Z-rq6cvhmb.log`. No2000-run campaign started.
+
+## Broad starting pool for random exploration (30 October 2026)
+
+User requested diverse starting contexts, not just the previous3 fixtures.
+Long-run `./port/explore_random.sh 2000` now defaults to `--all-saves`:
+49 distinct valid numbered saves across18 scenes in current data. Metadata
+comes from actual save dumps; invalid/byte-duplicate records are reported.
+Catalogue is scene round-robin; after initial roots, random scheduling chooses
+a seed then one of its queued paths, avoiding starvation by branch-rich roots.
+Explicit --seeds preserves targeted workflows; small direct preset remains3.
+
+New diagnostic --automation-restore-save uses the existing saved-load path,
+skipping entry/guessed label replay, so saved progress/image/objects remain
+intact. Initial broad test exposed path-reference invalidation when travel_to
+replaced options.scene; its path parameter now owns its string. Corrected run
+restored all49 contexts/18 scenes with no findings. An18-run actual launcher
+smoke covered18 different scenes, with49 contexts available. No2000 run started.
+
+Expanded asset contract verifies EA26/VC60/VT72 startup equals F9 loading the
+same original bytes. Unit suite20 explorer checks; make all test and selected
+CTest4/4 pass. Evidence: `analysis/rea/MULTI_START_EXPLORATION.md`,
+`port/output/seed-pool-investigation/`. User game LATEST preserved:
+`run-20261029T225825.927020Z-rq6cvhmb`. Original saves/media unchanged.
+
+## One-command random 1,000–2,000 trial runs (30 October 2026)
+
+User asked how to launch2000 random trials and later inspect logs. Added
+`./port/explore_random.sh 2000` (default count2000; optional second numeric arg
+sets random seed). It builds, runs prepared data with larger state/depth/
+frontier bounds,4h wall budget and60s trial timeout, and retains finding-only
+screenshots plus all JSON/log/input evidence. No full2000 run was started;
+user requested a command to start it themselves.
+
+Explorer now supports `--strategy random --random-seed N`; BFS remains default.
+All initial seeds run before seeded random frontier selection, and candidates
+are shuffled before action capping. Replays remain explicit deterministic
+input paths. Report distinguishes total process starts (including save/
+confirmation checks), discovery trials, distinct states/scenes and run-limit
+attainment.2000 attempts does not mean2000 scenes or distinct states.
+
+Launcher retains runner.log and atomic `port/output/EXPLORATION_LATEST`, separate
+from user game logs/LATEST. Actual8-trial seed314159 smoke reached8 distinct
+states/4 scenes and max_runs; healthy images pruned, finding images retained
+in a separate replay check. Explorer unit suite17 checks; random policy and
+retention added to asset contract. Evidence: `analysis/rea/RANDOM_EXPLORATION.md`,
+`port/output/random-investigation/`. User game bundle remains
+`run-20261029T225825.927020Z-rq6cvhmb`.
+
+## Bounded automatic gameplay discovery (30 October 2026)
+
+User requested hands-off route exploration. Added `make -C port explore-game
+DATA=/tmp/byz-scene`, a fresh-process BFS over observed SDL hotspot/inventory/
+camera/wait actions and actual answer lists. It branches answer prefixes at
+triggering input, trims stale descendant clicks, deduplicates an explicit state
+abstraction and records bounds/deferred work. No hidden labels, forced items,
+VM-state injection, new presenter or duplicate click commit. Private saves,
+prefs/config/history/caches; user data and LATEST preserved.
+
+HTML/JSON reports and replay bundles contain original seed/prefs, input script,
+logs, screenshots and hashes. Periodic F5/action/F9/action checks use effective
+exported pool (raw dirty-pool flush is not a false failure). Key v4 includes
+active slots and close-up parent context; old-key prefix checks are explicitly
+disabled. Error findings are separate from review candidates; no-hotspot states
+alone are never called softlocks. Defaults are media-disabled dummy-SDL logic;
+--with-media enables real playback with dummy devices and longer timeouts.
+
+Unassisted MAP/27 run:41 launches,30 abstract states,7 scenes (EA/HL/MAP/MR/SM/
+SP/TK),316 queued jobs remain at state cap. Three save/replay review differences
+reproduced independently: MR conversation memory, HL active slots/effective
+pool, SP conversation memory. These are investigation candidates, not proven
+original-game bugs. Public HL replay reproduced with matching prefix hashes.
+Assisted AM fixture separately proves all three real answer branches in3 runs.
+
+`make -C port -j2 all test` passes (14 explorer unit checks); asset discovery/
+fault-bundle/replay/changed-player/dialogue checks pass; selected CTest4/4;
+existing five gameplay scenarios pass. Original gameplay oracle still
+UNVERIFIED. Evidence: `analysis/rea/AUTOMATIC_EXPLORATION.md`,
+`port/output/exploration-investigation/verified-discovery/index.html`.
+Usage: `port/tests/exploration/README.md`. User run/LATEST remains
+`run-20261029T225825.927020Z-rq6cvhmb`.
+
+## Automatic ISO access; original Wine startup unblocked (30 October 2026)
+
+User authorized a remembered ISO directory and automatic disc handling.
+`port/media_sources.py` validates all six CD.BYZ markers independent of names,
+publishes config/manifests atomically, and scene.sh recalls the saved root
+when omitted. Local `port/media_sources.json` is configured and git-ignored.
+`./port/scene.sh` can now launch using that remembered directory.
+
+The host now completes 0x8d requests, selects the disc animation/media source
+and resumes after the opcode with the exact return stack. One segment runner
+covers entries/travel/restarts/clicks/headless startup; probes never become
+execution input. Missing media remains an explicit error. Disc7 means1 else2.
+ISO extraction and decoded caches are source-specific; candidate folders stay
+within the active disc before searching another. Saves/loads preserve active
+media disc. No new scene-name branch, click executor or presenter.
+
+Wine CD blocker was our environment error: HKLM, not HKCU, controls drive type.
+Native installation also needs CD1's full copy2hd tree. Fixed the private probe,
+mapped six authentic volumes D:..I: (API all type5), and captured the unmodified
+original at its native menu without a CD prompt. This supersedes the earlier
+CD-blocked startup note below; original gameplay comparison remains UNVERIFIED.
+
+`make -C port -j2 all test` passes; CMake selected tests3/3. Asset-backed disc
+suite covers renamed ISO paths, nested continuation, disc7 fallbacks, missing
+media, same-name video/cache collisions, all six shipped MAP requests and
+F5/F9 preserving cd3. Existing five gameplay scenarios also pass. Evidence:
+`analysis/rea/AUTOMATIC_DISC_ACCESS.md`, `port/output/disc-access/`.
+User run/LATEST preserved: `run-20261029T225825.927020Z-rq6cvhmb`.
+
+## Automated gameplay regressions (30 October 2026)
+
+User requested four automated checks and confirmed no separate working original
+installation: use existing EXE/media. Added `make -C port test-gameplay
+DATA=/tmp/byz-scene`, strict SDL action scripts, read-only JSON/PPM checkpoints,
+private saves/preferences/config/history/cache, and independent original-image
+comparison with executable/save/action provenance and complete checkpoint
+coverage. `port/tests/gameplay/README.md` documents the commands and contract.
+
+Final five scenarios/56 checkpoints pass: EA close-up/exit, inventory camera
+examine/use/return, MAP→MR conversation→MAP, F5/F9 durable-state + action replay,
+and twenty same-process close-up cycles (both inner/returned states checked).
+Audio/video disabled, dummy SDL; no physical or media correctness claim.
+`make -C port -j2 all test` passes, including parser and nine harness checks.
+
+Fourth category remains **UNVERIFIED**, never silently passed. Unmodified EXE
+runs in private Wine/Xephyr but still asks for a Byzantine CD with private D:
+marker/raw ISO setup. Automatic startup probe and reference comparator are
+implemented; same-action original captures remain missing. Strict suite exits1;
+`--allow-unverified-original` explicitly permits port-only success, retaining
+UNVERIFIED in JSON. Evidence: `analysis/rea/GAMEPLAY_AUTOMATION.md`,
+`port/output/automation-investigation/final-suite/`. User run/LATEST preserved:
+`run-20261029T225825.927020Z-rq6cvhmb`. No new VM behavior or original file edits.
+
 ## Advanced settings left-page actions (29 October 2026)
 
 User reported dead OYUNDAN ÇIK/OYUNA DEVAM in advanced settings. Pinned click

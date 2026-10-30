@@ -1,0 +1,260 @@
+[
+  {
+    "name": "ea-closeup",
+    "category": "action-chains",
+    "scene": "EA",
+    "label": 602,
+    "save": "26.btb",
+    "actions": [
+      "key Left",
+      "key Left",
+      "key Left",
+      "key Left",
+      "key Left",
+      "key Left",
+      "key Left",
+      "key Left",
+      "key Left",
+      "key Left",
+      "key Left",
+      "snapshot start",
+      "click 320 220",
+      "snapshot closeup",
+      "click 589 369",
+      "snapshot returned"
+    ],
+    "expect": {
+      "start": {
+        "scene": "ea",
+        "active_slots": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ]
+      },
+      "closeup": {
+        "background": "eapupall",
+        "active_slots": [
+          18,
+          19
+        ]
+      },
+      "returned": {
+        "active_slots": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ]
+      }
+    }
+  },
+  {
+    "name": "ea-save-load",
+    "category": "save-load",
+    "scene": "EA",
+    "label": 602,
+    "save": "26.btb",
+    "actions": [
+      "key Left",
+      "key Left",
+      "key Left",
+      "key Left",
+      "key Left",
+      "key Left",
+      "key Left",
+      "key Left",
+      "key Left",
+      "key Left",
+      "key Left",
+      "key F5",
+      "snapshot saved",
+      "click 320 220",
+      "snapshot changed",
+      "key F9",
+      "snapshot loaded",
+      "click 320 220",
+      "snapshot replay",
+      "click 589 369",
+      "snapshot usable"
+    ],
+    "expect": {
+      "changed": {
+        "background": "eapupall"
+      },
+      "replay": {
+        "background": "eapupall"
+      },
+      "usable": {
+        "scene": "ea",
+        "active_slots": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ]
+      }
+    },
+    "equal": [
+      [
+        "saved",
+        "loaded",
+        [
+          "scene",
+          "variable_pool",
+          "inventory",
+          "channels",
+          "conversation"
+        ]
+      ],
+      [
+        "changed",
+        "replay",
+        [
+          "scene",
+          "background",
+          "active_slots",
+          "variable_pool",
+          "inventory",
+          "channels",
+          "conversation"
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "ea-soak",
+    "category": "soak",
+    "scene": "EA",
+    "label": 602,
+    "save": "26.btb",
+    "actions": [
+      "key Left",
+      "key Left",
+      "key Left",
+      "key Left",
+      "key Left",
+      "key Left",
+      "key Left",
+      "key Left",
+      "key Left",
+      "key Left",
+      "key Left",
+      "snapshot start"
+    ],
+    "repeat": 20,
+    "loop": [
+      "click 320 220",
+      "snapshot inside_{i}",
+      "click 589 369",
+      "snapshot cycle_{i}"
+    ],
+    "loop_expect": {
+      "scene": "ea",
+      "active_slots": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ]
+    },
+    "inside_expect": {
+      "background": "eapupall",
+      "active_slots": [
+        18,
+        19
+      ]
+    }
+  },
+  {
+    "name": "ea-inventory",
+    "category": "action-chains",
+    "scene": "EA",
+    "label": 602,
+    "save": "26.btb",
+    "actions": [
+      "snapshot start",
+      "click 310 450",
+      "click 24 450",
+      "snapshot examine",
+      "click 210 300",
+      "snapshot used",
+      "click 589 369",
+      "snapshot returned"
+    ],
+    "expect": {
+      "examine": {
+        "scene": "examine"
+      },
+      "returned": {
+        "scene": "ea",
+        "active_slots": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ]
+      }
+    },
+    "required_log": [
+      "bar_use id=17",
+      "video_request scene=EXAMINE",
+      "closeup_return scene=EA"
+    ]
+  },
+  {
+    "name": "map-mr-talk-return",
+    "category": "action-chains",
+    "scene": "MAP",
+    "label": 87,
+    "save": "27.btb",
+    "actions": [
+      "snapshot start",
+      "click 192 320",
+      "snapshot arrival",
+      "click 589 369",
+      "snapshot returned"
+    ],
+    "expect": {
+      "arrival": {
+        "scene": "mr",
+        "active_slots": [
+          42,
+          43
+        ]
+      },
+      "returned": {
+        "scene": "map",
+        "active_slots": [
+          34,
+          36,
+          39,
+          41,
+          47,
+          49
+        ]
+      }
+    },
+    "required_log": [
+      "travel index=27",
+      "conversation_end record=0 name=MMhmr1a result=65535",
+      "travel index=25"
+    ]
+  }
+]

@@ -129,6 +129,12 @@ sahne geçişinden sonra `autosave-port.btb` yazar. Bunlar port özellikleridir;
 orijinal kayıt/tercih dosyalarına karışmaz. Oyun kapalıyken otomatik kayda
 dönmek için `./port/continue.sh "<oyun-klasörü>"` kullanılabilir; kaydın sahne
 adını `SHOW.LCC` üzerinden çözüp normal başlatıcıyı o save ile açar.
+`continue.sh` artık `--restore-save` ile kaydın görüntüsünü ve durumunu doğrudan
+yükler; giriş etiketini yeniden çalıştırmaz. Portun yazdığı kayıtların yanındaki
+`.btb.byzport` dosyası kamera eğimi, rastgelelik durumu, konuşma hafızası ve
+incelenen eşyadan dönülecek sahneyi korur. Kayıt taşırken iki dosyayı birlikte
+taşıyın. Ek dosyası olmayan özgün kayıtlar da yüklenir.
+
 
 Ayarlar `--config <ini>`, yoksa `$BYZ_CONFIG`, yoksa çalışma dizinindeki
 `byzantine.ini` dosyasına yazılır; `scene.sh` varsayılan olarak
@@ -789,3 +795,97 @@ Arka plan yolu da belirlendi: `0x69` sahne komutu geçiş/çizim işlevine gidiy
 [`EA-first-background.svg`](../analysis/rea/scene_sample/EA-first-background.svg), `EA` betiğinde etiket 475'in yüklediği `EAEmShMs.jpg` arka planını ve aynı blokta açılan 76/93 numaralı alanları gösteren tanısal bir örnektir. JPG tamponu, 640 piksel genişliğinde 16 bit görüntünün 20 satırlık ofsetine yazıldığı için görsel SVG'de `y=20` konumundadır. Bu SVG oyunun çalışma anındaki tüm etkin alanlarını veya geçişlerini temsil etmez.
 
 `--trace 475` üç komut yürütüp arka plan 0 ile 76/93 alanlarını veriyor; `AL` betiğinde `--trace 89` de arka plan 0 ile 4/5 alanlarını veriyor. İki yol da dönüş komutunda duruyor. `--trace` bilinmeyen işlem kodunu sessizce atlamaz; böylece çözülen parçanın sınırı açıkça görülür.
+
+Gameplay regression automation: [`tests/gameplay/README.md`](tests/gameplay/README.md)
+describes `make test-gameplay DATA=/tmp/byz-scene`, private save/config handling,
+soak runs, snapshot assertions and strict original-reference comparison.
+
+### ISO dizinini bir kez tanımlama ve otomatik disk erişimi
+
+Altı ISO aynı dizinde veya onun altındaki CD klasörlerinde bulunabilir.
+Dosya adlarını değiştirmeniz gerekmez; diskler içlerindeki `CD.BYZ` ile tanınır.
+İlk çalıştırmada dizini belirtin:
+
+```sh
+./port/scene.sh "/oyun/ISO-dizini"
+```
+
+Başarılı kurulum dizini `port/media_sources.json` dosyasında hatırlar.
+Sonraki açılışlarda `./port/scene.sh` yeterlidir. Eski sahne/kayıt komutları
+çalışmaya devam eder; hatırlanan dizinle belirli sahne açmak için ilk argümanı
+boş bırakabilirsiniz: `./port/scene.sh "" MAP 87 27.btb`.
+`BYZ_MEDIA_CONFIG` farklı bir medya yapılandırma dosyası seçer.
+
+Oyun disk istediğinde ilgili ISO otomatik seçilir ve script devam eder.
+Bağlama/sanal sürücü işlemi yapmanız gerekmez. Eksik veya birden fazla kopyası
+bulunan disk açıkça bildirilir; çalışan ayar eksik bir taramayla bozulmaz.
+İlk ihtiyaçta medya önbelleğe alınır. Diskler arasında aynı adlı dosyalar ve
+çözülmüş video kareleri karışmaz; kayıt/yükleme seçili diski korur.
+
+Gerçek ISO ve verilerle disk regresyonları:
+
+```sh
+make -C port test-disc-access DATA=/tmp/byz-scene \
+  MANIFEST=/tmp/byz-scene/media_isos.txt OUTPUT=/tmp/byz-disc-test
+```
+
+Çıktı dizini yeni olmalıdır. Test, gerçek disklerin adları değiştirilmiş
+bağlantılarını, script devamını, eksik disk hatasını, özgün MAP disk isteklerini
+ve kayıt/yüklemeyi kontrol eder. Aynı adlı videolar için ayrı üretilmiş medya
+örnekleri kullanır; bunlar özgün oyun eşdeğerliği kanıtı değildir.
+Özgün EXE'nin Wine başlangıç testi de altı ISO'yu ayrı CD-ROM olarak hazırlayıp
+CD sormadan menüye ulaşır; tam oyun akışı karşılaştırması henüz doğrulanmış
+değildir. Ayrıntı: [disk erişimi raporu](../analysis/rea/AUTOMATIC_DISC_ACCESS.md).
+
+### Otomatik oyun keşfi
+
+`make -C port explore-game DATA=/tmp/byz-scene` komutu, hazır rota listesiyle
+sınırlı kalmadan tıklanabilir alanları, envanteri, kamera yönlerini ve konuşma
+cevaplarını ayrı dallarda dener. Süre/deneme/durum sınırlarında durur;
+`port/output/explore-…/index.html` dosyası bulguları ve ekran görüntülerini
+gösterir. Her bulgu başlangıç kaydı ve giriş dizisiyle yeniden çalıştırılabilir.
+Bu, oyunun tamamının doğru çalıştığını kanıtlamayan sınırlı bir keşiftir.
+Kullanım, sınırlar, medya profili ve tekrar çalıştırma:
+[keşif rehberi](tests/exploration/README.md).
+
+Uzun rastgele tarama için tek komut: `./port/explore_random.sh 2000`.
+Bu 2000 ayrı sahne değil, en fazla 2000 oyuncu çalıştırmasıdır; eşya/cevap/eylem
+yolları değişir ve benzersiz durum sayısı ayrıca raporlanır. Son tarama konumu
+`port/output/EXPLORATION_LATEST` dosyasına kaydedilir.
+
+2000’lik rastgele tarama artık mevcut numaralı kayıtların tamamını başlangıç
+havuzu olarak kullanır (bu verilerde 49 kayıt, 18 sahne). İlk tur sahnelere
+dağıtılır; sonraki yollar başlangıç kayıtları arasında dengeli seçilir.
+Kayıtlı durum açılırken sahne giriş scripti yeniden çalıştırılmaz.
+
+## Uzun yol, davranış ve medya test kampanyası
+
+```sh
+./port/explore_campaign.sh 2000
+```
+
+Bu komut2000 üst sınırına sahip karma mantık taramasına ek olarak, beklenen
+sonucu denetleyen9 senaryoyu,32 rastgele ayar kombinasyonunu ve daha küçük
+ses/video açık kontrolleri çalıştırır. Ayar denemeleri oyun eylemleri arasında
+gerçek menü girişleriyle ayar değiştirir; pencere/ölçek, ses, odak, kısayollar,
+kayıt/yükleme ve yeniden açılışta kalıcılığı kontrol eder. Ayrıca iki medya açık
+ayar denemesi vardır. `--settings-cases 200 --settings-seconds 1800` ile ayar
+taraması büyütülebilir. Bu ek denemeler2000 mantık çalıştırmasına dahil değildir.
+Tek HTML raporu profil sonuçlarını ve gerçek toplam çalıştırmayı ayrı gösterir.
+Karma taramada uzun yollar için ayrılmış seçimler vardır; varsayılan derinlik
+24 adımdır. Kamera/eşya döngüleri daha az öncelik alır, yollar tamamen elenmez.
+Sadece hızlı mantık taraması için `./port/explore_random.sh 2000` kullanılabilir.
+Ayrıntılar: [`tests/exploration/README.md`](tests/exploration/README.md).
+
+
+Hikâye/bulmaca zincirleri için kampanyaya `story` aşaması da eklendi. Dokuz
+senaryo belirli özgün kayıtlardan eşya/bayrak/bulmaca sonuçlarına gider; sekizinde
+ortada kaydedip ayrı bir oyun işleminde yeniden açarak devam eder. Tek başına:
+
+```sh
+make -C port test-stories DATA=/tmp/byz-scene OUTPUT=/tmp/byz-stories-new
+```
+
+Bu, yeni oyundan finale kadar tam çözüm testi değildir. Saatte bulunan devam hatası ortak motor kuralında düzeltildi; dokuz senaryo ve
+sekiz kayıt/devam kontrolü artık geçiyor. Saatin üç aşaması, anahtar/cam ödülleri
+ve odadan çıkış da doğrulanıyor. Ayrıntılar: `tests/exploration/README.md`.

@@ -5,6 +5,7 @@
 #include "byzantine/compose.hpp"
 #include "byzantine/records.hpp"
 #include "byzantine/save.hpp"
+#include "byzantine/morris.hpp"
 
 #include <array>
 #include <cstddef>
@@ -129,9 +130,9 @@ struct SceneRecordState {
     std::uint8_t marker = 0;
     std::uint32_t frame_index_1c = 0;  // +0x1c, 0xffff = none (0x40cf73)
     std::uint32_t frame_index_20 = 0xffff;  // +0x20, 0xffff = none (0x426ed0)
-    std::uint32_t field_2c = 0;        // +0x2c
-    std::uint32_t field_30 = 0;        // +0x30
-    // +0x34 extra list (save block 17; 0x42db22 0x8a appends to +0x2c).
+    std::uint32_t field_2c = 0xffffffffu; // +0x2c: one-shot end label, -1 = none
+    std::uint32_t field_30 = 0xffffffffu; // +0x30
+    // +0x34 extra list (save block 17; 0x42db22 0x8a appends here).
     std::vector<SceneNodeExtra> extra;
 };
 
@@ -469,6 +470,9 @@ struct ConversationMemory {
 };
 
 struct SceneState {
+    MorrisBoard morris;
+    // Host-supplied time seed for 0xc8/0x1e. Absent for context-free VM probes.
+    std::optional<std::uint32_t> morris_seed;
     // engine/<scene>cd (DAT_0046e870): 0x70's operand 0 indexes this table and
     // the record's file stem names the .ccb/.ccf/.byz conversation files.
     std::vector<ConversationRecord> conversation_records;
@@ -733,6 +737,7 @@ struct SceneTrace {
     // enumerates CD-ROM drives, so the requested disc is recorded instead of
     // inventing a host answer. Disc 7 means "1, else 2" inside 0x431a69.
     std::optional<std::uint16_t> disc_request;
+    std::vector<std::size_t> disc_return_stack; // exact call frames at the host pause
     // 0x7f reads DAT_00464f60[id] BEFORE checking it for NULL (the shipped code
     // faults on an absent record), so an absent entry is an explicit stop and
     // never a skipped write.
@@ -813,6 +818,7 @@ struct SceneDraw {
     std::uint16_t id = 0;
     std::uint8_t kind = 0;
     bool snap = false;  // drew through +0x20/+0x24/+0x26 (0x43b216 phase 1)
+    bool trail = false; // trail copy is drawn, but never steps/calls the record
     // 0x40241c accepted the record (the draw was attempted); false for the
     // off-window early reject below, which the original never blits.
     bool visible = false;
@@ -907,7 +913,21 @@ SceneCompose compose_scene(SceneState& state, Rgb16Surface& target,
 // The node's own index (0x410078's node+0x14) is what the reverse leg tests, so
 // `current_frame == 0` is the turnaround. A missing frame list or index is left
 // untouched; the shipped assets and saves decide whether a record animates.
-void advance_record_animation(SceneRecordState& record);
+void advance_record_animation(SceneRecordState& record,
+                              std::optional<std::uint32_t>* callback = nullptr);
+
+struct RecordCallback {
+    std::uint16_t record = 0;
+    std::uint32_t label = 0;
+};
+
+// One visible draw pass with a live script-pointer receiver, 0x43b216:
+// 0x43cd2c consumes the first extra matching the current frame BEFORE stepping;
+// 0x43bb77 may then replace it with the one-shot end label. The last callback
+// in draw order wins, just like the original single output pointer. The host
+// dispatches it before the next pass (which may have a different scene/table).
+std::optional<RecordCallback> advance_record_pass(
+    SceneState& state, const std::vector<std::uint16_t>& ids);
 
 // The original loop is uncapped: 0x43b216 (draw + 0x43bb77) runs as often as
 // the machine allows between two host frames. The host renders at its own
@@ -918,8 +938,9 @@ std::size_t advance_record_passes(SceneState& state,
                                   const std::vector<std::uint16_t>& ids,
                                   std::size_t passes);
 
-// 0x426b9d marker 1: after the saved 0x40-byte record is copied, 0x40fe70
-// loads the CA asset's animation payload. For an already-allocated record
+// 0x425ab4 preloads CA type 2/3 (marker 0); marker 1 also calls 0x40fe70.
+// Reattach their immutable animation metadata after the saved record copy.
+// For an already-allocated record
 // 0x410078 takes its "existing record" branch: frame list, +0x14 count and
 // +0x28 signature come from the asset, but x/y are NOT offset again (the save
 // already stores the frame-0 offsets). Call after the CA/anims inputs exist.
@@ -1012,7 +1033,8 @@ SceneTrace trace_scene_entry(const std::vector<CcInstruction>& script,
 SceneTrace trace_scene_from_instruction(const std::vector<CcInstruction>& script,
                                         const std::vector<BackgroundEntry>& entries,
                                         SceneState& state, std::size_t instruction,
-                                        std::size_t step_budget = 0);
+                                        std::size_t step_budget = 0,
+                                        const std::vector<std::size_t>& return_stack = {});
 
 // Applies a completed conversation's result to the state at the paused 0x70 and
 // returns the instruction the script continues at:

@@ -18,6 +18,8 @@
 // the shipped script and reports what the VM actually did.
 
 #include "byzantine/ambient_audio.hpp"
+#include "byzantine/automation.hpp"
+#include "byzantine/runtime_save.hpp"
 #include "byzantine/cb.hpp"
 #include "byzantine/cc.hpp"
 #include "byzantine/compose.hpp"
@@ -47,6 +49,7 @@
 #include <array>
 #include <cctype>
 #include <chrono>
+#include <ctime>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -149,6 +152,7 @@ struct Options {
     std::string cb_path;
     std::string label;
     std::map<std::string, std::string> scene;  // passthrough for load_scene_setup
+    std::filesystem::path save_directory;     // stable across scene-table replacement
     std::filesystem::path backgrounds;         // backs/ root or the extracted root
     std::filesystem::path cursors;             // cursors/ root (default <backgrounds>/cursors)
     std::filesystem::path sounds;              // sounds/ root
@@ -159,6 +163,7 @@ struct Options {
     std::filesystem::path messages;            // copy2hd/setupart/MESSAGES.TXT
     std::filesystem::path dialog;              // dialog/<conversation>/<clip>.avi root
     std::filesystem::path dialog_cache;        // decoded clip cache (created on demand)
+    int active_media_disc = 0;
     std::filesystem::path media_isos;          // launcher manifest for lazy cross-scene AVI extraction
     // Host settings and the language overlays resolved from them. These are
     // port choices, never written into the original gamepref/save files.
@@ -220,6 +225,11 @@ struct Options {
     // logged as tail_guard=….
     bool audio_tail_guard = true;
     bool video = true;                         // --no-video disables FFmpeg decodes
+    std::string automation_script, automation_output;
+    bool automation_explore = false;
+    bool automation_inspect_settings = false;
+    bool automation_restore_save = false;
+    bool restore_save = false; // production saved-state startup, without label replay
     bool selftest_events = false;              // --selftest-events (see README)
     bool print_hotspots = false;               // --print-hotspots
     bool print_objects = false;                // --print-objects
@@ -263,7 +273,7 @@ struct Options {
 };
 
 const std::set<std::string> kValued = {
-    "--save", "--engine", "--lcx", "--lci", "--ci", "--lcy", "--cy", "--co", "--cf",
+    "--automation", "--automation-output", "--save", "--engine", "--lcx", "--lci", "--ci", "--lcy", "--cy", "--co", "--cf",
     "--config", "--languages", "--text-lang", "--voice-lang", "--scale",
     "--volume-master", "--volume-speech", "--volume-ambient", "--volume-effects",
     "--cursor-scale",
@@ -507,6 +517,23 @@ Options parse_options(int argc, char** argv) {
             options.list_languages = true;
             continue;
         }
+        if (token == "--restore-save") {
+            options.restore_save = true;
+            continue;
+        }
+        if (token == "--automation-restore-save") {
+            options.restore_save = true;
+            options.automation_restore_save = true;
+            continue;
+        }
+        if (token == "--automation-inspect-settings") {
+            options.automation_inspect_settings = true;
+            continue;
+        }
+        if (token == "--automation-explore") {
+            options.automation_explore = true;
+            continue;
+        }
         if (token == "--no-config") {
             options.config_path.clear();
             continue;
@@ -607,6 +634,8 @@ Options parse_options(int argc, char** argv) {
             else if (token == "--dialog") options.dialog = value;
             else if (token == "--dialog-cache") options.dialog_cache = value;
             else if (token == "--media-isos") options.media_isos = value;
+            else if (token == "--automation") options.automation_script = value;
+            else if (token == "--automation-output") options.automation_output = value;
             else if (token == "--run-label") options.run_label = std::stoi(value);
             else if (token == "--bar-select") options.bar_select = std::stoi(value);
             else if (token == "--anim-pass-hz") {
@@ -754,6 +783,7 @@ Options parse_options(int argc, char** argv) {
             "[--present-dump <dir>] [--present-dump-max <n>] "
             "[--print-audio] [--print-hotspots] "
             "[--print-objects] [--print-variables] [--print-records] "
+            "[--restore-save] [--automation <script> --automation-output <dir>] "
             "[--compose-frames <n>] [--selftest-events] [--anim-pass-hz <hz>] "
             "[--menu <0..5>] [--menu-click-at <x>,<y> ...] [--menu-text <utf8>] "
             "[--menu-key enter|escape|backspace] [--menu-shot <ppm>] "
@@ -768,6 +798,18 @@ Options parse_options(int argc, char** argv) {
     if (positional.size() == 3) options.label = positional[2];
     options.settings.clamp();
     resolve_language_selection(options);
+    if(options.restore_save && (options.entry || options.scene.count("--save")==0))
+        throw std::runtime_error("--restore-save requires --save and cannot use --entry");
+    if(options.automation_restore_save && (options.automation_script.empty() || options.entry ||
+        options.scene.find("--save")==options.scene.end()))
+        throw std::runtime_error("--automation-restore-save requires --automation and --save; cannot use --entry");
+    if(options.automation_inspect_settings && options.automation_script.empty())
+        throw std::runtime_error("--automation-inspect-settings requires --automation");
+    if(options.automation_explore && options.automation_script.empty())
+        throw std::runtime_error("--automation-explore requires --automation");
+    if (!options.automation_script.empty() &&
+        (options.automation_output.empty() || !options.shot.empty() || options.selftest_events))
+        throw std::runtime_error("--automation requires --automation-output and cannot use --shot/--selftest-events");
     return options;
 }
 
@@ -1247,7 +1289,7 @@ void refresh_background(const Options& options, SceneView& view) {
 
 SceneView open_scene(const std::map<std::string, std::string>& scene_options,
                      const std::string& cc_path, const std::string& cb_path,
-                     std::uint16_t label) {
+                     std::uint16_t label, std::uint32_t morris_seed) {
     SceneView view;
     view.cc_path = cc_path;
     view.cb_path = cb_path;
@@ -1256,8 +1298,8 @@ SceneView open_scene(const std::map<std::string, std::string>& scene_options,
     view.name = std::filesystem::path(cc_path).stem().string();
     view.label = label;
     auto setup = byzantine::load_scene_setup(cc_path, scene_options);
-    // 0x40fd7b runs at every scene load; a save then replaces the whole record
-    // table (0x425ab4 frees it), so only a scene without --save is preloaded.
+    // Saved marker-0 preloads have their frame metadata reattached in setup.
+    // An unsaved scene still needs its complete CA type 2/3 preload pass.
     if (scene_options.count("--save") == 0) {
         const auto preload = byzantine::preload_scene_records(setup.state);
         if (preload.created != 0 || preload.failed != 0) {
@@ -1271,6 +1313,8 @@ SceneView open_scene(const std::map<std::string, std::string>& scene_options,
     // of a save made during an original session cannot be reconstructed; the
     // original startup seed is still the correct initialization, not a guess.
     setup.state.random_state = 0xbeefu;
+    setup.state.morris_seed = morris_seed;
+    std::cout << "morris_time_seed=" << morris_seed << " source=host (automation uses fixed seed)\n";
     std::cout << "random_seed=0xbeef source=0x415a4e "
                  "note=save_does_not_carry_DAT_00462ef8\n";
     view.entry_state = setup.state;
@@ -1342,6 +1386,7 @@ struct EntryPoint {
     // A conversation's 0x70 result resumes inside the same script (the original
     // replaces pc), so this is an instruction index, not a label.
     std::optional<std::size_t> at_instruction;
+    std::vector<std::size_t> return_stack = {};
 };
 
 byzantine::SceneTrace trace_point(SceneView& view, EntryPoint point,
@@ -1360,7 +1405,7 @@ byzantine::SceneTrace trace_point(SceneView& view, EntryPoint point,
     if (point.at_instruction) {
         return byzantine::trace_scene_from_instruction(view.script, view.entries,
                                                        view.state, *point.at_instruction,
-                                                       step_budget);
+                                                       step_budget, point.return_stack);
     }
     return byzantine::trace_scene_label(view.script, view.entries, view.state, point.label,
                                         step_budget);
@@ -1667,6 +1712,7 @@ struct Display {
     int logical_height = kScreenHeight;
     bool native_aspect_constraint = false;
     byzantine::AspectResizeSettler aspect_settler;
+    bool vsync_supported = true; // last SDL capability result, diagnostic only
     byzantine::ScaleMode requested_scale = byzantine::ScaleMode::fit;
     byzantine::Rgb16Surface last_presented_image;
     ScreenContent last_presented_content = ScreenContent::scene;
@@ -1674,6 +1720,9 @@ struct Display {
     std::string last_presented_tag;
     // Records the last compose drew and stepped through 0x43b216's normal pass.
     std::vector<std::uint16_t> drawn_record_ids;
+    // A live window has one animation clock, including script callbacks.
+    // Event/menu/media repaints must not step past a callback's frame.
+    bool clocked_animation = false;
     // Host diagnostics for a reported "another picture flashes for an instant":
     // every SDL_RenderPresent checks what it actually shows (tag, scene layer,
     // dialogue/bar state, a sampled checksum). A detail-trace line is written
@@ -1881,10 +1930,12 @@ struct Display {
     void apply_vsync(bool enabled) {
         if (renderer == nullptr) return;
         if (SDL_RenderSetVSync(renderer, enabled ? 1 : 0) != 0) {
+            vsync_supported = false;
             std::cout << "window_vsync unsupported requested=" << (enabled ? 1 : 0)
                       << " error=" << SDL_GetError() << '\n';
             return;
         }
+        vsync_supported = true;
         std::cout << "window_vsync enabled=" << (enabled ? 1 : 0) << '\n';
     }
 
@@ -2210,7 +2261,8 @@ struct Display {
                                       background_pixels.data(), 0, 0);
             }
         }
-        const auto drawn = byzantine::compose_scene(view.state, surface, scene_projector(view), advance);
+        const auto drawn = byzantine::compose_scene(view.state, surface, scene_projector(view),
+                                                    advance && !clocked_animation);
         // Records this pass drew and stepped (0x43b216's normal pass). The
         // animation clock applies any further passes the original's uncapped
         // loop would have run between two host frames to exactly these.
@@ -2219,7 +2271,7 @@ struct Display {
             // 0x43b216 runs 0x43bb77 after every record it accepted, even when
             // the current frame covers no pixels (a blank delta frame still
             // advances); only rejected/hidden/snap records are skipped.
-            if (entry.snap || !entry.visible) continue;
+            if (entry.snap || entry.trail || !entry.visible) continue;
             drawn_record_ids.push_back(entry.id);
         }
         draw_text_windows(view, verbose);
@@ -2262,8 +2314,13 @@ struct Display {
         for (const auto& [id, record] : view.state.records) {
             (void)id;
             if (!record.frames_known || !record.current_frame) continue;
-            if (record.frame_count < 2) continue;
-            if ((record.flags & (0x04 | 0x20 | 0x40)) != 0) continue;
+            if (*record.current_frame >= record.frame_count) continue;
+            if ((record.flags & (0x20 | 0x40)) != 0) continue;
+            const bool frame_callback = std::any_of(record.extra.begin(), record.extra.end(),
+                [&](const auto& item) { return item.second == *record.current_frame; });
+            const bool advances = (record.flags & 0x04) == 0 &&
+                (record.frame_count >= 2 || record.field_2c != 0xffffffffu);
+            if (!frame_callback && !advances) continue;
             if (record.kind >= 5) continue;
             // 0x43b216 only steps records it drew: an off-window origin is
             // rejected by 0x40241c and never advances, so it must not keep the
@@ -3243,6 +3300,8 @@ struct Session {
     byzantine::SceneState hover_highlight_base;
     byzantine::SceneTrace hover_highlight_trace;
     WaitStats wait;
+    std::size_t automation_action_index = 0;
+    std::vector<byzantine::AutomationDecision> automation_decisions;
     // While a conversation is running its 640x480 screen is what the window
     // shows, including during audio waits. run_conversation sets and clears it.
     const byzantine::Rgb16Surface* conversation_frame = nullptr;
@@ -3957,10 +4016,10 @@ void carry_inventory(const byzantine::SceneState& from, byzantine::SceneState& t
 //                         (0x431ec2 -> 0x41045b)
 //   DAT_0045c060 != 0  -> DAT_00480330 indexes CO.ALL and DAT_0045c064 is the
 //                         staged panorama x (0x432295 -> 0x40186e)
-void restore_saved_layer(Session& session, const byzantine::SaveGame& save,
+void restore_runtime_context(Session& session, const std::filesystem::path& path);
+
+void restore_saved_layer(Options& options, SceneView& view, const byzantine::SaveGame& save,
                          bool verbose) {
-    auto& view = session.view;
-    auto& options = session.options;
     if (save.field_45c060 != 0) {
         const auto record = static_cast<std::size_t>(save.field_480330);
         if (record >= view.state.panorama_records.size()) {
@@ -4031,26 +4090,47 @@ void restore_saved_layer(Session& session, const byzantine::SaveGame& save,
 // can carry different art (TKNUXA is the known case). The launcher's Python
 // helper already owns the cache identity; call it instead of duplicating the
 // hashing, and report a failure instead of silently mixing discs.
-std::optional<std::filesystem::path> disc_iso(const Options& options, int disc) {
-    if (options.media_isos.empty()) return std::nullopt;
-    std::ifstream sources(options.media_isos);
-    if (!sources) return std::nullopt;
-    const auto wanted = "byzantine_" + std::to_string(disc) + ".iso";
-    std::optional<std::filesystem::path> fallback;
+// Identity comes from the volume's authentic marker, never its filename.
+int iso_disc_number(const std::filesystem::path& path) {
+    std::error_code error;
+    const auto size=std::filesystem::file_size(path,error);
+    if(error)return 0;
+    const auto stamp=std::filesystem::last_write_time(path,error);
+    if(error)return 0;
+    struct Cached { std::uintmax_t size; std::filesystem::file_time_type stamp; int disc; };
+    static std::map<std::filesystem::path,Cached> cache;
+    const auto found=cache.find(path);
+    if(found!=cache.end() && found->second.size==size && found->second.stamp==stamp)return found->second.disc;
+    const auto command="7z x -so -ssc- "+shell_quote(path.string())+" CD.BYZ 2>/dev/null";
+    FILE* pipe=popen(command.c_str(),"r");
+    if(!pipe)return 0;
+    std::string marker;std::array<char,32> buffer{};
+    while(std::fgets(buffer.data(),static_cast<int>(buffer.size()),pipe))marker+=buffer.data();
+    const auto status=pclose(pipe);
+    while(!marker.empty() && (marker.back()=='\r' || marker.back()=='\n' || marker.back()==' '))marker.pop_back();
+    const int disc=status==0 && marker.size()==1 && marker[0]>='1' && marker[0]<='6' ? marker[0]-'0' : 0;
+    cache[path]=Cached{size,stamp,disc};
+    return disc;
+}
+std::vector<std::filesystem::path> media_sources(const Options& options) {
+    std::vector<std::filesystem::path> paths;
+    std::ifstream input(options.media_isos);
     std::string line;
-    while (std::getline(sources, line)) {
-        if (line.empty()) continue;
-        const auto path = std::filesystem::path(line);
-        if (!std::filesystem::is_regular_file(path)) continue;
-        const auto name = lower_ascii(path.filename().string());
-        if (name == wanted) return path;
-        if (!fallback &&
-            (name.find("_cd" + std::to_string(disc)) != std::string::npos ||
-             name.find("_" + std::to_string(disc) + ".") != std::string::npos)) {
-            fallback = path;
-        }
+    while(std::getline(input,line)) {
+        if(!line.empty() && line.back()=='\r')line.pop_back();
+        if(line.empty())continue;
+        const auto path=std::filesystem::path(line);
+        std::error_code error;
+        if(std::filesystem::is_regular_file(path,error))paths.push_back(path);
     }
-    return fallback;
+    if(options.active_media_disc!=0)std::stable_partition(paths.begin(),paths.end(),[&](const auto& path){
+        return iso_disc_number(path)==options.active_media_disc;
+    });
+    return paths;
+}
+std::optional<std::filesystem::path> disc_iso(const Options& options, int disc) {
+    for(const auto& path:media_sources(options))if(iso_disc_number(path)==disc)return path;
+    return std::nullopt;
 }
 
 std::optional<std::filesystem::path> prepare_disc_overlay(const Options& options,
@@ -4128,6 +4208,64 @@ int overlay_disc(const Options& options) {
     return disc;
 }
 
+// A disc request is a host pause, not permission to skip a VM command.
+std::string host_trace_blocker(byzantine::SceneTrace trace) {
+    trace.disc_request.reset();
+    return byzantine::trace_blocker(trace);
+}
+
+bool run_media_segment(Session& session, EntryPoint point,
+                       const byzantine::SceneState& entry,
+                       const byzantine::SceneTrace& look, bool verbose) {
+    auto start=entry;
+    auto probe=look;
+    for(unsigned hop=0;hop<32 && session.running;++hop) {
+        if(session.interactive && (audio_gated(session) || !probe.video_requests.empty())) {
+            if(!run_label_gated(session,point,start,probe,verbose))return false;
+        } else {
+            set_trace(session.view,trace_point(session.view,point,start,0));
+            if(!play_trace_videos(session,session.view.trace,verbose))return false;
+        }
+        if(!session.view.trace.disc_request)return session.running;
+        const auto requested=*session.view.trace.disc_request;
+        const int disc=requested==7 ? (disc_iso(session.options,1)?1:2) : requested;
+        if(disc<1 || disc>6 || !disc_iso(session.options,disc))
+            throw std::runtime_error("Required Byzantine disc "+std::to_string(disc)+
+                " ISO is missing or invalid; configure its directory with port/scene.sh <ISO-directory>");
+        const auto resume=session.view.trace.stopped_at+1;
+        const auto frames=session.view.trace.disc_return_stack;
+        // Apply the committed segment before consuming the next trace. Loaded
+        // records remain live; new record loads use the selected disc library.
+        apply_panorama_events(session.view,session.options,verbose);
+        refresh_background(session.options,session.view);
+        const auto overlay=prepare_disc_overlay(session.options,disc);
+        if(!overlay)throw std::runtime_error("Cannot prepare Byzantine disc "+std::to_string(disc));
+        session.options.scene["--anims-overlay"]=overlay->string();
+        session.options.active_media_disc=disc;
+        const auto anims=session.options.scene.find("--anims");
+        if(anims!=session.options.scene.end())session.view.state.anims_library=
+            std::make_shared<byzantine::AnimsLibrary>(anims->second,overlay->string());
+        session.view.entry_state.anims_library=session.view.state.anims_library;
+        std::cout<<"media_disc requested="<<requested<<" selected="<<disc
+                 <<" resume_instruction="<<resume<<" source=ISO prompt=0\n";
+        start=session.view.state;
+        auto copy=start;
+        probe=byzantine::trace_scene_from_instruction(session.view.script,session.view.entries,copy,resume,0,frames);
+        point=EntryPoint{0,false,resume,frames};
+        const auto blocker=host_trace_blocker(probe);
+        if(!blocker.empty())throw std::runtime_error("Disc continuation stopped: "+blocker);
+        if(probe.conversation_request) {
+            ClickPlan plan;plan.ok=true;plan.conversation=true;plan.point=point;
+            plan.entry_before=start;plan.entry=copy;plan.probe=probe;
+            const auto run=[&](EntryPoint p,const auto& state,const auto& trace){
+                return run_media_segment(session,p,state,trace,verbose);
+            };
+            return execute_plan(session,plan,run,verbose);
+        }
+    }
+    throw std::runtime_error("Disc continuation exceeded 32 host requests");
+}
+
 // The engine transition code a scene arrival carries. 0x69 backgrounds and
 // 0xb9 nodes both go through the blend family (`0x431ec2` and `0x40186e`), so
 // the destination's own load supplies the code: `0x432133` of its operand, or
@@ -4166,9 +4304,11 @@ void present_arrival(Session& session, bool verbose) {
 }
 
 bool travel_to(Session& session, std::uint16_t index, bool verbose,
-               const std::string& save_path = {},
+               std::string save_path = {},
                const byzantine::SaveGame* loaded_save = nullptr) {
     auto& options = session.options;
+    // Own save_path: options.scene is replaced below and may own the caller
+    // string. A reference into that map would dangle during restore/logging.
     if (!save_path.empty()) {
         // A load starts a new session: the close-up parent snapshot and the
         // 0x439349 restore belong to the previous scene.
@@ -4204,6 +4344,8 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose,
             session.view.state.current_use_item.reset();
         }
         session.view.state.random_state = current.random_state;
+        session.view.state.morris = current.morris;
+        session.view.state.morris_seed = current.morris_seed;
         resume_ambient(session, verbose);
         refresh_background(options, session.view);
         present_arrival(session, verbose);
@@ -4247,7 +4389,8 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose,
     else next["--save"] = save_path;
     if (loaded_save != nullptr) {
         const auto current = overlay_disc(options);
-        if (current != 0 && current != static_cast<int>(loaded_save->cd_number)) {
+        if (current != static_cast<int>(loaded_save->cd_number) &&
+            (current != 0 || !options.media_isos.empty())) {
             std::cout << "anims_overlay load cd=" << loaded_save->cd_number
                       << " current=" << current << '\n';
             if (const auto overlay = prepare_disc_overlay(options,
@@ -4256,9 +4399,8 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose,
                 next["--anims-overlay"] = overlay->string();
                 options.scene["--anims-overlay"] = overlay->string();
             } else {
-                std::cout << "anims_overlay load cd=" << loaded_save->cd_number
-                          << " kept current overlay=" << current
-                          << " (a different disc may use different animation art)\n";
+                throw std::runtime_error("Cannot select required save disc "+
+                                         std::to_string(loaded_save->cd_number));
             }
         }
     }
@@ -4334,6 +4476,8 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose,
     next_view.entry_state = setup.state;
     // DAT_00462ef8 is process-global and is not reset by a scene load.
     next_view.entry_state.random_state = session.view.state.random_state;
+    next_view.entry_state.morris = session.view.state.morris;
+    next_view.entry_state.morris_seed = session.view.state.morris_seed;
     // DAT_00460664 is process-global too: a 0xbd in the departing scene (a site
     // video) hands its transition code to the destination's first 0xb9, so it
     // must cross the 0x73 like the RNG state does.
@@ -4380,7 +4524,7 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose,
         out << "index=" << index << " scene=" << session.view.name
             << " layer=none (0x69/0xb9 not applied yet)";
     });
-    if (loaded_save != nullptr) session.save_base = *loaded_save;
+    if (loaded_save != nullptr) { session.save_base = *loaded_save; options.active_media_disc=loaded_save->cd_number; }
     session.reload_available = false;
     options.scene = std::move(next);
     options.cc_path = session.view.cc_path;
@@ -4395,7 +4539,8 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose,
         session.view.trace = byzantine::SceneTrace{};
         session.view.trace.active_hotspots = byzantine::active_hotspots_for_state(
             session.view.script, session.view.state);
-        restore_saved_layer(session, *loaded_save, verbose);
+        restore_saved_layer(options, session.view, *loaded_save, verbose);
+        restore_runtime_context(session, save_path);
         resume_ambient(session, verbose);
         refresh_background(options, session.view);
         session.display.compose(session.view, verbose);
@@ -4428,14 +4573,7 @@ bool travel_to(Session& session, std::uint16_t index, bool verbose,
         session.view.script, session.view.entries, entry_probe_state, 0);
     const auto run_entry = [&](EntryPoint point, const byzantine::SceneState& entry,
                                const byzantine::SceneTrace& look) {
-        if (!session.interactive || !audio_gated(session)) {
-            session.view.state = entry;
-            set_trace(session.view, trace_point(session.view, point, entry, 0));
-            // A scene entry may open with a 0xbd (an establishing shot); it
-            // still blocks the script, so play it before the frame settles.
-            return play_trace_videos(session, session.view.trace, verbose);
-        }
-        return run_label_gated(session, point, entry, look, verbose);
+        return run_media_segment(session,point,entry,look,verbose);
     };
     bool entry_session_ended = false;
     if (probe.conversation_request) {
@@ -4997,7 +5135,7 @@ ClickPlan plan_hotspot(const SceneView& view, int slot) {
     // port cannot reproduce, so neither the partial state nor a scene switch may
     // be committed as a success. 0x6f return and 0x79 script end are real ends;
     // 0x73 is a real switch.
-    const auto blocker = byzantine::trace_blocker(plan.probe);
+    const auto blocker = host_trace_blocker(plan.probe);
     if (!blocker.empty()) {
         plan.message = "slot " + std::to_string(slot) + " action " +
                        std::to_string(plan.action) + " stopped: " + blocker +
@@ -5277,6 +5415,9 @@ std::string strip_ccd(std::string file) {
     return file;
 }
 
+std::optional<std::filesystem::path> iso_media_files(const Options& options,
+                                                    const std::vector<std::string>& relatives);
+
 // Scene travel changes CD records, but scene.sh initially extracts only the
 // starting scene's dialogue. Fetch a missing clip from the user's ISO copies,
 // without unpacking all videos or replacing a missing clip with another sound.
@@ -5288,8 +5429,12 @@ std::optional<std::filesystem::path> conversation_clip_file(
         for (const auto& relative :
              {std::string("dialog/") + conversation + "/" + clip + ".avi",
               std::string("avi/") + clip + ".avi"}) {
-            if (const auto file = options.language.find_voice(relative)) return file;
+            if(options.language.voice) {
+                if(const auto file=byzantine::find_video_file(options.language.voice->root,relative))return file;
+            }
         }
+        if(const auto file=iso_media_files(options,{std::string("dialog/")+conversation+"/"+clip+".avi",
+                                                  std::string("avi/")+clip+".avi"}))return file;
         const auto directory = find_directory_child(options.dialog, conversation);
         if (directory) {
             const auto file = find_filename(*directory, clip + ".avi");
@@ -5297,39 +5442,7 @@ std::optional<std::filesystem::path> conversation_clip_file(
         }
         return find_filename(options.dialog.parent_path() / "avi", clip + ".avi");
     };
-    if (const auto file = lookup()) return file;
-    if (options.media_isos.empty() || options.dialog.empty()) return std::nullopt;
-    // Archive patterns must be leaf names, not paths or wildcards.
-    const auto safe_leaf = [](const std::string& name) {
-        return !name.empty() && std::all_of(name.begin(), name.end(), [](unsigned char ch) {
-            return std::isalnum(ch) || ch == '_' || ch == '-';
-        });
-    };
-    if (!safe_leaf(conversation) || !safe_leaf(clip)) return std::nullopt;
-    std::ifstream sources(options.media_isos);
-    if (!sources) {
-        std::cout << "conversation_media manifest_unreadable=" << options.media_isos << '\n';
-        return std::nullopt;
-    }
-    std::string iso;
-    while (std::getline(sources, iso)) {
-        if (iso.empty() || !std::filesystem::is_regular_file(iso)) continue;
-        const auto command = "7z x -y -ssc- " + shell_quote(iso) + " " +
-            shell_quote("dialog/" + conversation + "/" + clip + ".avi") + " " +
-            shell_quote("avi/" + clip + ".avi") + " " +
-            shell_quote("-o" + options.dialog.parent_path().string()) +
-            " >/dev/null 2>&1";
-        const auto result = std::system(command.c_str());
-        if (const auto file = lookup()) {
-            std::cout << "conversation_media extracted=" << file->string()
-                      << " source=" << std::filesystem::path(iso).filename().string() << '\n';
-            return file;
-        }
-        if (result != 0) {
-            std::cout << "conversation_media extract_failed=" << iso << " status=" << result << '\n';
-        }
-    }
-    return std::nullopt;
+    return lookup();
 }
 
 // Word wrap with 0x40701f's rule: break at the last space that fits the width.
@@ -5384,10 +5497,18 @@ const ClipLogTags kSceneClipTags{"video_media", "video", "video_audio", "video_s
 // materialises a per-clip cache of JPEG frames and a PCM WAV once. The runtime
 // then uses the port's existing JPEG and WAV readers; a missing FFmpeg only
 // suppresses media and is reported, never silently hidden.
-std::optional<DecodedClip> decode_clip_cache(const std::filesystem::path& directory,
+std::optional<DecodedClip> decode_clip_cache(const std::filesystem::path& cache_parent,
                                              const std::filesystem::path& avi,
                                              const std::string& clip,
                                              const ClipLogTags& tags, bool verbose) {
+    // A clip name can exist on several discs. Decoded frames must belong to
+    // the exact source file, including after replacement at the same path.
+    std::uint64_t key=1469598103934665603ull;
+    const auto identity=avi.string()+":"+std::to_string(std::filesystem::file_size(avi))+":"+
+        std::to_string(std::filesystem::last_write_time(avi).time_since_epoch().count());
+    for(unsigned char byte:identity){key^=byte;key*=1099511628211ull;}
+    std::ostringstream source;source<<"source-"<<std::hex<<key;
+    const auto directory=cache_parent/source.str();
     std::error_code error;
     std::filesystem::create_directories(directory, error);
     if (error) {
@@ -5720,7 +5841,9 @@ std::optional<std::string> video_member_name(const std::filesystem::path& iso,
             key *= 1099511628211ull;
         }
     };
+    mix("media-index-v2");
     mix(iso.string());
+    if(const auto stamp=std::filesystem::last_write_time(iso,error);!error)mix(std::to_string(stamp.time_since_epoch().count()));
     if (const auto size = std::filesystem::file_size(iso, error); !error) {
         mix(std::to_string(size));
     }
@@ -5746,7 +5869,7 @@ std::optional<std::string> video_member_name(const std::filesystem::path& iso,
             if (line.compare(0, marker.size(), marker) != 0) continue;
             const auto member = line.substr(marker.size());
             const auto lowered = lower_ascii(member);
-            if (lowered.rfind("video/", 0) != 0 && lowered.rfind("avi/", 0) != 0) {
+            if (lowered.rfind("video/", 0) != 0 && lowered.rfind("avi/", 0) != 0 && lowered.rfind("dialog/",0)!=0) {
                 continue;
             }
             output << lowered << '\t' << member << '\n';
@@ -5768,57 +5891,53 @@ std::optional<std::string> video_member_name(const std::filesystem::path& iso,
     return std::nullopt;
 }
 
+std::optional<std::filesystem::path> iso_media_files(const Options& options,
+                                                    const std::vector<std::string>& relatives) {
+    if(options.media_isos.empty() || options.backgrounds.empty())return std::nullopt;
+    for(const auto& iso:media_sources(options)) {
+      for(const auto& relative:relatives) {
+        const auto member=video_member_name(iso,options.backgrounds/"video-index",relative);
+        if(!member)continue;
+        const auto path=std::filesystem::path(*member);
+        if(path.is_absolute())throw std::runtime_error("Absolute ISO member path");
+        for(const auto& part:path)if(part=="..")throw std::runtime_error("Unsafe ISO member path");
+        std::error_code error;
+        std::uint64_t key=1469598103934665603ull;
+        const auto identity=iso.string()+":"+std::to_string(std::filesystem::file_size(iso))+":"+
+            std::to_string(std::filesystem::last_write_time(iso).time_since_epoch().count());
+        for(unsigned char c:identity){key^=c;key*=1099511628211ull;}
+        std::ostringstream name;name<<"iso-"<<std::hex<<key;
+        const auto root=options.backgrounds/"disc-files"/name.str();
+        if(const auto file=byzantine::find_video_file(root,*member))return file;
+        std::filesystem::create_directories(root,error);
+        if(error)throw std::runtime_error("Cannot create media cache: "+root.string());
+        const auto command="7z x -y -ssc- "+shell_quote(iso.string())+" "+shell_quote(*member)+
+            " "+shell_quote("-o"+root.string())+" >/dev/null 2>&1";
+        const auto status=std::system(command.c_str());
+        if(status==0)if(const auto file=byzantine::find_video_file(root,*member)) {
+            std::cout<<"iso_media extracted="<<file->string()<<" source="<<iso.filename().string()
+                     <<" disc="<<iso_disc_number(iso)<<'\n';
+            return file;
+        }
+        throw std::runtime_error("Cannot extract required ISO member "+*member+" from "+iso.string());
+      }
+    }
+    return std::nullopt;
+}
+
 std::optional<std::filesystem::path> video_clip_file(
-    const Session& session, const byzantine::SceneVideoRequest& request) {
-    const auto& options = session.options;
-    // The prepared root holds backs/, nodes/, video/ ...; an older extraction
-    // may still have copy2hd/ around.
-    std::vector<std::filesystem::path> roots;
-    if (!options.backgrounds.empty()) {
-        roots.push_back(options.backgrounds);
-        roots.push_back(options.backgrounds / "copy2hd");
-    }
-    const auto candidates = byzantine::video_candidates(request.mode, request.name);
-    for (const auto& candidate : candidates) {
-        if (const auto file = options.language.find_voice(candidate.relative)) return file;
-        for (const auto& root : roots) {
-            if (const auto file = byzantine::find_video_file(root, candidate.relative)) {
-                return file;
-            }
-        }
-    }
-    if (options.media_isos.empty() || options.backgrounds.empty()) return std::nullopt;
-    std::ifstream sources(options.media_isos);
-    if (!sources) {
-        std::cout << "video_manifest unreadable=" << options.media_isos << '\n';
-        return std::nullopt;
-    }
-    const auto cache_root = options.backgrounds / "video-index";
-    std::string iso;
-    while (std::getline(sources, iso)) {
-        if (iso.empty() || !std::filesystem::is_regular_file(iso)) continue;
-        for (const auto& candidate : candidates) {
-            const auto member =
-                video_member_name(iso, cache_root, candidate.relative);
-            if (!member) continue;
-            const auto command = "7z x -y -ssc- " + shell_quote(iso) + " " +
-                                 shell_quote(*member) + " -o" +
-                                 shell_quote(options.backgrounds.string()) +
-                                 " >/dev/null 2>&1";
-            const auto status = std::system(command.c_str());
-            for (const auto& root : roots) {
-                if (const auto file = byzantine::find_video_file(root, *member)) {
-                    std::cout << "video_media extracted=" << file->string()
-                              << " source=" << std::filesystem::path(iso).filename().string()
-                              << " name=" << request.name << '\n';
-                    return file;
-                }
-            }
-            if (status != 0) {
-                std::cout << "video_media extract_failed=" << iso
-                          << " status=" << status << '\n';
-            }
-        }
+    const Session& session,const byzantine::SceneVideoRequest& request) {
+    const auto& options=session.options;
+    const auto candidates=byzantine::video_candidates(request.mode,request.name);
+    if(options.language.voice)for(const auto& candidate:candidates)
+        if(const auto file=byzantine::find_video_file(options.language.voice->root,candidate.relative))return file;
+    std::vector<std::string> relatives;
+    for(const auto& candidate:candidates)relatives.push_back(candidate.relative);
+    if(const auto file=iso_media_files(options,relatives))return file;
+    for(const auto& candidate:candidates) {
+        if(const auto file=options.language.find_voice(candidate.relative))return file;
+        for(const auto& root:{options.backgrounds,options.backgrounds/"copy2hd"})
+            if(const auto file=byzantine::find_video_file(root,candidate.relative))return file;
     }
     return std::nullopt;
 }
@@ -6158,6 +6277,7 @@ int answer_at(const std::vector<SDL_Rect>& rects, float x, float y) {
 // Save writing (0x424dc0) from the live state
 // ---------------------------------------------------------------------------
 std::filesystem::path savegame_directory(const Options& options) {
+    if (!options.save_directory.empty()) return options.save_directory;
     const auto save = options.scene.find("--save");
     if (save != options.scene.end() && !save->second.empty()) {
         return std::filesystem::path(save->second).parent_path();
@@ -6184,8 +6304,7 @@ void put_u32(std::array<std::uint8_t, N>& raw, std::size_t at, std::uint32_t val
 
 // The per-scene CB background id of the committed picture (0x431ec2's
 // DAT_0048253e); 0xffff when the current layer is a close-up/none.
-std::uint16_t saved_background_id(const Session& session) {
-    const auto& view = session.view;
+std::uint16_t saved_background_id(const SceneView& view) {
     if (view.background_name.empty() || panorama_layer(view)) return 0xffff;
     const auto wanted = lower_ascii(view.background_name);
     for (std::size_t index = 0; index < view.entries.size(); ++index) {
@@ -6198,8 +6317,7 @@ std::uint16_t saved_background_id(const Session& session) {
 
 // The CO.ALL record of the visible panorama (0x432295's DAT_00480330) and a
 // source x that reproduces the current centre (DAT_0045c064).
-std::pair<std::int32_t, std::int32_t> saved_panorama(const Session& session) {
-    const auto& view = session.view;
+std::pair<std::int32_t, std::int32_t> saved_panorama(const SceneView& view) {
     if (!panorama_layer(view) || !view.panorama) return {-1, -1};
     const auto path = view.panorama->path();
     const auto file = std::filesystem::path(path).filename().stem().string();
@@ -6223,7 +6341,8 @@ byzantine::SaveGame build_save_from_state(const Session& session,
                                           const byzantine::SaveGame* base,
                                           const std::string& description,
                                           std::uint16_t scene_index,
-                                          std::uint32_t cd_number) {
+                                          std::uint32_t cd_number, const SceneView* source_view = nullptr) {
+    const auto& view = source_view ? *source_view : session.view;
     using byzantine::kSaveDialogueStackDepth;
     using byzantine::kSaveThumbnailBytes;
     using byzantine::SaveDialogueChain;
@@ -6275,10 +6394,10 @@ byzantine::SaveGame build_save_from_state(const Session& session,
     }
     save.scene_index = scene_index;
 
-    const auto& state = session.view.state;
+    const auto& state = view.state;
     if (session.metadata) {
         const auto& layout =
-            byzantine::scene_variable_layout(*session.metadata, session.view.name);
+            byzantine::scene_variable_layout(*session.metadata, view.name);
         save.node_values = byzantine::export_variable_pool(state, layout);
     } else if (state.variable_pool.size() == byzantine::kSaveNodeValueCount) {
         save.node_values = state.variable_pool;
@@ -6315,22 +6434,22 @@ byzantine::SaveGame build_save_from_state(const Session& session,
     }
 
     save.field_460668 = state.field_460668;
-    const auto [panorama_record, panorama_x] = saved_panorama(session);
+    const auto [panorama_record, panorama_x] = saved_panorama(view);
     if (panorama_record >= 0) {
         save.field_45c060 = 1;
         save.field_480330 = static_cast<std::uint32_t>(panorama_record);
         save.field_45c064 = panorama_x < 0 ? 0xffffffffu
                                            : static_cast<std::uint32_t>(panorama_x);
-    } else if (panorama_layer(session.view)) {
+    } else if (panorama_layer(view)) {
         // A panorama is displayed but its CO record could not be named (no
         // --co or the node is not in the table). Keep the base save's block 16'
         // instead of claiming the current CB background is visible.
         std::cout << "save_panorama unresolved node="
-                  << (session.view.panorama ? session.view.panorama->path() : "none")
+                  << (view.panorama ? view.panorama->path() : "none")
                   << " (block 16' kept from the base save)\n";
     } else {
         save.field_45c060 = 0;
-        save.field_48253e = saved_background_id(session);
+        save.field_48253e = saved_background_id(view);
     }
 
     std::map<std::uint16_t, const SaveNodeSlot*> base_nodes;
@@ -6496,6 +6615,8 @@ byzantine::SaveGame build_save_from_state(const Session& session,
     }
     return save;
 }
+
+#include "runtime_save_host.inc"
 
 // SDL_TEXTINPUT is UTF-8; the save description on disk is CP1254, the same
 // single-byte encoding MESSAGES.TXT uses. ASCII and the twelve Turkish letters
@@ -6704,13 +6825,7 @@ struct MenuUi {
 
     void init(Session& session) {
         auto& options = session.options;
-        const auto save = options.scene.find("--save");
-        if (save != options.scene.end() && !save->second.empty()) {
-            savegame_dir = std::filesystem::path(save->second).parent_path();
-        }
-        if (savegame_dir.empty() && !options.backgrounds.empty()) {
-            savegame_dir = options.backgrounds / "copy2hd" / "savegame";
-        }
+        savegame_dir = savegame_directory(options);
     }
 
     std::optional<std::filesystem::path> slot_path(int index) const {
@@ -7505,6 +7620,7 @@ struct MenuUi {
     }
 
     std::uint32_t current_disc(const Session& session) const {
+        if (session.options.active_media_disc) return session.options.active_media_disc;
         if (session.save_base) return session.save_base->cd_number;
         const auto overlay = session.options.scene.find("--anims-overlay");
         if (overlay != session.options.scene.end()) {
@@ -7636,6 +7752,12 @@ struct MenuUi {
         if (!output) {
             return set_notice(session, "Kayit dosyasi yazilamadi: " + edit_file,
                               "save_io");
+        }
+        try {
+            write_runtime_context(session, path, bytes);
+        } catch (const std::exception& error) {
+            return set_notice(session, std::string("Kayit ek dosyasi yazilamadi: ") + error.what(),
+                              "save_companion");
         }
         if (is_new) append_slot_list(edit_file);
         session.save_base = save;
@@ -7790,6 +7912,11 @@ struct MenuUi {
                   << " removed=" << (removed ? "yes" : "no");
         if (error) std::cout << " error=" << error.message();
         std::cout << '\n';
+        if(removed) {
+            std::error_code companion_error;
+            std::filesystem::remove(path->string()+".byzport",companion_error);
+            if(companion_error)std::cout<<"runtime_delete failed: "<<companion_error.message()<<'\n';
+        }
         descriptions.erase(path->filename().string());
         refresh_slots();
         slot = -1;
@@ -8484,7 +8611,7 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
         }
         ui.present(session);
         const auto lines = wrap_dialog_text(*ui.caption_font, answer.text, 530);
-        if (session.interactive &&
+        if (session.interactive && options.automation_script.empty() &&
             !wait_dialog_ms(session,
                             static_cast<std::uint64_t>(lines.size()) * 700)) {
             session.running = false;
@@ -8628,7 +8755,7 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                 }
             }
             if (!media_played && event.line.show_text && session.interactive &&
-                !skip_line) {
+                options.automation_script.empty() && !skip_line) {
                 // 0x424981's reveal: roughly one second per visual line.
                 if (!wait_dialog_ms(
                         session, static_cast<std::uint64_t>(ui.caption.size()) * 700)) {
@@ -8694,7 +8821,7 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                 }
                 answer_shot_written = true;
             }
-            if (!session.interactive) {
+            if (!session.interactive || !options.automation_script.empty()) {
                 if (options.conversation_object && !object_click_used) {
                     object_click_used = true;
                     std::cout << "conversation_object record=" << record_index
@@ -8703,13 +8830,26 @@ ConversationOutcome run_conversation(Session& session, std::uint16_t record_inde
                         static_cast<std::uint16_t>(*options.conversation_object));
                     continue;
                 }
-                if (choice_cursor >= options.conversation_choices.size()) {
+                if (!options.automation_explore && choice_cursor >= options.conversation_choices.size()) {
                     std::cout << "conversation record=" << record_index
                               << " waiting for an answer but --conversation-choices "
                                  "is exhausted\n";
                     return outcome;
                 }
-                const auto choice = options.conversation_choices[choice_cursor++];
+                const auto choice_index = options.automation_explore
+                    ? session.automation_decisions.size() : choice_cursor++;
+                const auto choice = choice_index < options.conversation_choices.size()
+                    ? options.conversation_choices[choice_index] : 0;
+                if(options.automation_explore) {
+                    if(session.automation_decisions.size()>=128)
+                        throw std::runtime_error("exploration decision budget exhausted");
+                    byzantine::AutomationDecision decision;
+                    decision.scene=lower_ascii(session.view.name);
+                    decision.record=record_index;decision.group=event.group;
+                    decision.action=session.automation_action_index;decision.choice=choice;
+                    for(const auto& answer:event.answers)decision.lines.push_back(answer.line);
+                    session.automation_decisions.push_back(std::move(decision));
+                }
                 if (choice >= event.answers.size()) {
                     std::cout << "conversation record=" << record_index
                               << " choice=" << choice << " outside the "
@@ -9292,7 +9432,7 @@ bool execute_plan(Session& session, const ClickPlan& plan,
     // The resumed segment is a real continuation of the same script; if it
     // stops on data the port lacks, the action must not be committed as a
     // success (the caller restores the pre-click state).
-    const auto resumed_blocker = byzantine::trace_blocker(session.view.trace);
+    const auto resumed_blocker = host_trace_blocker(session.view.trace);
     if (!resumed_blocker.empty()) {
         std::cout << "conversation resumed segment stopped: " << resumed_blocker
                   << " at instruction " << session.view.trace.stopped_at
@@ -9300,6 +9440,48 @@ bool execute_plan(Session& session, const ClickPlan& plan,
         return false;
     }
     return true;
+}
+
+// 0x43b216 returns one script pointer; 0x42d594 executes it through the same
+// VM/media path as input. Never run a label on its already-mutated probe state.
+bool dispatch_record_callback(Session& session, const byzantine::RecordCallback& callback,
+    const std::function<bool(EntryPoint, const byzantine::SceneState&,
+                             const byzantine::SceneTrace&)>& run) {
+    if (callback.label > 0xffffu) throw std::runtime_error("record callback label outside script range");
+    ClickPlan plan;
+    plan.ok = true;
+    plan.action = static_cast<std::uint16_t>(callback.label);
+    plan.point = EntryPoint{plan.action, false, std::nullopt};
+    plan.entry_before = session.view.state;
+    plan.entry = plan.entry_before;
+    plan.probe = byzantine::trace_scene_label(session.view.script, session.view.entries,
+                                             plan.entry, plan.action);
+    plan.conversation = plan.probe.conversation_request.has_value();
+    const auto blocker = host_trace_blocker(plan.probe);
+    std::cout << "record_callback record=" << callback.record << " label=" << callback.label
+              << " scene=" << session.view.name << " blocker=" << blocker << '\n';
+    if (!blocker.empty()) throw std::runtime_error("record callback stopped: " + blocker);
+    const auto before_trace = session.view.trace;
+    bool ended = false;
+    if (!execute_plan(session, plan, run, true, &ended)) {
+        session.view.state = plan.entry_before;
+        set_trace(session.view, before_trace);
+        throw std::runtime_error("record callback not committed");
+    }
+    if (ended) {
+        follow_switches(session, true);
+        return true;
+    }
+    const bool reset_clock = action_switches_scene(session) || plan.conversation ||
+                             !session.view.trace.video_requests.empty();
+    ClickCommit commit;
+    commit.refresh = true;
+    commit.present_frame = true;
+    commit.active_slots = true;
+    commit.prefix = "record_callback record=" + std::to_string(callback.record) +
+                    " label=" + std::to_string(callback.label) + " ";
+    commit_click(session, session.options, commit, true);
+    return reset_clock;
 }
 
 void load_fonts(Session& session, bool verbose) {
@@ -10298,7 +10480,8 @@ void apply_headless_menu_input(Session& session, MenuUi& menu, const Options& op
 
 
 std::uint32_t save_disc_number(const Session& session) {
-    if (session.save_base) return session.save_base->cd_number;
+    if (session.options.active_media_disc) return session.options.active_media_disc;
+        if (session.save_base) return session.save_base->cd_number;
     const auto overlay = session.options.scene.find("--anims-overlay");
     if (overlay != session.options.scene.end()) {
         const auto folder = std::filesystem::path(overlay->second).filename().string();
@@ -10356,6 +10539,7 @@ bool write_autosave(Session& session) {
                       << " error=" << error.message() << '\n';
             return false;
         }
+        write_runtime_context(session, path, bytes);
         session.save_base = std::move(save);
         std::cout << "autosave file=" << path << " bytes=" << bytes.size()
                   << " scene=" << session.view.name << '\n';
@@ -10367,6 +10551,7 @@ bool write_autosave(Session& session) {
 }
 
 bool quick_save(Session& session) {
+    restore_hover_preview(session, true);
     const auto directory = savegame_directory(session.options);
     if (directory.empty()) {
         std::cout << "quicksave skipped: no savegame directory\n";
@@ -10418,6 +10603,7 @@ bool quick_save(Session& session) {
                       << " error=" << error.message() << '\n';
             return false;
         }
+        write_runtime_context(session, path, bytes);
         session.save_base = std::move(save);
         std::cout << "quicksave file=" << path << " bytes=" << bytes.size()
                   << " scene=" << session.view.name
@@ -10484,6 +10670,8 @@ bool take_screenshot(Session& session) {
     return true;
 }
 
+#include "automation_host.inc"
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -10493,6 +10681,10 @@ int main(int argc, char** argv) {
     try {
         Session session;
         session.options = parse_options(argc, argv);
+        const auto startup_save_path = session.options.scene.find("--save");
+        session.options.save_directory = startup_save_path != session.options.scene.end()
+            ? std::filesystem::absolute(std::filesystem::path(startup_save_path->second)).parent_path()
+            : session.options.backgrounds / "copy2hd" / "savegame";
         auto& options = session.options;
         load_seen_dialogue(session);
         if (options.list_languages) {
@@ -10535,11 +10727,13 @@ int main(int argc, char** argv) {
         if (label_value > 0xffff) throw std::runtime_error("label outside 16-bit range");
 
         session.view = open_scene(options.scene, options.cc_path, options.cb_path,
-                                  static_cast<std::uint16_t>(label_value));
+                                  static_cast<std::uint16_t>(label_value), options.automation_script.empty()
+                                      ? static_cast<std::uint32_t>(std::time(nullptr)) : 0xbeefu);
         const auto initial_save = options.scene.find("--save");
         if (initial_save != options.scene.end()) {
             try {
                 session.save_base = byzantine::parse_save(read_file(initial_save->second));
+                options.active_media_disc=session.save_base->cd_number;
             } catch (const std::exception& error) {
                 std::cout << "save_base " << initial_save->second << ": " << error.what()
                           << " (a new save keeps the empty unmodelled blocks)\n";
@@ -10579,7 +10773,7 @@ int main(int argc, char** argv) {
 
         // Probe (on a copy): total steps and the sounds the label queues.
         byzantine::SceneState probe_state = session.view.entry_state;
-        const auto probe = options.entry
+        const auto probe = options.restore_save ? byzantine::SceneTrace{} : options.entry
             ? byzantine::trace_scene_entry(session.view.script, session.view.entries,
                                            probe_state, 0)
             : byzantine::trace_scene_label(session.view.script, session.view.entries,
@@ -10610,27 +10804,27 @@ int main(int argc, char** argv) {
         }
 
         if (options.shot.empty()) {
+            session.display.clocked_animation = true;
             // Interactive: show the scene, then run the label (gated when audio
             // is available) and keep the window alive throughout.
-            if (!options.entry) {
+            if (!options.entry && !options.restore_save) {
                 refresh_background(options, session.view);
                 session.display.compose(session.view);
                 session.display.present(session.view);
             }
             const auto run = [&](EntryPoint point, const byzantine::SceneState& entry,
                                  const byzantine::SceneTrace& look) {
-                if (!audio_ready && look.video_requests.empty()) {
-                    session.view.state = entry;
-                    set_trace(session.view, trace_point(session.view, point, entry, 0));
-                    return session.running;
-                }
-                return run_label_gated(session, point, entry, look, true);
+                return run_media_segment(session,point,entry,look,true);
             };
             session.interactive = true;
             const EntryPoint startup_point{session.view.label, options.entry, std::nullopt};
             bool startup_ok = false;
             bool startup_ended = false;
-            if (probe.conversation_request) {
+            if(options.restore_save) {
+                if(!session.save_base)throw std::runtime_error("Cannot restore startup save");
+                const auto saved=*session.save_base;
+                startup_ok=travel_to(session,saved.scene_index,true,options.scene.at("--save"),&saved);
+            } else if (probe.conversation_request) {
                 ClickPlan startup;
                 startup.ok = true;
                 startup.conversation = true;
@@ -10676,7 +10870,7 @@ int main(int argc, char** argv) {
                                                           session.view.entries,
                                                           plan.entry, plan.action);
                 plan.conversation = plan.probe.conversation_request.has_value();
-                const auto blocker = byzantine::trace_blocker(plan.probe);
+                const auto blocker = host_trace_blocker(plan.probe);
                 const auto before_trace = session.view.trace;
                 if (!blocker.empty()) {
                     std::cout << "run_label " << plan.action << " stopped: " << blocker
@@ -10865,10 +11059,12 @@ int main(int argc, char** argv) {
             // record-pass clock separate (`--anim-pass-hz`): the compose draws
             // the current frame without stepping, then exactly the passes the
             // clock owes are applied to the records that compose drew.
+            AutomationRuntime automation(options);
             byzantine::FramePacer pacer(SDL_GetTicks64());
             byzantine::PassClock pass_clock(SDL_GetTicks64(), options.anim_pass_hz);
             const auto stall_passes = static_cast<std::uint64_t>(options.anim_pass_hz);
             while (session.running) {
+                automation.tick(session, menu.open, settings_ui.open);
                 SDL_Event event;
                 while (poll_logged_event(&event, "scene", session)) {
                     if (settings_ui.open) {
@@ -11250,10 +11446,21 @@ int main(int argc, char** argv) {
                             // animation debt; do not replay it pass by pass.
                             pass_clock.skip_to(now_ms);
                         } else if (owed != 0) {
-                            byzantine::advance_record_passes(
-                                session.view.state, session.display.drawn_record_ids,
-                                static_cast<std::size_t>(owed));
-                            pass_clock.applied(owed);
+                            for (std::uint64_t pass = 0; pass < owed; ++pass) {
+                                const auto callback = byzantine::advance_record_pass(
+                                    session.view.state, session.display.drawn_record_ids);
+                                pass_clock.applied(1);
+                                if (!callback) continue;
+                                const bool switched = dispatch_record_callback(session, *callback, run);
+                                if (switched || SDL_GetTicks64() - now_ms > 1000) {
+                                    // Scene loads/media waits are not animation debt.
+                                    pass_clock.skip_to(SDL_GetTicks64());
+                                    break;
+                                }
+                                // The callback can replace records, layers or visibility.
+                                // Rebuild the accepted draw order before another pass.
+                                session.display.compose(session.view, false, false);
+                            }
                         }
                         session.display.present(session.view);
                     }
@@ -11272,6 +11479,7 @@ int main(int argc, char** argv) {
                           << " injected=" << (session.wait.injected ? "true" : "false")
                           << '\n';
             }
+            automation.finish();
             session.display.log_present_summary();
             session.display.store_window_settings(session.options.settings);
             save_port_settings(session.options, true);
@@ -11287,15 +11495,16 @@ int main(int argc, char** argv) {
         // One unbudgeted script segment; a conversation still runs for real,
         // using --conversation-choices because there is no window input loop.
         const auto run_shot = [&](EntryPoint point, const byzantine::SceneState& entry,
-                                  const byzantine::SceneTrace&) {
-            set_trace(session.view, trace_point(session.view, point, entry, 0));
-            // 0xbd blocks in 0x413bdd; a headless run plays the clip the same
-            // way so the log and the last frame match the interactive path
-            // (--no-video skips it and says so).
-            return play_trace_videos(session, session.view.trace, true);
+                                  const byzantine::SceneTrace& look) {
+            return run_media_segment(session,point,entry,look,true);
         };
         bool startup_ended = false;
-        if (probe.conversation_request) {
+        if (options.restore_save) {
+            if(!session.save_base)throw std::runtime_error("Cannot restore startup save");
+            const auto saved=*session.save_base;
+            if(!travel_to(session,saved.scene_index,true,options.scene.at("--save"),&saved))
+                throw std::runtime_error("Saved startup did not complete");
+        } else if (probe.conversation_request) {
             ClickPlan startup;
             startup.ok = true;
             startup.conversation = true;
@@ -11309,11 +11518,9 @@ int main(int argc, char** argv) {
                 std::cout << "startup_not_committed\n";
             }
         } else {
-            session.view.state = std::move(probe_state);
-            set_trace(session.view, probe);
-            // The entry script itself may open with a 0xbd; play it here because
-            // this branch bypasses run_shot.
-            play_trace_videos(session, session.view.trace, true);
+            if(!run_shot(EntryPoint{session.view.label,options.entry,std::nullopt},
+                         session.view.entry_state,probe))
+                throw std::runtime_error("Headless startup did not complete");
         }
         if (!startup_ended) {
             apply_panorama_events(session.view, options, true);
@@ -11332,7 +11539,7 @@ int main(int argc, char** argv) {
                                                       session.view.entries, plan.entry,
                                                       plan.action);
             plan.conversation = plan.probe.conversation_request.has_value();
-            const auto blocker = byzantine::trace_blocker(plan.probe);
+            const auto blocker = host_trace_blocker(plan.probe);
             const auto before_trace = session.view.trace;
             if (!blocker.empty()) {
                 std::cout << "run_label " << plan.action << " stopped: " << blocker

@@ -226,3 +226,10 @@ belong to analysis profile
 ```
 
 No binary session was opened; no cleanup is pending.
+
+### 30 October2026 update: board system calls
+
+The earlier unresolved0x1e/0x1f boundary is now implemented from the verified
+Morris exports. It initializes/executes/releases the24-node board rather than
+querying host mouse/timer input. See `CAMPAIGN_2000_FIXES.md` for the caller,
+board rules, typed VM outputs, evidence hashes and actual playable turn/exit.

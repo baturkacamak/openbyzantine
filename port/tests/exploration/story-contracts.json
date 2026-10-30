@@ -1,0 +1,1741 @@
+{
+  "schema": 1,
+  "kind": "story-milestones",
+  "scope": "authentic checkpoint-to-goal chains; original-runtime equivalence and complete new-game playthrough unverified",
+  "complete_playthrough_verified": false,
+  "cases": [
+    {
+      "name": "omphalos-orb-diadem",
+      "goal": "Use the orb, acquire the diadem and return to the Omphalos view",
+      "seed": {
+        "scene": "VH",
+        "save": "25.btb",
+        "label": 0,
+        "restore": true,
+        "id": "omphalos-orb-diadem"
+      },
+      "actions": [
+        {
+          "id": "hotspot_19",
+          "category": "hotspot",
+          "commands": [
+            "click 408 384"
+          ]
+        },
+        {
+          "id": "hotspot_24",
+          "category": "hotspot",
+          "commands": [
+            "click 308 220"
+          ]
+        },
+        {
+          "id": "return_from_diadem",
+          "category": "hotspot",
+          "commands": [
+            "click 588 368"
+          ]
+        }
+      ],
+      "choices": [],
+      "checks": [
+        {
+          "at": 0,
+          "path": [
+            "inventory",
+            "106",
+            0
+          ],
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "at": 0,
+          "path": [
+            "inventory",
+            "109",
+            0
+          ],
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "at": 1,
+          "path": [
+            "inventory",
+            "106",
+            0
+          ],
+          "op": "eq",
+          "value": 2
+        },
+        {
+          "at": 2,
+          "path": [
+            "inventory",
+            "109",
+            0
+          ],
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "at": 2,
+          "path": [
+            "effective_pool",
+            953
+          ],
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "at": 3,
+          "path": [
+            "scene"
+          ],
+          "op": "eq",
+          "value": "vh"
+        },
+        {
+          "at": 3,
+          "path": [
+            "inventory",
+            "109",
+            0
+          ],
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "at": 3,
+          "path": [
+            "active_slots"
+          ],
+          "op": "nonempty"
+        }
+      ],
+      "milestones": [
+        {
+          "at": 1,
+          "name": "orb-used"
+        },
+        {
+          "at": 2,
+          "name": "diadem-acquired"
+        },
+        {
+          "at": 3,
+          "name": "usable-return"
+        }
+      ],
+      "resume_after": 1,
+      "media": false,
+      "evidence": "VH CC actions for slots19/24; SHOW.LCI iorb106/idiadem109; observed ordinary route trial00174"
+    },
+    {
+      "name": "forum-clues-fen",
+      "goal": "Exchange forum clues for the fen record and leave the close-up",
+      "seed": {
+        "scene": "HSTMED",
+        "save": "55.btb",
+        "label": 0,
+        "restore": true,
+        "id": "forum-clues-fen"
+      },
+      "actions": [
+        {
+          "id": "hotspot_46",
+          "category": "hotspot",
+          "commands": [
+            "click 320 220"
+          ]
+        },
+        {
+          "id": "return_from_fen",
+          "category": "hotspot",
+          "commands": [
+            "click 588 368"
+          ]
+        }
+      ],
+      "choices": [],
+      "checks": [
+        {
+          "at": 0,
+          "path": [
+            "inventory",
+            "74",
+            0
+          ],
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "at": 1,
+          "path": [
+            "inventory",
+            "74",
+            0
+          ],
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "at": 1,
+          "path": [
+            "effective_pool",
+            464
+          ],
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "at": 1,
+          "path": [
+            "effective_pool",
+            465
+          ],
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "at": 1,
+          "path": [
+            "inventory",
+            "19",
+            0
+          ],
+          "op": "eq",
+          "value": 2
+        },
+        {
+          "at": 1,
+          "path": [
+            "inventory",
+            "30",
+            0
+          ],
+          "op": "eq",
+          "value": 2
+        },
+        {
+          "at": 1,
+          "path": [
+            "inventory",
+            "47",
+            0
+          ],
+          "op": "eq",
+          "value": 2
+        },
+        {
+          "at": 2,
+          "path": [
+            "scene"
+          ],
+          "op": "eq",
+          "value": "vb"
+        },
+        {
+          "at": 2,
+          "path": [
+            "inventory",
+            "74",
+            0
+          ],
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "at": 2,
+          "path": [
+            "active_slots"
+          ],
+          "op": "nonempty"
+        }
+      ],
+      "milestones": [
+        {
+          "at": 1,
+          "name": "clues-exchanged-fen-awarded"
+        },
+        {
+          "at": 2,
+          "name": "return-to-vb"
+        }
+      ],
+      "resume_after": 1,
+      "media": false,
+      "evidence": "HSTMED55 slot46; SHOW.LCI IBCPamph19/iridnote30/iforumnt47/ifen74; trial00221"
+    },
+    {
+      "name": "lintel-completed-return",
+      "goal": "Leave the supplied completed lintel checkpoint and recover year/truth entries",
+      "seed": {
+        "scene": "LINTEL",
+        "save": "59.btb",
+        "label": 0,
+        "restore": true,
+        "id": "lintel-completed-return"
+      },
+      "actions": [
+        {
+          "id": "hotspot_12",
+          "category": "hotspot",
+          "commands": [
+            "click 588 368"
+          ]
+        }
+      ],
+      "choices": [],
+      "checks": [
+        {
+          "at": 0,
+          "path": [
+            "scene"
+          ],
+          "op": "eq",
+          "value": "lintel"
+        },
+        {
+          "at": 0,
+          "path": [
+            "inventory",
+            "96",
+            0
+          ],
+          "op": "eq",
+          "value": 2
+        },
+        {
+          "at": 0,
+          "path": [
+            "inventory",
+            "97",
+            0
+          ],
+          "op": "eq",
+          "value": 2
+        },
+        {
+          "at": 1,
+          "path": [
+            "inventory",
+            "96",
+            0
+          ],
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "at": 1,
+          "path": [
+            "inventory",
+            "97",
+            0
+          ],
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "at": 1,
+          "path": [
+            "scene"
+          ],
+          "op": "eq",
+          "value": "vc"
+        },
+        {
+          "at": 1,
+          "path": [
+            "channels",
+            4
+          ],
+          "op": "contains",
+          "value": 96
+        },
+        {
+          "at": 1,
+          "path": [
+            "channels",
+            4
+          ],
+          "op": "contains",
+          "value": 97
+        },
+        {
+          "at": 1,
+          "path": [
+            "active_slots"
+          ],
+          "op": "nonempty"
+        }
+      ],
+      "milestones": [
+        {
+          "at": 1,
+          "name": "vc-return-with-year-and-truth"
+        }
+      ],
+      "resume_after": null,
+      "media": false,
+      "evidence": "LINTEL slots2/0/12; SHOW.LCI iyear96/itruth97; genuine trial00185; this is retrieval, not a claim the entire VC chapter is solved; supplied checkpoint is already completed: this tests handoff, not solving the lintel"
+    },
+    {
+      "name": "emre-cassette-player",
+      "goal": "Reach Emre cassette player, operate it twice and leave",
+      "seed": {
+        "scene": "MAP",
+        "save": "48.btb",
+        "label": 0,
+        "restore": true,
+        "id": "emre-cassette-player"
+      },
+      "actions": [
+        {
+          "id": "hotspot_49",
+          "category": "hotspot",
+          "commands": [
+            "click 304 124"
+          ]
+        },
+        {
+          "id": "hotspot_153",
+          "category": "hotspot",
+          "commands": [
+            "click 344 200"
+          ]
+        },
+        {
+          "id": "hotspot_5",
+          "category": "hotspot",
+          "commands": [
+            "click 452 328"
+          ]
+        },
+        {
+          "id": "hotspot_24",
+          "category": "hotspot",
+          "commands": [
+            "click 444 200"
+          ]
+        },
+        {
+          "id": "cassette_eject_or_toggle",
+          "category": "hotspot",
+          "commands": [
+            "click 444 200"
+          ]
+        },
+        {
+          "id": "leave_cassette",
+          "category": "hotspot",
+          "commands": [
+            "click 588 368"
+          ]
+        }
+      ],
+      "choices": [],
+      "checks": [
+        {
+          "at": 1,
+          "path": [
+            "scene"
+          ],
+          "op": "eq",
+          "value": "ea"
+        },
+        {
+          "at": 3,
+          "path": [
+            "background"
+          ],
+          "op": "eq",
+          "value": "eacassdk"
+        },
+        {
+          "at": 4,
+          "path": [
+            "inventory",
+            "27",
+            0
+          ],
+          "op": "eq",
+          "value": 2
+        },
+        {
+          "at": 4,
+          "path": [
+            "effective_pool",
+            315
+          ],
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "at": 6,
+          "path": [
+            "scene"
+          ],
+          "op": "eq",
+          "value": "ea"
+        },
+        {
+          "at": 6,
+          "path": [
+            "active_slots"
+          ],
+          "op": "nonempty"
+        }
+      ],
+      "milestones": [
+        {
+          "at": 3,
+          "name": "cassette-closeup"
+        },
+        {
+          "at": 4,
+          "name": "cassette-script-state-changed"
+        },
+        {
+          "at": 6,
+          "name": "usable-return"
+        }
+      ],
+      "resume_after": 4,
+      "media": false,
+      "evidence": "EA slot24/23 cassette actions; SHOW.LCI iEMCass27; genuine trial00297; state2 is asserted without claiming possession"
+    },
+    {
+      "name": "morris-loss",
+      "goal": "Complete a losing Morris game and leave",
+      "seed": {
+        "id": "morris-loss",
+        "scene": "IU",
+        "save": "61.btb",
+        "label": 0,
+        "restore": true
+      },
+      "actions": [
+        {
+          "id": "hotspot_21",
+          "category": "hotspot",
+          "commands": [
+            "click 412 328"
+          ]
+        },
+        {
+          "id": "hotspot_0",
+          "category": "hotspot",
+          "commands": [
+            "click 332 200"
+          ]
+        },
+        {
+          "id": "hotspot_6",
+          "category": "hotspot",
+          "commands": [
+            "click 532 356"
+          ]
+        },
+        {
+          "id": "pick_0_0",
+          "category": "hotspot",
+          "commands": [
+            "click 125 113"
+          ]
+        },
+        {
+          "id": "place_0_0",
+          "category": "hotspot",
+          "commands": [
+            "click 177 144"
+          ]
+        },
+        {
+          "id": "pick_1_1",
+          "category": "hotspot",
+          "commands": [
+            "click 66 131"
+          ]
+        },
+        {
+          "id": "place_1_1",
+          "category": "hotspot",
+          "commands": [
+            "click 303 141"
+          ]
+        },
+        {
+          "id": "pick_2_3",
+          "category": "hotspot",
+          "commands": [
+            "click 49 159"
+          ]
+        },
+        {
+          "id": "place_2_3",
+          "category": "hotspot",
+          "commands": [
+            "click 218 178"
+          ]
+        },
+        {
+          "id": "leave_morris",
+          "category": "hotspot",
+          "commands": [
+            "click 588 372"
+          ]
+        }
+      ],
+      "choices": [],
+      "checks": [
+        {
+          "at": 3,
+          "path": [
+            "scene"
+          ],
+          "op": "eq",
+          "value": "morris"
+        },
+        {
+          "at": 3,
+          "path": [
+            "morris",
+            "initialized"
+          ],
+          "op": "eq",
+          "value": true
+        },
+        {
+          "at": 5,
+          "path": [
+            "morris",
+            "turns"
+          ],
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "at": 5,
+          "path": [
+            "morris",
+            "nodes"
+          ],
+          "op": "count_mask_eq",
+          "value": {
+            "mask": 2,
+            "count": 1
+          }
+        },
+        {
+          "at": 5,
+          "path": [
+            "morris",
+            "nodes"
+          ],
+          "op": "count_mask_eq",
+          "value": {
+            "mask": 1,
+            "count": 1
+          }
+        },
+        {
+          "at": 9,
+          "path": [
+            "variables",
+            "55"
+          ],
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "at": 9,
+          "path": [
+            "morris",
+            "initialized"
+          ],
+          "op": "eq",
+          "value": false
+        },
+        {
+          "at": 10,
+          "path": [
+            "scene"
+          ],
+          "op": "eq",
+          "value": "vc"
+        },
+        {
+          "at": 10,
+          "path": [
+            "active_slots"
+          ],
+          "op": "nonempty"
+        }
+      ],
+      "milestones": [
+        {
+          "at": 5,
+          "name": "first-computer-response"
+        },
+        {
+          "at": 9,
+          "name": "terminal-result-1"
+        },
+        {
+          "at": 10,
+          "name": "usable-vc-exit"
+        }
+      ],
+      "resume_after": 7,
+      "media": false,
+      "evidence": "Recovered Morris rules already documented CAMPAIGN_2000_FIXES.md; shipped MORRIS c8 output local55 and terminal branches; deterministic automation seed48879; no board state injection"
+    },
+    {
+      "name": "morris-win",
+      "goal": "Complete a winning Morris game and leave",
+      "seed": {
+        "id": "morris-win",
+        "scene": "IU",
+        "save": "61.btb",
+        "label": 0,
+        "restore": true
+      },
+      "actions": [
+        {
+          "id": "hotspot_21",
+          "category": "hotspot",
+          "commands": [
+            "click 412 328"
+          ]
+        },
+        {
+          "id": "hotspot_0",
+          "category": "hotspot",
+          "commands": [
+            "click 332 200"
+          ]
+        },
+        {
+          "id": "hotspot_6",
+          "category": "hotspot",
+          "commands": [
+            "click 532 356"
+          ]
+        },
+        {
+          "id": "pick_0_0",
+          "category": "hotspot",
+          "commands": [
+            "click 125 113"
+          ]
+        },
+        {
+          "id": "place_0_0",
+          "category": "hotspot",
+          "commands": [
+            "click 177 144"
+          ]
+        },
+        {
+          "id": "pick_1_1",
+          "category": "hotspot",
+          "commands": [
+            "click 66 131"
+          ]
+        },
+        {
+          "id": "place_1_1",
+          "category": "hotspot",
+          "commands": [
+            "click 303 141"
+          ]
+        },
+        {
+          "id": "pick_2_4",
+          "category": "hotspot",
+          "commands": [
+            "click 49 159"
+          ]
+        },
+        {
+          "id": "place_2_4",
+          "category": "hotspot",
+          "commands": [
+            "click 305 175"
+          ]
+        },
+        {
+          "id": "pick_3_3",
+          "category": "hotspot",
+          "commands": [
+            "click 40 270"
+          ]
+        },
+        {
+          "id": "place_3_3",
+          "category": "hotspot",
+          "commands": [
+            "click 218 178"
+          ]
+        },
+        {
+          "id": "pick_4_14",
+          "category": "hotspot",
+          "commands": [
+            "click 37 337"
+          ]
+        },
+        {
+          "id": "place_4_14",
+          "category": "hotspot",
+          "commands": [
+            "click 464 234"
+          ]
+        },
+        {
+          "id": "pick_5_22",
+          "category": "hotspot",
+          "commands": [
+            "click 528 172"
+          ]
+        },
+        {
+          "id": "place_5_22",
+          "category": "hotspot",
+          "commands": [
+            "click 298 359"
+          ]
+        },
+        {
+          "id": "pick_6_17",
+          "category": "hotspot",
+          "commands": [
+            "click 551 218"
+          ]
+        },
+        {
+          "id": "place_6_17",
+          "category": "hotspot",
+          "commands": [
+            "click 347 268"
+          ]
+        },
+        {
+          "id": "pick_7_12",
+          "category": "hotspot",
+          "commands": [
+            "click 590 218"
+          ]
+        },
+        {
+          "id": "place_7_12",
+          "category": "hotspot",
+          "commands": [
+            "click 344 233"
+          ]
+        },
+        {
+          "id": "pick_8_13",
+          "category": "hotspot",
+          "commands": [
+            "click 602 319"
+          ]
+        },
+        {
+          "id": "place_8_13",
+          "category": "hotspot",
+          "commands": [
+            "click 402 235"
+          ]
+        },
+        {
+          "id": "leave_morris",
+          "category": "hotspot",
+          "commands": [
+            "click 588 372"
+          ]
+        }
+      ],
+      "choices": [],
+      "checks": [
+        {
+          "at": 3,
+          "path": [
+            "scene"
+          ],
+          "op": "eq",
+          "value": "morris"
+        },
+        {
+          "at": 3,
+          "path": [
+            "morris",
+            "initialized"
+          ],
+          "op": "eq",
+          "value": true
+        },
+        {
+          "at": 5,
+          "path": [
+            "morris",
+            "turns"
+          ],
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "at": 5,
+          "path": [
+            "morris",
+            "nodes"
+          ],
+          "op": "count_mask_eq",
+          "value": {
+            "mask": 2,
+            "count": 1
+          }
+        },
+        {
+          "at": 5,
+          "path": [
+            "morris",
+            "nodes"
+          ],
+          "op": "count_mask_eq",
+          "value": {
+            "mask": 1,
+            "count": 1
+          }
+        },
+        {
+          "at": 21,
+          "path": [
+            "variables",
+            "55"
+          ],
+          "op": "eq",
+          "value": 2
+        },
+        {
+          "at": 21,
+          "path": [
+            "morris",
+            "initialized"
+          ],
+          "op": "eq",
+          "value": false
+        },
+        {
+          "at": 22,
+          "path": [
+            "scene"
+          ],
+          "op": "eq",
+          "value": "vc"
+        },
+        {
+          "at": 22,
+          "path": [
+            "active_slots"
+          ],
+          "op": "nonempty"
+        }
+      ],
+      "milestones": [
+        {
+          "at": 5,
+          "name": "first-computer-response"
+        },
+        {
+          "at": 21,
+          "name": "terminal-result-2"
+        },
+        {
+          "at": 22,
+          "name": "usable-vc-exit"
+        }
+      ],
+      "resume_after": 7,
+      "media": false,
+      "evidence": "Recovered Morris rules already documented CAMPAIGN_2000_FIXES.md; shipped MORRIS c8 output local55 and terminal branches; deterministic automation seed48879; no board state injection"
+    },
+    {
+      "name": "morris-draw",
+      "goal": "Complete a drawn Morris game, verify reset and leave",
+      "seed": {
+        "id": "morris-draw",
+        "scene": "IU",
+        "save": "61.btb",
+        "label": 0,
+        "restore": true
+      },
+      "actions": [
+        {
+          "id": "hotspot_21",
+          "category": "hotspot",
+          "commands": [
+            "click 412 328"
+          ]
+        },
+        {
+          "id": "hotspot_0",
+          "category": "hotspot",
+          "commands": [
+            "click 332 200"
+          ]
+        },
+        {
+          "id": "hotspot_6",
+          "category": "hotspot",
+          "commands": [
+            "click 532 356"
+          ]
+        },
+        {
+          "id": "pick_0_0",
+          "category": "hotspot",
+          "commands": [
+            "click 125 113"
+          ]
+        },
+        {
+          "id": "place_0_0",
+          "category": "hotspot",
+          "commands": [
+            "click 177 144"
+          ]
+        },
+        {
+          "id": "pick_1_1",
+          "category": "hotspot",
+          "commands": [
+            "click 66 131"
+          ]
+        },
+        {
+          "id": "place_1_1",
+          "category": "hotspot",
+          "commands": [
+            "click 303 141"
+          ]
+        },
+        {
+          "id": "pick_2_4",
+          "category": "hotspot",
+          "commands": [
+            "click 49 159"
+          ]
+        },
+        {
+          "id": "place_2_4",
+          "category": "hotspot",
+          "commands": [
+            "click 305 175"
+          ]
+        },
+        {
+          "id": "pick_3_3",
+          "category": "hotspot",
+          "commands": [
+            "click 40 270"
+          ]
+        },
+        {
+          "id": "place_3_3",
+          "category": "hotspot",
+          "commands": [
+            "click 218 178"
+          ]
+        },
+        {
+          "id": "pick_4_14",
+          "category": "hotspot",
+          "commands": [
+            "click 37 337"
+          ]
+        },
+        {
+          "id": "place_4_14",
+          "category": "hotspot",
+          "commands": [
+            "click 464 234"
+          ]
+        },
+        {
+          "id": "pick_5_10",
+          "category": "hotspot",
+          "commands": [
+            "click 528 172"
+          ]
+        },
+        {
+          "id": "place_5_10",
+          "category": "hotspot",
+          "commands": [
+            "click 199 234"
+          ]
+        },
+        {
+          "id": "pick_6_9",
+          "category": "hotspot",
+          "commands": [
+            "click 551 218"
+          ]
+        },
+        {
+          "id": "place_6_9",
+          "category": "hotspot",
+          "commands": [
+            "click 148 233"
+          ]
+        },
+        {
+          "id": "pick_7_12",
+          "category": "hotspot",
+          "commands": [
+            "click 590 218"
+          ]
+        },
+        {
+          "id": "place_7_12",
+          "category": "hotspot",
+          "commands": [
+            "click 344 233"
+          ]
+        },
+        {
+          "id": "pick_8_8",
+          "category": "hotspot",
+          "commands": [
+            "click 602 319"
+          ]
+        },
+        {
+          "id": "place_8_8",
+          "category": "hotspot",
+          "commands": [
+            "click 342 204"
+          ]
+        },
+        {
+          "id": "leave_morris",
+          "category": "hotspot",
+          "commands": [
+            "click 588 372"
+          ]
+        }
+      ],
+      "choices": [],
+      "checks": [
+        {
+          "at": 3,
+          "path": [
+            "scene"
+          ],
+          "op": "eq",
+          "value": "morris"
+        },
+        {
+          "at": 3,
+          "path": [
+            "morris",
+            "initialized"
+          ],
+          "op": "eq",
+          "value": true
+        },
+        {
+          "at": 5,
+          "path": [
+            "morris",
+            "turns"
+          ],
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "at": 5,
+          "path": [
+            "morris",
+            "nodes"
+          ],
+          "op": "count_mask_eq",
+          "value": {
+            "mask": 2,
+            "count": 1
+          }
+        },
+        {
+          "at": 5,
+          "path": [
+            "morris",
+            "nodes"
+          ],
+          "op": "count_mask_eq",
+          "value": {
+            "mask": 1,
+            "count": 1
+          }
+        },
+        {
+          "at": 21,
+          "path": [
+            "variables",
+            "55"
+          ],
+          "op": "eq",
+          "value": 3
+        },
+        {
+          "at": 21,
+          "path": [
+            "morris",
+            "initialized"
+          ],
+          "op": "eq",
+          "value": true
+        },
+        {
+          "at": 22,
+          "path": [
+            "scene"
+          ],
+          "op": "eq",
+          "value": "vc"
+        },
+        {
+          "at": 22,
+          "path": [
+            "active_slots"
+          ],
+          "op": "nonempty"
+        },
+        {
+          "at": 21,
+          "path": [
+            "morris",
+            "turns"
+          ],
+          "op": "eq",
+          "value": 0
+        }
+      ],
+      "milestones": [
+        {
+          "at": 5,
+          "name": "first-computer-response"
+        },
+        {
+          "at": 21,
+          "name": "terminal-result-3"
+        },
+        {
+          "at": 22,
+          "name": "usable-vc-exit"
+        }
+      ],
+      "resume_after": 7,
+      "media": false,
+      "evidence": "Recovered Morris rules already documented CAMPAIGN_2000_FIXES.md; shipped MORRIS c8 output local55 and terminal branches; deterministic automation seed48879; no board state injection"
+    },
+    {
+      "name": "clock-first-gate",
+      "goal": "Align hands at11, persist a pending hand animation and open the first gate",
+      "seed": {
+        "scene": "CLOCK",
+        "save": "70.btb",
+        "label": 0,
+        "restore": true,
+        "id": "clock-first-gate"
+      },
+      "actions": [
+        {
+          "id": "pick_hour",
+          "category": "hotspot",
+          "commands": [
+            "click 300 192"
+          ]
+        },
+        {
+          "id": "set_hour_11",
+          "category": "hotspot",
+          "commands": [
+            "click 320 132"
+          ]
+        },
+        {
+          "id": "wait_for_hand_animation",
+          "category": "wait",
+          "commands": [
+            "wait 2500"
+          ]
+        },
+        {
+          "id": "first_gate",
+          "category": "hotspot",
+          "commands": [
+            "click 220 376"
+          ]
+        }
+      ],
+      "choices": [],
+      "checks": [
+        {
+          "at": 0,
+          "path": [
+            "variables",
+            "12"
+          ],
+          "op": "eq",
+          "value": 6
+        },
+        {
+          "at": 0,
+          "path": [
+            "variables",
+            "13"
+          ],
+          "op": "eq",
+          "value": 11
+        },
+        {
+          "at": 2,
+          "path": [
+            "variables",
+            "12"
+          ],
+          "op": "eq",
+          "value": 11
+        },
+        {
+          "at": 2,
+          "path": [
+            "variables",
+            "13"
+          ],
+          "op": "eq",
+          "value": 11
+        },
+        {
+          "at": 4,
+          "path": [
+            "variables",
+            "9"
+          ],
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "at": 4,
+          "path": [
+            "variables",
+            "11"
+          ],
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "at": 4,
+          "path": [
+            "variables",
+            "10"
+          ],
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "at": 4,
+          "path": [
+            "scene"
+          ],
+          "op": "eq",
+          "value": "clock"
+        },
+        {
+          "at": 2,
+          "path": [
+            "exploration",
+            "record_callbacks",
+            "4",
+            3
+          ],
+          "op": "contains",
+          "value": [
+            170,
+            11
+          ]
+        },
+        {
+          "at": 3,
+          "path": [
+            "active_slots"
+          ],
+          "op": "contains",
+          "value": 0
+        }
+      ],
+      "milestones": [
+        {
+          "at": 2,
+          "name": "hands-aligned-at-11"
+        },
+        {
+          "at": 3,
+          "name": "hand-animation-completed"
+        },
+        {
+          "at": 4,
+          "name": "first-gate-open"
+        }
+      ],
+      "resume_after": 2,
+      "media": false,
+      "evidence": "CLOCK script instructions108/109 initial6/11,593-599 first gate requires11/11; only first phase, not whole clock solution"
+    },
+    {
+      "name": "clock-three-gates",
+      "goal": "Solve the three clock gates, recover key/glass and return to VT",
+      "seed": {
+        "scene": "CLOCK",
+        "save": "70.btb",
+        "label": 0,
+        "restore": true,
+        "id": "clock-three-gates"
+      },
+      "actions": [
+        {
+          "id": "clock_step_1",
+          "category": "hotspot",
+          "commands": [
+            "click 408 388",
+            "wait 1000"
+          ]
+        },
+        {
+          "id": "clock_step_2",
+          "category": "hotspot",
+          "commands": [
+            "click 300 192",
+            "wait 1000"
+          ]
+        },
+        {
+          "id": "clock_step_3",
+          "category": "hotspot",
+          "commands": [
+            "click 320 132",
+            "wait 2500"
+          ]
+        },
+        {
+          "id": "clock_step_4",
+          "category": "hotspot",
+          "commands": [
+            "click 220 376",
+            "wait 1000"
+          ]
+        },
+        {
+          "id": "clock_step_5",
+          "category": "hotspot",
+          "commands": [
+            "click 320 132",
+            "wait 1000"
+          ]
+        },
+        {
+          "id": "clock_step_6",
+          "category": "hotspot",
+          "commands": [
+            "click 320 196",
+            "wait 2500"
+          ]
+        },
+        {
+          "id": "clock_step_7",
+          "category": "hotspot",
+          "commands": [
+            "click 320 132",
+            "wait 1000"
+          ]
+        },
+        {
+          "id": "clock_step_8",
+          "category": "hotspot",
+          "commands": [
+            "click 320 196",
+            "wait 2500"
+          ]
+        },
+        {
+          "id": "clock_step_9",
+          "category": "hotspot",
+          "commands": [
+            "click 312 384",
+            "wait 1000"
+          ]
+        },
+        {
+          "id": "clock_step_10",
+          "category": "hotspot",
+          "commands": [
+            "click 320 196",
+            "wait 1000"
+          ]
+        },
+        {
+          "id": "clock_step_11",
+          "category": "hotspot",
+          "commands": [
+            "click 288 164",
+            "wait 2500"
+          ]
+        },
+        {
+          "id": "clock_step_12",
+          "category": "hotspot",
+          "commands": [
+            "click 320 196",
+            "wait 1000"
+          ]
+        },
+        {
+          "id": "clock_step_13",
+          "category": "hotspot",
+          "commands": [
+            "click 352 164",
+            "wait 2500"
+          ]
+        },
+        {
+          "id": "clock_step_14",
+          "category": "hotspot",
+          "commands": [
+            "click 408 388",
+            "wait 1000"
+          ]
+        },
+        {
+          "id": "collect_clock_key",
+          "category": "hotspot",
+          "commands": [
+            "click 392 300",
+            "wait 1000"
+          ]
+        },
+        {
+          "id": "collect_clock_glass",
+          "category": "hotspot",
+          "commands": [
+            "click 544 332",
+            "wait 1000"
+          ]
+        },
+        {
+          "id": "leave_solved_clock",
+          "category": "hotspot",
+          "commands": [
+            "click 596 368",
+            "wait 1000"
+          ]
+        }
+      ],
+      "choices": [],
+      "checks": [
+        {
+          "at": 1,
+          "path": [
+            "inventory",
+            "21",
+            0
+          ],
+          "op": "eq",
+          "value": 2
+        },
+        {
+          "at": 3,
+          "path": [
+            "variables",
+            "12"
+          ],
+          "op": "eq",
+          "value": 11
+        },
+        {
+          "at": 3,
+          "path": [
+            "variables",
+            "13"
+          ],
+          "op": "eq",
+          "value": 11
+        },
+        {
+          "at": 4,
+          "path": [
+            "variables",
+            "9"
+          ],
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "at": 4,
+          "path": [
+            "active_slots"
+          ],
+          "op": "contains",
+          "value": 0
+        },
+        {
+          "at": 9,
+          "path": [
+            "variables",
+            "11"
+          ],
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "at": 14,
+          "path": [
+            "variables",
+            "10"
+          ],
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "at": 14,
+          "path": [
+            "variables",
+            "3"
+          ],
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "at": 0,
+          "path": [
+            "inventory",
+            "25",
+            0
+          ],
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "at": 0,
+          "path": [
+            "inventory",
+            "26",
+            0
+          ],
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "at": 15,
+          "path": [
+            "inventory",
+            "25",
+            0
+          ],
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "at": 16,
+          "path": [
+            "inventory",
+            "26",
+            0
+          ],
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "at": 17,
+          "path": [
+            "scene"
+          ],
+          "op": "eq",
+          "value": "vt"
+        },
+        {
+          "at": 17,
+          "path": [
+            "inventory",
+            "25",
+            0
+          ],
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "at": 17,
+          "path": [
+            "inventory",
+            "26",
+            0
+          ],
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "at": 17,
+          "path": [
+            "active_slots"
+          ],
+          "op": "nonempty"
+        }
+      ],
+      "milestones": [
+        {
+          "at": 1,
+          "name": "star-inserted"
+        },
+        {
+          "at": 4,
+          "name": "first-gate-and-hand-controls"
+        },
+        {
+          "at": 9,
+          "name": "second-gate-open"
+        },
+        {
+          "at": 14,
+          "name": "third-gate-and-clock-complete"
+        },
+        {
+          "at": 16,
+          "name": "key-and-glass-recovered"
+        },
+        {
+          "at": 17,
+          "name": "solved-clock-usable-vt-return"
+        }
+      ],
+      "resume_after": 9,
+      "media": false,
+      "evidence": "CLOCK shipped instructions593-619,624-639,666-669; timeout waits are ordinary input; continuation currently under investigation, never blessed from port output; hand-placement waits allow the global60Hz authored delay10, including the nine-step wrap (about1.65s)"
+    }
+  ],
+  "uncovered": [
+    "new-game through first supplied save",
+    "chapter-to-chapter continuity between original saves",
+    "all dialogue consequences and optional branches",
+    "ending/credits path"
+  ],
+  "script_sha256": {
+    "VH": "0d9ab127415be2acb849c0b49671a5e53349fa76e93f269534f77d4f76264463",
+    "HSTMED": "48f776e86de41bd424006bdae886fc6e6604317a35d7b1dbb41ba8071b2d2d22",
+    "LINTEL": "1d0a2b1f8f025e44dbaf5c5f6a862441acc11fcdad6fd74442eaf819357f10b5",
+    "EA": "66264c55c1ac206e0d3a784f148387bd5980162c32f473ef7164a1cf42ca0b89",
+    "MORRIS": "d0b7d7d565636ecb64f3a75e33206b44d7d7e786ff503678f805946e66d9d67c",
+    "CLOCK": "e9966656c82f413cb3fb1461be3cc2bc6ef89f4ba4de98d2712efe1dd274c4b4"
+  }
+}

@@ -1,0 +1,50 @@
+[
+  {
+    "id": "am-dialogue",
+    "scene": "AM",
+    "label": 0,
+    "save": "62.btb",
+    "entry": true,
+    "warmup": [
+      {
+        "id": "turn1",
+        "category": "camera",
+        "commands": [
+          "key Left",
+          "key Left",
+          "key Left",
+          "key Left",
+          "key Left",
+          "key Left",
+          "key Left"
+        ]
+      },
+      {
+        "id": "turn2",
+        "category": "camera",
+        "commands": [
+          "key Left",
+          "key Left",
+          "key Left",
+          "key Left",
+          "key Left",
+          "key Left"
+        ]
+      },
+      {
+        "id": "hotspot_88",
+        "category": "hotspot",
+        "commands": [
+          "click 224 260"
+        ]
+      },
+      {
+        "id": "hotspot_92",
+        "category": "hotspot",
+        "commands": [
+          "click 324 196"
+        ]
+      }
+    ]
+  }
+]

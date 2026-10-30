@@ -33,8 +33,7 @@ usage() {
     exit 2
 }
 
-[ $# -ge 1 ] || usage
-game_dir="$1"
+game_dir="${1:-}"
 scene="${2:-MAP}"
 label="${3:-87}"
 save="${4:-tempsave.btb}"
@@ -42,15 +41,18 @@ data="${BYZ_DATA:-${TMPDIR:-/tmp}/byz-scene}"
 
 lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 
+# Validate authentic disc markers once, then retain the configured directory.
+media_config="${BYZ_MEDIA_CONFIG:-$here/media_sources.json}"
+media_root_arg=()
+[ -n "$game_dir" ] && media_root_arg=(--root "$game_dir")
+mkdir -p "$data"
+media_list="$(python3 "$here/media_sources.py" "${media_root_arg[@]}" \
+    --config "$media_config" --output "$data/media_isos.txt")"
+mapfile -t disc_isos <<<"$media_list"
 find_iso() {
-    local index="$1" candidate
-    for candidate in \
-        "$game_dir/Byzantine-The-Betrayal_Win_TR_CD$index/Byzantine_$index.iso" \
-        "$game_dir"/*"CD$index"*/Byzantine_"$index".iso \
-        "$game_dir"/Byzantine_"$index".iso; do
-        [ -f "$candidate" ] && { printf '%s' "$candidate"; return 0; }
-    done
-    return 1
+    local path="${disc_isos[$(($1 - 1))]:-}"
+    [ -f "$path" ] || return 1
+    printf '%s\n' "$path"
 }
 
 # Panorama nodes are stored inside CD1 as copy2hd/nodes/<scene>/..., while the
@@ -267,21 +269,22 @@ messages="$data/copy2hd/setupart/MESSAGES.TXT"
 # carry different bytes on different CDs (the animation overlay above makes the
 # same call), so the disc the save was made on is the authority.
 media_isos="$data/media_isos.txt"
-: >"$media_isos"
+: >"$media_isos.tmp.$$"
 add_media_iso() {
     local iso iso_dir line
     iso="$(find_iso "$1")" || return 0
     iso_dir="$(cd "$(dirname "$iso")" && pwd)"
     line="$iso_dir/$(basename "$iso")"
-    if grep -qxF "$line" "$media_isos"; then
+    if grep -qxF "$line" "$media_isos.tmp.$$"; then
         return 0
     fi
-    printf '%s\n' "$line" >>"$media_isos"
+    printf '%s\n' "$line" >>"$media_isos.tmp.$$"
 }
 add_media_iso "$saved_disc"
 for index in 1 2 3 4 5 6; do
     add_media_iso "$index"
 done
+mv "$media_isos.tmp.$$" "$media_isos"
 
 # 0x41f753(0) reads savegame/gamepref_000 (written by 0x41f7be when the
 # preferences screen changes a value); the CD's GAMEPREF.000 is the default.

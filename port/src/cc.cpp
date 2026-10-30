@@ -531,9 +531,12 @@ std::size_t load_save_record_assets(SceneState& state) {
     if (!state.anims_library || !state.actor_assets_known) return 0;
     std::size_t loaded = 0;
     for (auto& [id, record] : state.records) {
-        // 0x426b9d: marker 0 is "record only", marker 1 also calls 0x40fe70.
-        if (record.marker != 1) continue;
         if (id >= state.actor_assets.size()) continue;
+        // 0x425ab4 preloads CA type 2/3 before 0x426b9d applies marker 0.
+        // Reattach that frame metadata as well as marker-1 lazy assets,
+        // preserving the saved position and current frame.
+        const auto type = state.actor_assets[id].type;
+        if (record.marker != 1 && type != 2 && type != 3) continue;
         const auto asset = state.anims_library->load(state.actor_assets[id].name);
         if (!asset) continue;
         // 0x410078's existing-record branch (param_2[0] != NULL): fill the
@@ -553,7 +556,8 @@ std::size_t load_save_record_assets(SceneState& state) {
     return loaded;
 }
 
-void advance_record_animation(SceneRecordState& record) {
+void advance_record_animation(SceneRecordState& record,
+                              std::optional<std::uint32_t>* callback) {
     const auto snapshot = [&record]() {
         if (record.current_frame) {
             record.frame_index_20 = *record.current_frame;
@@ -575,18 +579,26 @@ void advance_record_animation(SceneRecordState& record) {
     record.field06 = record.field04;
     snapshot();
     const auto count = record.frame_count;
-    if (!record.current_frame || count < 2 || *record.current_frame >= count) return;
+    if (!record.current_frame || count == 0 || *record.current_frame >= count) return;
     const auto index = static_cast<std::uint16_t>(*record.current_frame);
     const auto last = static_cast<std::uint16_t>(count - 1);
+    const auto at_end = [&] {
+        // 0x43bb77 only consumes +0x2c when a live script pointer was supplied.
+        if (callback != nullptr && record.field_2c != 0xffffffffu) {
+            *callback = record.field_2c;
+            record.field_2c = 0xffffffffu;
+        }
+        if ((record.flags & 0x08) != 0) record.flags |= 0x04;
+    };
     if ((record.flags & 0x02) == 0) {
         // Forward leg. `node->next == record->+0x18` means the current node is
         // the tail of the circular list.
         if (index == last) {
-            if ((record.flags & 0x08) != 0) record.flags |= 0x04;
+            at_end();
             if ((record.flags & 0x01) == 0) {
                 if ((record.flags & 0x04) == 0) record.current_frame = 0;
             } else {
-                record.current_frame = static_cast<std::uint16_t>(count - 2);
+                record.current_frame = count > 1 ? static_cast<std::uint16_t>(count - 2) : 0;
                 record.flags |= 0x02;
             }
         } else {
@@ -596,15 +608,40 @@ void advance_record_animation(SceneRecordState& record) {
     }
     // Reverse leg. The node index 0 is the turnaround (`node + 0x14 == 0`).
     if (index == 0) {
+        at_end();
         if ((record.flags & 0x01) == 0) {
             if ((record.flags & 0x04) == 0) record.current_frame = last;
         } else {
-            record.current_frame = 1;
+            record.current_frame = count > 1 ? 1 : 0;
             record.flags = static_cast<std::uint8_t>(record.flags & ~0x02);
         }
     } else {
         record.current_frame = static_cast<std::uint16_t>(index - 1);
     }
+}
+
+std::optional<RecordCallback> advance_record_pass(
+    SceneState& state, const std::vector<std::uint16_t>& ids) {
+    std::optional<RecordCallback> result;
+    for (const auto id : ids) {
+        const auto found = state.records.find(id);
+        if (found == state.records.end()) continue;
+        auto& record = found->second;
+        // Recheck gates: an earlier script callback can replace this draw list.
+        if (record.kind >= 5 || (record.flags & (0x20 | 0x40)) != 0) continue;
+        std::optional<std::uint32_t> label;
+        if (record.current_frame && *record.current_frame < record.frame_count) {
+            const auto extra = std::find_if(record.extra.begin(), record.extra.end(),
+                [&](const auto& item) { return item.second == *record.current_frame; });
+            if (extra != record.extra.end()) {
+                label = extra->first;
+                record.extra.erase(extra); // 0x432be2 removes one matching entry.
+            }
+        }
+        advance_record_animation(record, &label);
+        if (label) result = RecordCallback{id, *label};
+    }
+    return result;
 }
 
 std::size_t advance_record_passes(SceneState& state,
@@ -672,11 +709,12 @@ SceneCompose compose_scene(SceneState& state, Rgb16Surface& target,
     const auto draw_frame = [&](std::uint16_t id, const SceneRecordState& record,
                                 const std::optional<std::uint16_t>& frame,
                                 std::int32_t screen_x, std::int32_t screen_y,
-                                bool snap) -> bool {
+                                bool snap, bool trail = false) -> bool {
         SceneDraw entry;
         entry.id = id;
         entry.kind = record.kind;
         entry.snap = snap;
+        entry.trail = trail;
         if (!frame || !state.anims_library || id >= state.actor_assets.size()) {
             ++result.skipped_no_frame;
             result.records.push_back(entry);
@@ -915,7 +953,7 @@ SceneCompose compose_scene(SceneState& state, Rgb16Surface& target,
             for (const auto& position : record.trail) {
                 if (position.first == record.x && position.second == record.y) continue;
                 draw_frame(it->first, record, record.current_frame, position.first,
-                           position.second, false);
+                           position.second, false, true);
             }
             if ((record.flags & 0x40) != 0) {
                 ++result.skipped_hidden;
@@ -942,7 +980,8 @@ SceneCompose compose_scene(SceneState& state, Rgb16Surface& target,
 static SceneTrace trace_scene_from(const std::vector<CcInstruction>& script,
                                    const std::vector<BackgroundEntry>& entries,
                                    SceneState& state, std::size_t start_pc,
-                                   std::size_t step_budget) {
+                                   std::size_t step_budget,
+                                   const std::vector<std::size_t>& initial_stack = {}) {
     const auto evaluation = diagnostics::evaluation_id();
     diagnostics::write("vm_begin", [&](auto& out) {
         out << "evaluation=" << evaluation << " start=" << start_pc
@@ -954,7 +993,9 @@ static SceneTrace trace_scene_from(const std::vector<CcInstruction>& script,
     for (const auto& hotspot : static_hotspots(script)) {
         hotspots.emplace(hotspot.slot, hotspot);
     }
-    std::vector<std::size_t> return_stack;
+    auto return_stack = initial_stack;
+    if(return_stack.size()>24 || std::any_of(return_stack.begin(),return_stack.end(),[&](auto pc){return pc>script.size();}))
+        throw std::runtime_error("invalid CC continuation stack");
     SceneTrace trace;
     std::size_t pc = start_pc;
     // 0x431b0f(id, opcode): the guard every DAT_004649e8 command shares. The
@@ -1628,9 +1669,10 @@ static SceneTrace trace_scene_from(const std::vector<CcInstruction>& script,
         }
         case 0xc8: {
             // 0x42db22 case 0xc8 (decimal case 200): a sub-command chosen by
-            // the resolved operand 0. 0x1e reseeds _rand from local time (the
-            // stream is not reproducible), 0x1f queries input through
-            // 0x42a579, 0x20 resets/activates the input flag, 0x32/0x33 write
+            // the resolved operand 0. 0x1e initializes the board and reseeds
+            // _rand from host-supplied time; 0x1f executes a board turn through
+            // 0x42a579; 0x20 releases the board and activates the input flag;
+            // 0x32/0x33 write
             // DAT_00460668, and 0x36..0x3a request a status.000 write through
             // 0x427389. 0x21..0x31/0x34/0x35 are no-ops.
             const auto sub = scene_value(instruction.arguments.at(0), state.variables);
@@ -1654,11 +1696,16 @@ static SceneTrace trace_scene_from(const std::vector<CcInstruction>& script,
             }
             trace.system_commands.push_back(command);
             if (*sub == 0x1e) {
-                // 0x42a6aa: srand(local time); _rand(); 0x42913b(); input 0.
+                // 0x42a6aa seeds the CRT stream, discards one draw and
+                // initializes the 24-node board. A pure VM needs host time.
                 state.dialogue_input_active = false;
-                trace.unresolved_random = true;
-                trace.stopped_at = current;
-                pc = script.size();
+                if (!state.morris_seed) {
+                    trace.unresolved_random = true;trace.stopped_at=current;
+                    pc=script.size();break;
+                }
+                state.random_state=*state.morris_seed;
+                MorrisBoard::random(*state.random_state);
+                state.morris.initialize();
                 break;
             }
             if (*sub == 0x1f) {
@@ -1669,12 +1716,27 @@ static SceneTrace trace_scene_from(const std::vector<CcInstruction>& script,
                     instruction.arguments.at(3).type == 2 &&
                     instruction.arguments.at(4).type == 2;
                 if (!typed) break;  // original no-op
-                trace.unresolved_system_input = *sub;
-                trace.stopped_at = current;
-                pc = script.size();
+                if (!command.argument || !state.random_state) {
+                    trace.unresolved_system_input=*sub;trace.stopped_at=current;
+                    pc=script.size();break;
+                }
+                const auto result=state.morris.play(*command.argument,*state.random_state);
+                if (!result) {
+                    trace.unresolved_system_input=*sub;trace.stopped_at=current;
+                    pc=script.size();break;
+                }
+                // Outputs are computer point, result code and mill line id.
+                // Unwritten local_24 on a human win is not fabricated.
+                if(result->computer)write_variable(state,encoded_word(instruction.arguments.at(2)),
+                    static_cast<std::uint16_t>(*result->computer));
+                write_variable(state,encoded_word(instruction.arguments.at(3)),
+                    static_cast<std::uint16_t>(result->status));
+                write_variable(state,encoded_word(instruction.arguments.at(4)),
+                    static_cast<std::uint16_t>(result->line));
                 break;
             }
             if (*sub == 0x20) {
+                state.morris = MorrisBoard{};
                 state.dialogue_input_active = true;
                 break;
             }
@@ -2144,6 +2206,7 @@ static SceneTrace trace_scene_from(const std::vector<CcInstruction>& script,
                 break;
             }
             trace.disc_request = *disc;
+            trace.disc_return_stack = return_stack;
             trace.stopped_at = current;
             pc = script.size();
             break;
@@ -2650,11 +2713,12 @@ SceneTrace trace_scene_label(const std::vector<CcInstruction>& script,
 SceneTrace trace_scene_from_instruction(const std::vector<CcInstruction>& script,
                                         const std::vector<BackgroundEntry>& entries,
                                         SceneState& state, std::size_t instruction,
-                                        std::size_t step_budget) {
+                                        std::size_t step_budget,
+                                        const std::vector<std::size_t>& return_stack) {
     if (instruction > script.size()) {
         throw std::runtime_error("conversation resume instruction outside the script");
     }
-    return trace_scene_from(script, entries, state, instruction, step_budget);
+    return trace_scene_from(script, entries, state, instruction, step_budget, return_stack);
 }
 
 std::size_t apply_conversation_result(const std::vector<CcInstruction>& script,

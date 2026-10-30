@@ -1,0 +1,765 @@
+{
+  "schema": 1,
+  "scope": "port behavior contracts from shipped data and recovered rules; original-runtime equivalence unverified",
+  "cases": [
+    {
+      "name": "map-mr-arrival",
+      "seed": {
+        "id": "map-mr-arrival",
+        "scene": "MAP",
+        "save": "45.btb",
+        "label": 0,
+        "restore": true
+      },
+      "actions": [
+        {
+          "id": "hotspot_47",
+          "category": "hotspot",
+          "commands": [
+            "click 192 320"
+          ]
+        }
+      ],
+      "choices": [],
+      "checks": [
+        {
+          "at": 0,
+          "path": [
+            "scene"
+          ],
+          "op": "eq",
+          "value": "map"
+        },
+        {
+          "at": 1,
+          "path": [
+            "scene"
+          ],
+          "op": "eq",
+          "value": "mr"
+        },
+        {
+          "at": 1,
+          "path": [
+            "background"
+          ],
+          "op": "eq",
+          "value": "mrdoorop"
+        },
+        {
+          "at": 1,
+          "path": [
+            "active_slots"
+          ],
+          "op": "nonempty",
+          "value": null
+        }
+      ],
+      "media": true,
+      "evidence": "campaign-2000 fixture F0003 plus source presentation/click/inventory rules"
+    },
+    {
+      "name": "mr-map-departure",
+      "seed": {
+        "id": "mr-map-departure",
+        "scene": "MR",
+        "save": "30.btb",
+        "label": 0,
+        "restore": true
+      },
+      "actions": [
+        {
+          "id": "hotspot_42",
+          "category": "hotspot",
+          "commands": [
+            "click 352 220"
+          ]
+        },
+        {
+          "id": "hotspot_1",
+          "category": "hotspot",
+          "commands": [
+            "click 320 252"
+          ]
+        }
+      ],
+      "choices": [],
+      "checks": [
+        {
+          "at": 0,
+          "path": [
+            "scene"
+          ],
+          "op": "eq",
+          "value": "mr"
+        },
+        {
+          "at": 2,
+          "path": [
+            "scene"
+          ],
+          "op": "eq",
+          "value": "map"
+        },
+        {
+          "at": 2,
+          "path": [
+            "active_slots"
+          ],
+          "op": "nonempty"
+        }
+      ],
+      "media": false,
+      "evidence": "campaign F0020: MR30 departure state; distinct from arrival state of MAP45"
+    },
+    {
+      "name": "map-am-arrival",
+      "seed": {
+        "id": "map-am-arrival",
+        "scene": "MAP",
+        "save": "33.btb",
+        "label": 0,
+        "restore": true
+      },
+      "actions": [
+        {
+          "id": "hotspot_35",
+          "category": "hotspot",
+          "commands": [
+            "click 356 232"
+          ]
+        }
+      ],
+      "choices": [],
+      "checks": [
+        {
+          "at": 0,
+          "path": [
+            "scene"
+          ],
+          "op": "eq",
+          "value": "map"
+        },
+        {
+          "at": 1,
+          "path": [
+            "scene"
+          ],
+          "op": "eq",
+          "value": "am"
+        },
+        {
+          "at": 1,
+          "path": [
+            "background"
+          ],
+          "op": "eq",
+          "value": "amfountn"
+        },
+        {
+          "at": 1,
+          "path": [
+            "active_slots"
+          ],
+          "op": "nonempty",
+          "value": null
+        }
+      ],
+      "media": true,
+      "evidence": "campaign-2000 fixture F0005 plus source presentation/click/inventory rules"
+    },
+    {
+      "name": "key-examine-return",
+      "seed": {
+        "id": "key-examine-return",
+        "scene": "VT",
+        "save": "72.btb",
+        "label": 0,
+        "restore": true
+      },
+      "actions": [
+        {
+          "id": "item_25",
+          "category": "inventory",
+          "commands": [
+            "click 190 450"
+          ]
+        },
+        {
+          "id": "examine",
+          "category": "examine",
+          "commands": [
+            "click 24 450"
+          ]
+        },
+        {
+          "id": "hotspot_5",
+          "category": "hotspot",
+          "commands": [
+            "click 588 368"
+          ]
+        }
+      ],
+      "choices": [],
+      "checks": [
+        {
+          "at": 1,
+          "path": [
+            "selected"
+          ],
+          "op": "eq",
+          "value": 25
+        },
+        {
+          "at": 2,
+          "path": [
+            "background"
+          ],
+          "op": "eq",
+          "value": "examine/ekey"
+        },
+        {
+          "at": 2,
+          "path": [
+            "inventory_ui",
+            "return_armed"
+          ],
+          "op": "eq",
+          "value": true
+        },
+        {
+          "at": 2,
+          "path": [
+            "inventory_ui",
+            "using"
+          ],
+          "op": "eq",
+          "value": 25
+        },
+        {
+          "at": 3,
+          "path": [
+            "scene"
+          ],
+          "op": "eq",
+          "value": "vt"
+        },
+        {
+          "at": 3,
+          "path": [
+            "inventory_ui",
+            "return_armed"
+          ],
+          "op": "eq",
+          "value": false
+        },
+        {
+          "at": 3,
+          "path": [
+            "background"
+          ],
+          "op": "equal_checkpoint",
+          "other_at": 0,
+          "other_path": [
+            "background"
+          ]
+        },
+        {
+          "at": 3,
+          "path": [
+            "active_slots"
+          ],
+          "op": "nonempty",
+          "value": null
+        }
+      ],
+      "media": false,
+      "evidence": "campaign-2000 fixture F0007 plus source presentation/click/inventory rules"
+    },
+    {
+      "name": "examine-switch-return",
+      "seed": {
+        "id": "examine-switch-return",
+        "scene": "VH",
+        "save": "68.btb",
+        "label": 0,
+        "restore": true
+      },
+      "actions": [
+        {
+          "id": "item_106",
+          "category": "inventory",
+          "commands": [
+            "click 310 450"
+          ]
+        },
+        {
+          "id": "examine",
+          "category": "examine",
+          "commands": [
+            "click 24 450"
+          ]
+        },
+        {
+          "id": "item_104",
+          "category": "inventory",
+          "commands": [
+            "click 190 450"
+          ]
+        },
+        {
+          "id": "item_108",
+          "category": "inventory",
+          "commands": [
+            "click 490 450"
+          ]
+        },
+        {
+          "id": "item_103",
+          "category": "inventory",
+          "commands": [
+            "click 370 450"
+          ]
+        },
+        {
+          "id": "hotspot_0",
+          "category": "hotspot",
+          "commands": [
+            "click 588 368"
+          ]
+        }
+      ],
+      "choices": [],
+      "checks": [
+        {
+          "at": 2,
+          "path": [
+            "inventory_ui",
+            "parent_scene"
+          ],
+          "op": "eq",
+          "value": "vh"
+        },
+        {
+          "at": 5,
+          "path": [
+            "inventory_ui",
+            "using"
+          ],
+          "op": "eq",
+          "value": 103
+        },
+        {
+          "at": 5,
+          "path": [
+            "background"
+          ],
+          "op": "eq",
+          "value": "examine/ehelmet"
+        },
+        {
+          "at": 6,
+          "path": [
+            "scene"
+          ],
+          "op": "eq",
+          "value": "vh"
+        },
+        {
+          "at": 6,
+          "path": [
+            "inventory_ui",
+            "return_armed"
+          ],
+          "op": "eq",
+          "value": false
+        }
+      ],
+      "media": false,
+      "evidence": "campaign-2000 fixture F0019 plus source presentation/click/inventory rules"
+    },
+    {
+      "name": "morris-turn-return",
+      "seed": {
+        "id": "morris-turn-return",
+        "scene": "IU",
+        "save": "63.btb",
+        "label": 0,
+        "restore": true
+      },
+      "actions": [
+        {
+          "id": "hotspot_21",
+          "category": "hotspot",
+          "commands": [
+            "click 412 328"
+          ]
+        },
+        {
+          "id": "hotspot_0",
+          "category": "hotspot",
+          "commands": [
+            "click 332 200"
+          ]
+        },
+        {
+          "id": "hotspot_6",
+          "category": "hotspot",
+          "commands": [
+            "click 532 356"
+          ]
+        },
+        {
+          "id": "pick",
+          "category": "hotspot",
+          "commands": [
+            "click 124 112"
+          ]
+        },
+        {
+          "id": "place",
+          "category": "hotspot",
+          "commands": [
+            "click 176 144"
+          ]
+        },
+        {
+          "id": "leave",
+          "category": "hotspot",
+          "commands": [
+            "click 588 372"
+          ]
+        }
+      ],
+      "choices": [],
+      "checks": [
+        {
+          "at": 3,
+          "path": [
+            "scene"
+          ],
+          "op": "eq",
+          "value": "morris"
+        },
+        {
+          "at": 3,
+          "path": [
+            "morris",
+            "initialized"
+          ],
+          "op": "eq",
+          "value": true
+        },
+        {
+          "at": 5,
+          "path": [
+            "morris",
+            "turns"
+          ],
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "at": 5,
+          "path": [
+            "morris",
+            "nodes"
+          ],
+          "op": "count_mask_eq",
+          "value": {
+            "mask": 1,
+            "count": 1
+          }
+        },
+        {
+          "at": 5,
+          "path": [
+            "morris",
+            "nodes"
+          ],
+          "op": "count_mask_eq",
+          "value": {
+            "mask": 2,
+            "count": 1
+          }
+        },
+        {
+          "at": 6,
+          "path": [
+            "scene"
+          ],
+          "op": "eq",
+          "value": "vc"
+        },
+        {
+          "at": 6,
+          "path": [
+            "active_slots"
+          ],
+          "op": "nonempty",
+          "value": null
+        }
+      ],
+      "media": false,
+      "evidence": "campaign-2000 fixture F0015 plus source presentation/click/inventory rules"
+    },
+    {
+      "name": "nuray-answer-0",
+      "seed": {
+        "id": "nuray-answer-0",
+        "scene": "AM",
+        "label": 0,
+        "save": "62.btb",
+        "entry": true,
+        "warmup": [
+          {
+            "id": "turn1",
+            "category": "camera",
+            "commands": [
+              "key Left",
+              "key Left",
+              "key Left",
+              "key Left",
+              "key Left",
+              "key Left",
+              "key Left"
+            ]
+          },
+          {
+            "id": "turn2",
+            "category": "camera",
+            "commands": [
+              "key Left",
+              "key Left",
+              "key Left",
+              "key Left",
+              "key Left",
+              "key Left"
+            ]
+          },
+          {
+            "id": "hotspot_88",
+            "category": "hotspot",
+            "commands": [
+              "click 224 260"
+            ]
+          },
+          {
+            "id": "hotspot_92",
+            "category": "hotspot",
+            "commands": [
+              "click 324 196"
+            ]
+          }
+        ]
+      },
+      "actions": [],
+      "choices": [
+        0
+      ],
+      "checks": [
+        {
+          "at": 0,
+          "path": [
+            "exploration",
+            "decisions"
+          ],
+          "op": "contains_fields",
+          "value": {
+            "scene": "am",
+            "record": 0,
+            "group": 1,
+            "lines": [
+              8,
+              9,
+              10
+            ],
+            "choice": 0
+          }
+        },
+        {
+          "at": 0,
+          "path": [
+            "session_ended"
+          ],
+          "op": "eq",
+          "value": false
+        }
+      ],
+      "media": false,
+      "evidence": "real CD/CCB/CCF/BYZ answer lists; existing dialogue asset contract; assisted warmup declared in seed"
+    },
+    {
+      "name": "nuray-answer-1",
+      "seed": {
+        "id": "nuray-answer-1",
+        "scene": "AM",
+        "label": 0,
+        "save": "62.btb",
+        "entry": true,
+        "warmup": [
+          {
+            "id": "turn1",
+            "category": "camera",
+            "commands": [
+              "key Left",
+              "key Left",
+              "key Left",
+              "key Left",
+              "key Left",
+              "key Left",
+              "key Left"
+            ]
+          },
+          {
+            "id": "turn2",
+            "category": "camera",
+            "commands": [
+              "key Left",
+              "key Left",
+              "key Left",
+              "key Left",
+              "key Left",
+              "key Left"
+            ]
+          },
+          {
+            "id": "hotspot_88",
+            "category": "hotspot",
+            "commands": [
+              "click 224 260"
+            ]
+          },
+          {
+            "id": "hotspot_92",
+            "category": "hotspot",
+            "commands": [
+              "click 324 196"
+            ]
+          }
+        ]
+      },
+      "actions": [],
+      "choices": [
+        1
+      ],
+      "checks": [
+        {
+          "at": 0,
+          "path": [
+            "exploration",
+            "decisions"
+          ],
+          "op": "contains_fields",
+          "value": {
+            "scene": "am",
+            "record": 0,
+            "group": 1,
+            "lines": [
+              8,
+              9,
+              10
+            ],
+            "choice": 1
+          }
+        },
+        {
+          "at": 0,
+          "path": [
+            "session_ended"
+          ],
+          "op": "eq",
+          "value": false
+        }
+      ],
+      "media": false,
+      "evidence": "real CD/CCB/CCF/BYZ answer lists; existing dialogue asset contract; assisted warmup declared in seed"
+    },
+    {
+      "name": "nuray-answer-2",
+      "seed": {
+        "id": "nuray-answer-2",
+        "scene": "AM",
+        "label": 0,
+        "save": "62.btb",
+        "entry": true,
+        "warmup": [
+          {
+            "id": "turn1",
+            "category": "camera",
+            "commands": [
+              "key Left",
+              "key Left",
+              "key Left",
+              "key Left",
+              "key Left",
+              "key Left",
+              "key Left"
+            ]
+          },
+          {
+            "id": "turn2",
+            "category": "camera",
+            "commands": [
+              "key Left",
+              "key Left",
+              "key Left",
+              "key Left",
+              "key Left",
+              "key Left"
+            ]
+          },
+          {
+            "id": "hotspot_88",
+            "category": "hotspot",
+            "commands": [
+              "click 224 260"
+            ]
+          },
+          {
+            "id": "hotspot_92",
+            "category": "hotspot",
+            "commands": [
+              "click 324 196"
+            ]
+          }
+        ]
+      },
+      "actions": [],
+      "choices": [
+        2
+      ],
+      "checks": [
+        {
+          "at": 0,
+          "path": [
+            "exploration",
+            "decisions"
+          ],
+          "op": "contains_fields",
+          "value": {
+            "scene": "am",
+            "record": 0,
+            "group": 1,
+            "lines": [
+              8,
+              9,
+              10
+            ],
+            "choice": 2
+          }
+        },
+        {
+          "at": 0,
+          "path": [
+            "session_ended"
+          ],
+          "op": "eq",
+          "value": false
+        }
+      ],
+      "media": false,
+      "evidence": "real CD/CCB/CCF/BYZ answer lists; existing dialogue asset contract; assisted warmup declared in seed"
+    }
+  ]
+}

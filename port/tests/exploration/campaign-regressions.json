@@ -1,0 +1,726 @@
+[
+  {
+    "id": "F0001",
+    "seed": {
+      "id": "F0001",
+      "scene": "CLOCK",
+      "save": "71.btb",
+      "label": 0,
+      "restore": true
+    },
+    "actions": [],
+    "choices": [],
+    "roundtrip": {
+      "id": "hotspot_30",
+      "category": "hotspot",
+      "commands": [
+        "click 588 368"
+      ]
+    }
+  },
+  {
+    "id": "F0002",
+    "seed": {
+      "id": "F0002",
+      "scene": "MAP",
+      "save": "48.btb",
+      "label": 0,
+      "restore": true
+    },
+    "actions": [],
+    "choices": [],
+    "roundtrip": {
+      "id": "hotspot_34",
+      "category": "hotspot",
+      "commands": [
+        "click 440 264"
+      ]
+    }
+  },
+  {
+    "id": "F0003",
+    "seed": {
+      "id": "F0003",
+      "scene": "MAP",
+      "save": "45.btb",
+      "label": 0,
+      "restore": true
+    },
+    "actions": [
+      {
+        "id": "hotspot_47",
+        "category": "hotspot",
+        "commands": [
+          "click 192 320"
+        ]
+      }
+    ],
+    "choices": [],
+    "roundtrip": {
+      "id": "hotspot_42",
+      "category": "hotspot",
+      "commands": [
+        "click 352 220"
+      ]
+    }
+  },
+  {
+    "id": "F0004",
+    "seed": {
+      "id": "F0004",
+      "scene": "EA",
+      "save": "26.btb",
+      "label": 0,
+      "restore": true
+    },
+    "actions": [
+      {
+        "id": "inventory_next",
+        "category": "inventory",
+        "commands": [
+          "click 586 450"
+        ]
+      }
+    ],
+    "choices": [],
+    "roundtrip": {
+      "id": "hotspot_154",
+      "category": "hotspot",
+      "commands": [
+        "click 604 240"
+      ]
+    }
+  },
+  {
+    "id": "F0005",
+    "seed": {
+      "id": "F0005",
+      "scene": "MAP",
+      "save": "33.btb",
+      "label": 0,
+      "restore": true
+    },
+    "actions": [
+      {
+        "id": "hotspot_35",
+        "category": "hotspot",
+        "commands": [
+          "click 356 232"
+        ]
+      }
+    ],
+    "choices": [],
+    "roundtrip": {
+      "id": "hotspot_83",
+      "category": "hotspot",
+      "commands": [
+        "click 560 128"
+      ]
+    }
+  },
+  {
+    "id": "F0006",
+    "seed": {
+      "id": "F0006",
+      "scene": "MAP",
+      "save": "44.btb",
+      "label": 0,
+      "restore": true
+    },
+    "actions": [
+      {
+        "id": "hotspot_49",
+        "category": "hotspot",
+        "commands": [
+          "click 304 124"
+        ]
+      },
+      {
+        "id": "look_up",
+        "category": "camera",
+        "commands": [
+          "key Up",
+          "key Up",
+          "key Up"
+        ]
+      }
+    ],
+    "choices": [],
+    "roundtrip": {
+      "id": "hotspot_153",
+      "category": "hotspot",
+      "commands": [
+        "click 344 248"
+      ]
+    }
+  },
+  {
+    "id": "F0007",
+    "seed": {
+      "id": "F0007",
+      "scene": "VT",
+      "save": "72.btb",
+      "label": 0,
+      "restore": true
+    },
+    "actions": [
+      {
+        "id": "item_25",
+        "category": "inventory",
+        "commands": [
+          "click 190 450"
+        ]
+      },
+      {
+        "id": "examine",
+        "category": "examine",
+        "commands": [
+          "click 24 450"
+        ]
+      }
+    ],
+    "choices": [],
+    "roundtrip": {
+      "id": "hotspot_5",
+      "category": "hotspot",
+      "commands": [
+        "click 588 368"
+      ]
+    }
+  },
+  {
+    "id": "F0008",
+    "seed": {
+      "id": "F0008",
+      "scene": "MAP",
+      "save": "32.btb",
+      "label": 0,
+      "restore": true
+    },
+    "actions": [
+      {
+        "id": "hotspot_41",
+        "category": "hotspot",
+        "commands": [
+          "click 176 204"
+        ]
+      },
+      {
+        "id": "look_down",
+        "category": "camera",
+        "commands": [
+          "key Down",
+          "key Down",
+          "key Down"
+        ]
+      }
+    ],
+    "choices": [],
+    "roundtrip": {
+      "id": "hotspot_1",
+      "category": "hotspot",
+      "commands": [
+        "click 568 80"
+      ]
+    }
+  },
+  {
+    "id": "F0009",
+    "seed": {
+      "id": "F0009",
+      "scene": "VH",
+      "save": "25.btb",
+      "label": 0,
+      "restore": true
+    },
+    "actions": [
+      {
+        "id": "hotspot_19",
+        "category": "hotspot",
+        "commands": [
+          "click 408 384"
+        ]
+      },
+      {
+        "id": "hotspot_24",
+        "category": "hotspot",
+        "commands": [
+          "click 308 220"
+        ]
+      }
+    ],
+    "choices": [],
+    "roundtrip": {
+      "id": "hotspot_23",
+      "category": "hotspot",
+      "commands": [
+        "click 588 368"
+      ]
+    }
+  },
+  {
+    "id": "F0010",
+    "seed": {
+      "id": "F0010",
+      "scene": "IU",
+      "save": "61.btb",
+      "label": 0,
+      "restore": true
+    },
+    "actions": [
+      {
+        "id": "inventory_previous",
+        "category": "inventory",
+        "commands": [
+          "click 618 450"
+        ]
+      },
+      {
+        "id": "hotspot_21",
+        "category": "hotspot",
+        "commands": [
+          "click 412 328"
+        ]
+      },
+      {
+        "id": "look_down",
+        "category": "camera",
+        "commands": [
+          "key Down",
+          "key Down",
+          "key Down"
+        ]
+      },
+      {
+        "id": "item_100",
+        "category": "inventory",
+        "commands": [
+          "click 490 450"
+        ]
+      }
+    ],
+    "choices": [],
+    "roundtrip": {
+      "id": "hotspot_0",
+      "category": "hotspot",
+      "commands": [
+        "click 332 100"
+      ]
+    }
+  },
+  {
+    "id": "F0011",
+    "seed": {
+      "id": "F0011",
+      "scene": "LINTEL",
+      "save": "59.btb",
+      "label": 0,
+      "restore": true
+    },
+    "actions": [
+      {
+        "id": "hotspot_0",
+        "category": "hotspot",
+        "commands": [
+          "click 440 128"
+        ]
+      },
+      {
+        "id": "hotspot_2",
+        "category": "hotspot",
+        "commands": [
+          "click 180 132"
+        ]
+      }
+    ],
+    "choices": [],
+    "roundtrip": {
+      "id": "hotspot_12",
+      "category": "hotspot",
+      "commands": [
+        "click 588 368"
+      ]
+    }
+  },
+  {
+    "id": "F0012",
+    "seed": {
+      "id": "F0012",
+      "scene": "MAP",
+      "save": "51.btb",
+      "label": 0,
+      "restore": true
+    },
+    "actions": [
+      {
+        "id": "hotspot_41",
+        "category": "hotspot",
+        "commands": [
+          "click 176 204"
+        ]
+      },
+      {
+        "id": "item_32",
+        "category": "inventory",
+        "commands": [
+          "click 250 450"
+        ]
+      },
+      {
+        "id": "examine",
+        "category": "examine",
+        "commands": [
+          "click 24 450"
+        ]
+      },
+      {
+        "id": "hotspot_30",
+        "category": "hotspot",
+        "commands": [
+          "click 324 216"
+        ]
+      },
+      {
+        "id": "hotspot_32",
+        "category": "hotspot",
+        "commands": [
+          "click 588 368"
+        ]
+      }
+    ],
+    "choices": [],
+    "roundtrip": {
+      "id": "hotspot_0",
+      "category": "hotspot",
+      "commands": [
+        "click 588 368"
+      ]
+    }
+  },
+  {
+    "id": "F0013",
+    "seed": {
+      "id": "F0013",
+      "scene": "MAP",
+      "save": "39.btb",
+      "label": 0,
+      "restore": true
+    },
+    "actions": [
+      {
+        "id": "hotspot_13",
+        "category": "hotspot",
+        "commands": [
+          "click 192 320"
+        ]
+      },
+      {
+        "id": "hotspot_40",
+        "category": "hotspot",
+        "commands": [
+          "click 396 220"
+        ]
+      }
+    ],
+    "choices": [],
+    "roundtrip": {
+      "id": "hotspot_1",
+      "category": "hotspot",
+      "commands": [
+        "click 320 252"
+      ]
+    }
+  },
+  {
+    "id": "F0014",
+    "seed": {
+      "id": "F0014",
+      "scene": "HSTMED",
+      "save": "55.btb",
+      "label": 0,
+      "restore": true
+    },
+    "actions": [
+      {
+        "id": "hotspot_47",
+        "category": "hotspot",
+        "commands": [
+          "click 588 368"
+        ]
+      },
+      {
+        "id": "hotspot_39",
+        "category": "hotspot",
+        "commands": [
+          "click 284 348"
+        ]
+      },
+      {
+        "id": "hotspot_46",
+        "category": "hotspot",
+        "commands": [
+          "click 320 220"
+        ]
+      }
+    ],
+    "choices": [],
+    "roundtrip": {
+      "id": "hotspot_48",
+      "category": "hotspot",
+      "commands": [
+        "click 588 368"
+      ]
+    }
+  },
+  {
+    "id": "F0015",
+    "seed": {
+      "id": "F0015",
+      "scene": "IU",
+      "save": "63.btb",
+      "label": 0,
+      "restore": true
+    },
+    "actions": [
+      {
+        "id": "hotspot_21",
+        "category": "hotspot",
+        "commands": [
+          "click 412 328"
+        ]
+      },
+      {
+        "id": "hotspot_0",
+        "category": "hotspot",
+        "commands": [
+          "click 332 200"
+        ]
+      },
+      {
+        "id": "hotspot_6",
+        "category": "hotspot",
+        "commands": [
+          "click 532 356"
+        ]
+      }
+    ],
+    "choices": [],
+    "roundtrip": null
+  },
+  {
+    "id": "F0016",
+    "seed": {
+      "id": "F0016",
+      "scene": "MAP",
+      "save": "51.btb",
+      "label": 0,
+      "restore": true
+    },
+    "actions": [
+      {
+        "id": "hotspot_42",
+        "category": "hotspot",
+        "commands": [
+          "click 104 256"
+        ]
+      },
+      {
+        "id": "item_29",
+        "category": "inventory",
+        "commands": [
+          "click 490 450"
+        ]
+      }
+    ],
+    "choices": [],
+    "roundtrip": {
+      "id": "hotspot_18",
+      "category": "hotspot",
+      "commands": [
+        "click 116 220"
+      ]
+    }
+  },
+  {
+    "id": "F0017",
+    "seed": {
+      "id": "F0017",
+      "scene": "MAP",
+      "save": "35.btb",
+      "label": 0,
+      "restore": true
+    },
+    "actions": [
+      {
+        "id": "hotspot_24",
+        "category": "hotspot",
+        "commands": [
+          "click 320 220"
+        ]
+      },
+      {
+        "id": "look_up",
+        "category": "camera",
+        "commands": [
+          "key Up",
+          "key Up",
+          "key Up"
+        ]
+      },
+      {
+        "id": "hotspot_83",
+        "category": "hotspot",
+        "commands": [
+          "click 552 208"
+        ]
+      },
+      {
+        "id": "look_down",
+        "category": "camera",
+        "commands": [
+          "key Down",
+          "key Down",
+          "key Down"
+        ]
+      }
+    ],
+    "choices": [],
+    "roundtrip": {
+      "id": "hotspot_1",
+      "category": "hotspot",
+      "commands": [
+        "click 548 172"
+      ]
+    }
+  },
+  {
+    "id": "F0018",
+    "seed": {
+      "id": "F0018",
+      "scene": "AS",
+      "save": "38.btb",
+      "label": 0,
+      "restore": true
+    },
+    "actions": [
+      {
+        "id": "item_6",
+        "category": "inventory",
+        "commands": [
+          "click 370 450"
+        ]
+      },
+      {
+        "id": "examine",
+        "category": "examine",
+        "commands": [
+          "click 24 450"
+        ]
+      },
+      {
+        "id": "hotspot_96",
+        "category": "hotspot",
+        "commands": [
+          "click 492 380"
+        ]
+      }
+    ],
+    "choices": [],
+    "roundtrip": {
+      "id": "hotspot_0",
+      "category": "hotspot",
+      "commands": [
+        "click 588 368"
+      ]
+    }
+  },
+  {
+    "id": "F0019",
+    "seed": {
+      "id": "F0019",
+      "scene": "VH",
+      "save": "68.btb",
+      "label": 0,
+      "restore": true
+    },
+    "actions": [
+      {
+        "id": "item_106",
+        "category": "inventory",
+        "commands": [
+          "click 310 450"
+        ]
+      },
+      {
+        "id": "examine",
+        "category": "examine",
+        "commands": [
+          "click 24 450"
+        ]
+      },
+      {
+        "id": "item_104",
+        "category": "inventory",
+        "commands": [
+          "click 190 450"
+        ]
+      },
+      {
+        "id": "item_108",
+        "category": "inventory",
+        "commands": [
+          "click 490 450"
+        ]
+      },
+      {
+        "id": "item_103",
+        "category": "inventory",
+        "commands": [
+          "click 370 450"
+        ]
+      }
+    ],
+    "choices": [],
+    "roundtrip": {
+      "id": "hotspot_0",
+      "category": "hotspot",
+      "commands": [
+        "click 588 368"
+      ]
+    }
+  },
+  {
+    "id": "F0020",
+    "seed": {
+      "id": "F0020",
+      "scene": "MR",
+      "save": "30.btb",
+      "label": 0,
+      "restore": true
+    },
+    "actions": [
+      {
+        "id": "hotspot_42",
+        "category": "hotspot",
+        "commands": [
+          "click 352 220"
+        ]
+      },
+      {
+        "id": "hotspot_1",
+        "category": "hotspot",
+        "commands": [
+          "click 320 252"
+        ]
+      }
+    ],
+    "choices": [],
+    "roundtrip": {
+      "id": "hotspot_34",
+      "category": "hotspot",
+      "commands": [
+        "click 440 264"
+      ]
+    }
+  }
+]

@@ -1,5 +1,6 @@
 #include "byzantine/cc.hpp"
 #include "byzantine/save.hpp"
+#include "byzantine/runtime_save.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -542,8 +543,33 @@ void check_real_save(const std::filesystem::path& path, const std::vector<std::s
 }
 }  // namespace
 
+void check_runtime_companion() {
+    byzantine::RuntimeSave saved;
+    saved.btb={1,2,3};saved.view.scene="test";
+    saved.view.camera={{123.25,-7.5}};
+    saved.view.morris.initialize();saved.view.morris.nodes[4].flags|=2;
+    saved.view.conversation[3].disabled.insert({1,2,3,4});
+    saved.view.conversation[3].slot_2a[4]=byzantine::ConversationSlotValue{5,{1,2,3,4}};
+    saved.closeup=4;saved.parent_btb={4,5};saved.parent.scene="parent";
+    const auto bytes=byzantine::write_runtime_save(saved);
+    const auto restored=byzantine::read_runtime_save(bytes);
+    require(byzantine::write_runtime_save(restored)==bytes,"runtime companion lost data");
+    require(restored.view.camera==saved.view.camera && restored.parent_btb==saved.parent_btb,
+            "runtime camera/parent not preserved");
+    for(auto bad:{std::vector<std::uint8_t>{},std::vector<std::uint8_t>{99,0,0,0}}) {
+        bool refused=false;try {byzantine::read_runtime_save(bad);}catch(const std::exception&){refused=true;}
+        require(refused,"invalid companion accepted");
+    }
+    for(std::size_t length:{std::size_t(8),bytes.size()-1}) {
+        bool refused=false;try {byzantine::read_runtime_save({bytes.begin(),bytes.begin()+length});}
+        catch(const std::exception&){refused=true;}
+        require(refused,"truncated companion accepted");
+    }
+}
+
 int main(int argc, char** argv) {
     try {
+        check_runtime_companion();
         check_chapter_list();
         check_writer_node_extras();
         check_restore_and_object_opcodes();

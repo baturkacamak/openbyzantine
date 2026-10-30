@@ -28,4 +28,4 @@ upper="$(printf '%s' "$scene" | tr '[:lower:]' '[:upper:]')"
 }
 
 echo "continue scene=$upper save=$save"
-exec "$here/scene.sh" "$game_dir" "$upper" 0 "autosave-port.btb" --entry "$@"
+exec "$here/scene.sh" "$game_dir" "$upper" 0 "autosave-port.btb" --restore-save "$@"

@@ -154,12 +154,13 @@ void apply_dialogue_inputs(SceneState& state,
 }
 
 SceneSetup load_scene_setup(const std::string& cc_path,
-                            const std::map<std::string, std::string>& options) {
+                            const std::map<std::string, std::string>& options,
+                            const SaveGame* saved_image) {
     SceneSetup setup;
     setup.scene = std::filesystem::path(cc_path).stem().string();
     const auto save_option = options.find("--save");
-    if (save_option != options.end()) {
-        setup.save = parse_save(read_metadata_file(save_option->second));
+    if (saved_image != nullptr || save_option != options.end()) {
+        setup.save = saved_image ? *saved_image : parse_save(read_metadata_file(save_option->second));
         load_save(setup.state, *setup.save);
         setup.summary = "state_origin=save objects=" +
                         std::to_string(setup.state.objects.size()) +
@@ -196,8 +197,8 @@ SceneSetup load_scene_setup(const std::string& cc_path,
     }
     apply_dialogue_inputs(setup.state, options);
     if (setup.save) {
-        // 0x426b9d marker 1 loads the animation payload after the 0x40-byte
-        // record copy. The anims/CA inputs are only available now.
+        // Reattach marker-0 CA type 2/3 preloads and marker-1 lazy assets.
+        // The anims/CA inputs are only available now.
         const auto records = load_save_record_assets(setup.state);
         if (records != 0) {
             setup.summary += " record_assets=" + std::to_string(records);

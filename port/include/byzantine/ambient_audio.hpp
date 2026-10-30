@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <array>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -83,6 +84,12 @@ public:
     // 0..1 and safe to call while the audio callback runs.
     void set_volumes(float master, float speech, float ambient, float effects);
     void set_muted(bool muted);
+    // Read-only diagnostics, safe while the device callback is running.
+    std::array<float,4> gains() const {
+        return {master_gain_.load(std::memory_order_relaxed),speech_gain_.load(std::memory_order_relaxed),
+                ambient_gain_.load(std::memory_order_relaxed),effects_gain_.load(std::memory_order_relaxed)};
+    }
+    bool muted() const { return muted_.load(std::memory_order_relaxed); }
 
 private:
     struct Voice {

@@ -1,0 +1,5 @@
+[
+  {"id":"ea","scene":"EA","label":602,"save":"26.btb"},
+  {"id":"map","scene":"MAP","label":87,"save":"27.btb"},
+  {"id":"mr","scene":"MR","label":0,"save":"30.btb","entry":true}
+]

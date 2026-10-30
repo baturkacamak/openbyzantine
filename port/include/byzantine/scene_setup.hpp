@@ -54,6 +54,7 @@ struct SceneSetup {
 // --anims, --gameprefs, --cs. `cc_path` is only used for the scene name (the
 // save's DAT_00482428 projection must match it).
 SceneSetup load_scene_setup(const std::string& cc_path,
-                            const std::map<std::string, std::string>& options);
+                            const std::map<std::string, std::string>& options,
+                            const SaveGame* saved_image = nullptr);
 
 }  // namespace byzantine

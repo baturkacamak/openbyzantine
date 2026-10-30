@@ -57,3 +57,10 @@ port/output/
 # Direct CLI runs default to ./byzantine.ini.
 byzantine.ini
 seen_dialogue.txt
+
+port/automation-test
+__pycache__/
+
+port/media_sources.json
+
+/port/byzantine-play.tmp
